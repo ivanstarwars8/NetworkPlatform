@@ -1,0 +1,115 @@
+# UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode
+#
+# XcodeGen specification for the app and Packet Tunnel targets (iOS, macOS).
+# Intended use, on a Mac with XcodeGen installed:
+#
+#   cd Apps && xcodegen generate
+#
+# The generated NetworkPlatform.xcodeproj is not stored in git.
+#
+# Before the first build, replace the placeholders below:
+#   NP_BUNDLE_ID_PREFIX  - a bundle identifier owned by the signing team
+#   DEVELOPMENT_TEAM     - the Apple Developer team identifier
+# and register the App Group and the Network Extension capability for both
+# identifiers in the developer account. Without a paid developer account the
+# targets cannot be signed and the tunnel cannot be installed (STATUS.md).
+#
+# Not covered: tvOS and visionOS targets, the Developer ID system-extension
+# variant of macOS, build variants per engine (ADR-0001 §3, ADR-0005 §3).
+
+name: NetworkPlatform
+
+options:
+  createIntermediateGroups: true
+  deploymentTarget:
+    iOS: "17.0"
+    macOS: "14.0"
+
+packages:
+  NetworkPlatform:
+    path: ..
+
+settings:
+  base:
+    NP_BUNDLE_ID_PREFIX: org.example.networkplatform
+    NP_APP_GROUP: group.$(NP_BUNDLE_ID_PREFIX)
+    DEVELOPMENT_TEAM: ""
+    MARKETING_VERSION: "0.0.1"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.0"
+
+targets:
+  App-iOS:
+    type: application
+    platform: iOS
+    sources:
+      - path: SharedApp
+        excludes:
+          - "*.entitlements"
+      - path: ../Extensions/PacketTunnel/Shared
+    settings:
+      base:
+        PRODUCT_NAME: NetworkPlatform
+        PRODUCT_BUNDLE_IDENTIFIER: $(NP_BUNDLE_ID_PREFIX)
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        CODE_SIGN_ENTITLEMENTS: SharedApp/App-iOS.entitlements
+    dependencies:
+      - target: PacketTunnel-iOS
+
+  App-macOS:
+    type: application
+    platform: macOS
+    sources:
+      - path: SharedApp
+        excludes:
+          - "*.entitlements"
+      - path: ../Extensions/PacketTunnel/Shared
+    settings:
+      base:
+        PRODUCT_NAME: NetworkPlatform
+        PRODUCT_BUNDLE_IDENTIFIER: $(NP_BUNDLE_ID_PREFIX)
+        GENERATE_INFOPLIST_FILE: YES
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_ENTITLEMENTS: SharedApp/App-macOS.entitlements
+    dependencies:
+      - target: PacketTunnel-macOS
+
+  PacketTunnel-iOS:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ../Extensions/PacketTunnel
+        excludes:
+          - "*.plist"
+          - "*.entitlements"
+    settings:
+      base:
+        PRODUCT_NAME: PacketTunnel
+        PRODUCT_BUNDLE_IDENTIFIER: $(NP_BUNDLE_ID_PREFIX).PacketTunnel
+        INFOPLIST_FILE: ../Extensions/PacketTunnel/Info.plist
+        CODE_SIGN_ENTITLEMENTS: ../Extensions/PacketTunnel/PacketTunnel-iOS.entitlements
+    dependencies:
+      - package: NetworkPlatform
+        product: CoreAbstraction
+      - sdk: NetworkExtension.framework
+
+  PacketTunnel-macOS:
+    type: app-extension
+    platform: macOS
+    sources:
+      - path: ../Extensions/PacketTunnel
+        excludes:
+          - "*.plist"
+          - "*.entitlements"
+    settings:
+      base:
+        PRODUCT_NAME: PacketTunnel
+        PRODUCT_BUNDLE_IDENTIFIER: $(NP_BUNDLE_ID_PREFIX).PacketTunnel
+        INFOPLIST_FILE: ../Extensions/PacketTunnel/Info.plist
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_ENTITLEMENTS: ../Extensions/PacketTunnel/PacketTunnel-macOS.entitlements
+    dependencies:
+      - package: NetworkPlatform
+        product: CoreAbstraction
+      - sdk: NetworkExtension.framework
