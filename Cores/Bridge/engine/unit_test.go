@@ -110,8 +110,9 @@ func TestLogQueueDropsOldestAndCounts(t *testing.T) {
 		t.Fatal("producer blocked")
 	}
 	q.close()
-	if _, ok := q.pop(nil, 0, time.Second); ok {
-		// drained with max=0 leaves records; closed and non-empty still reports ok
+	q.pop(nil, 1000, 0)
+	if _, ok := q.pop(nil, 10, time.Second); ok {
+		t.Fatal("closed and drained queue still reports ok")
 	}
 }
 
@@ -475,5 +476,29 @@ func TestLogsDeliveredAndEnvRestored(t *testing.T) {
 	}
 	if h := e.Health(); h.LogProduced == 0 {
 		t.Errorf("health: %+v", h)
+	}
+}
+
+func TestTunReadWakesOnStop(t *testing.T) {
+	e := New()
+	if err := e.Start(context.Background(), []byte(tunConfig("")), Options{Tun: TunOptions{Mode: TunFlow}}); err != nil {
+		t.Fatal(err)
+	}
+	got := make(chan *Error, 1)
+	go func() {
+		_, err := e.TunRead(make([]byte, 2048), -1)
+		got <- err
+	}()
+	time.Sleep(50 * time.Millisecond)
+	if err := e.Stop(5 * time.Second); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-got:
+		if CodeOf(err) != CodeClosed {
+			t.Fatalf("parked reader got %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("TunRead stayed parked after Stop")
 	}
 }

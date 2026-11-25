@@ -130,7 +130,7 @@ func (d *flowDevice) writeBatch(batch []byte) (int, *Error) {
 func (d *flowDevice) counters() TunCounters {
 	q := d.out
 	q.mu.Lock()
-	c := TunCounters{TxPackets: q.packets, TxBytes: q.bytes, TxDropped: q.dropped, TxQueueHighest: q.highest, TxQueueBytes: len(q.buf)}
+	c := TunCounters{TxPackets: q.packets, TxBytes: q.bytes, TxDropped: q.dropped, TxQueueHighest: q.highest, TxQueueBytes: q.capacity}
 	q.mu.Unlock()
 	c.RxPackets, c.RxBytes = d.rxPackets.Load(), d.rxBytes.Load()
 	c.RxMalformed, c.RxNoStack = d.rxMalformed.Load(), d.rxNoStack.Load()

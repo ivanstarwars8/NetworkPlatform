@@ -519,3 +519,5 @@ func startWireRelay(t testing.TB, serverPort int) *wireRelay {
 }
 
 func getenv(k string) string { return os.Getenv(k) }
+
+func jsonUnmarshal(s string, v any) error { return json.Unmarshal([]byte(s), v) }

@@ -29,14 +29,15 @@ type packetQueue struct {
 	closed bool
 	notify chan struct{} // capacity 1
 
-	packets uint64
-	bytes   uint64
-	dropped uint64
-	highest int // high-water mark of used
+	packets  uint64
+	bytes    uint64
+	dropped  uint64
+	highest  int // high-water mark of used
+	capacity int // len(buf), kept for the counters after close
 }
 
 func newPacketQueue(capacity int) *packetQueue {
-	return &packetQueue{buf: make([]byte, capacity), notify: make(chan struct{}, 1)}
+	return &packetQueue{buf: make([]byte, capacity), capacity: capacity, notify: make(chan struct{}, 1)}
 }
 
 func (q *packetQueue) put(off int, p []byte) {
@@ -136,9 +137,12 @@ func (q *packetQueue) read(dst []byte, timeout time.Duration) (int, *Error) {
 	}
 }
 
+// close drops what is queued and releases the buffer right away: timers of the core's stack may keep the
+// device reachable for seconds after a stop.
 func (q *packetQueue) close() {
 	q.mu.Lock()
 	q.closed = true
+	q.buf, q.used, q.r = nil, 0, 0
 	q.mu.Unlock()
 	select {
 	case q.notify <- struct{}{}:

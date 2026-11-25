@@ -96,11 +96,12 @@ type run struct {
 	gone    chan struct{} // closed when the run is fully torn down
 	stopErr *Error        // valid after gone
 
-	instance  *core.Instance
-	device    *flowDevice
-	memory    *memoryControl
-	env       []envRestore
-	startedAt time.Time
+	instance       *core.Instance
+	cancelInstance context.CancelFunc
+	device         *flowDevice
+	memory         *memoryControl
+	env            []envRestore
+	startedAt      time.Time
 }
 
 type envRestore struct {
@@ -328,7 +329,12 @@ func (r *run) bringUp() (rerr *Error) {
 	activeLogQueue.Store(r.engine.logs.Load())
 	r.memory = applyMemory(opts.Memory)
 
-	instance, err := core.New(prep.config)
+	// The instance context is the parent of every session the core's inbounds start. instance.Close() closes
+	// listeners and features but leaves established sessions to their idle timers; cancelling this context
+	// in tearDown is what ends them (verified by TestStartStopCycles).
+	ictx, cancel := context.WithCancel(context.Background())
+	r.cancelInstance = cancel
+	instance, err := core.NewWithContext(ictx, prep.config)
 	if err != nil {
 		return newError(CodeStartFailed, "create instance: %v", err)
 	}
@@ -378,6 +384,9 @@ func (r *run) tearDown() {
 			}
 		}
 	}()
+	if r.cancelInstance != nil {
+		r.cancelInstance()
+	}
 	if r.device != nil {
 		// Wakes a host thread blocked in TunRead; it gets CodeClosed.
 		_ = r.device.Close()
