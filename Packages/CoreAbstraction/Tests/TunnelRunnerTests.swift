@@ -106,34 +106,35 @@ private func request(coreID: String = "mock", mtu: Int = 1500) -> TunnelStartReq
     )
 }
 
+// Free functions, so that tasks in the tests do not capture the test case.
+private func start(
+    _ session: TunnelSession,
+    _ interface: FakeInterface,
+    _ core: MockCore,
+    deadlines: TunnelDeadlines = fastDeadlines,
+    request startRequest: TunnelStartRequest = request()
+) async throws {
+    _ = try await TunnelRunner.start(session: session, deadlines: deadlines, hooks: interface.hooks()) {
+        (startRequest, core)
+    }
+}
+
+private func startError(
+    _ session: TunnelSession,
+    _ interface: FakeInterface,
+    _ core: MockCore,
+    deadlines: TunnelDeadlines = fastDeadlines,
+    request startRequest: TunnelStartRequest = request()
+) async -> Error? {
+    do {
+        try await start(session, interface, core, deadlines: deadlines, request: startRequest)
+        return nil
+    } catch {
+        return error
+    }
+}
+
 final class TunnelRunnerTests: XCTestCase {
-    private func start(
-        _ session: TunnelSession,
-        _ interface: FakeInterface,
-        _ core: MockCore,
-        deadlines: TunnelDeadlines = fastDeadlines,
-        request startRequest: TunnelStartRequest = request()
-    ) async throws {
-        _ = try await TunnelRunner.start(session: session, deadlines: deadlines, hooks: interface.hooks()) {
-            (startRequest, core)
-        }
-    }
-
-    private func startError(
-        _ session: TunnelSession,
-        _ interface: FakeInterface,
-        _ core: MockCore,
-        deadlines: TunnelDeadlines = fastDeadlines,
-        request startRequest: TunnelStartRequest = request()
-    ) async -> Error? {
-        do {
-            try await start(session, interface, core, deadlines: deadlines, request: startRequest)
-            return nil
-        } catch {
-            return error
-        }
-    }
-
     // MARK: Plain paths
 
     func testStartThenStop() async throws {
@@ -275,7 +276,7 @@ final class TunnelRunnerTests: XCTestCase {
         core.setHonoursCancellation(true)
         core.setDelay(milliseconds: 10_000, for: .start)
 
-        let starter = Task { await self.startError(session, interface, core) }
+        let starter = Task { await startError(session, interface, core) }
         let inEngine = await waitUntil { core.commandCalls == [.start] }
         XCTAssertTrue(inEngine)
 
@@ -299,7 +300,7 @@ final class TunnelRunnerTests: XCTestCase {
         interface.setApplyDelay(milliseconds: 200)
         let core = MockCore()
 
-        let starter = Task { await self.startError(session, interface, core) }
+        let starter = Task { await startError(session, interface, core) }
         let applying = await waitUntil { interface.events == [.apply] }
         XCTAssertTrue(applying)
         await TunnelRunner.stop(session: session, deadlines: fastDeadlines, hooks: interface.hooks())
@@ -320,7 +321,7 @@ final class TunnelRunnerTests: XCTestCase {
         let core = MockCore()
         core.setDelay(milliseconds: 150, for: .start)
 
-        let starter = Task { await self.startError(session, interface, core) }
+        let starter = Task { await startError(session, interface, core) }
         let inEngine = await waitUntil { core.commandCalls == [.start] }
         XCTAssertTrue(inEngine)
         await TunnelRunner.stop(session: session, deadlines: fastDeadlines, hooks: interface.hooks())
@@ -369,7 +370,7 @@ final class TunnelRunnerTests: XCTestCase {
         failing.setError(MockCore.Failure("x"), for: .start)
         failing.setDelay(milliseconds: 200, for: .stop)
 
-        let starter = Task { await self.startError(session, interface, failing) }
+        let starter = Task { await startError(session, interface, failing) }
         let unwinding = await waitUntil { failing.commandCalls == [.start, .stop] }
         XCTAssertTrue(unwinding)
 
@@ -487,7 +488,7 @@ final class TunnelRunnerTests: XCTestCase {
                 for (index, core) in cores.enumerated() {
                     group.addTask {
                         try? await Task.sleep(nanoseconds: UInt64(index) * 1_000_000)
-                        return await self.startError(session, interface, core) == nil
+                        return await startError(session, interface, core) == nil
                     }
                     group.addTask {
                         try? await Task.sleep(nanoseconds: UInt64(index) * 1_500_000)
