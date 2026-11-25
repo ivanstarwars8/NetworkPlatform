@@ -77,6 +77,9 @@ func New() *Engine {
 	return e
 }
 
+// testHookBringUp, when set by a test, runs inside the boot goroutine before the core instance is created.
+var testHookBringUp func()
+
 // run is one start..stop cycle.
 type run struct {
 	engine *Engine
@@ -306,6 +309,9 @@ func (r *run) bringUp() (rerr *Error) {
 		return perr
 	}
 	r.prep = prep
+	if testHookBringUp != nil {
+		testHookBringUp()
+	}
 	if prep.summary.HasTun && opts.Tun.Mode == TunNone {
 		return newError(CodeConfigUnsupport, "config has a tun inbound but tun.mode is not set")
 	}
