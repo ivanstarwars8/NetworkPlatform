@@ -311,7 +311,7 @@ func startServer(t testing.TB, config string, waitPort int) {
 		}
 		t.Cleanup(func() {
 			_ = cmd.Process.Kill()
-			_, _ = cmd.Process.Wait()
+			_ = cmd.Wait() // also waits for the goroutine that copies the output
 			if t.Failed() {
 				t.Logf("stock xray output:\n%s", out.String())
 			}

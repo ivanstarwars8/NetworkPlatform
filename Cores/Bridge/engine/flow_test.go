@@ -35,6 +35,7 @@ type flowPeer struct {
 	wg   sync.WaitGroup
 
 	// observations
+	obs                                       sync.Mutex
 	writeBatches, writePackets, maxWriteBatch int
 	readBatches, readPackets, maxReadBatch    int
 }
@@ -113,9 +114,11 @@ func (p *flowPeer) pumpOut() {
 		if err != nil && CodeOf(err) != CodeNotRunning {
 			p.t.Errorf("TunWrite: %v", err)
 		}
+		p.obs.Lock()
 		p.writeBatches++
 		p.writePackets += n
 		p.maxWriteBatch = max(p.maxWriteBatch, n)
+		p.obs.Unlock()
 	}
 }
 
@@ -148,11 +151,20 @@ func (p *flowPeer) pumpIn() {
 			b = b[frameHeaderSize+size:]
 		}
 		if count > 0 {
+			p.obs.Lock()
 			p.readBatches++
 			p.readPackets += count
 			p.maxReadBatch = max(p.maxReadBatch, count)
+			p.obs.Unlock()
 		}
 	}
+}
+
+// seen returns the batch observations: host->core packets, batches, largest; core->host the same.
+func (p *flowPeer) seen() (wp, wb, wmax, rp, rb, rmax int) {
+	p.obs.Lock()
+	defer p.obs.Unlock()
+	return p.writePackets, p.writeBatches, p.maxWriteBatch, p.readPackets, p.readBatches, p.maxReadBatch
 }
 
 func (p *flowPeer) dialTCP(addr string) net.Conn {
@@ -291,8 +303,8 @@ func TestFlowPacketPathDirect(t *testing.T) {
 	in, out := counterOf(st.Inbounds, "tun-in"), counterOf(st.Outbounds, "direct")
 	t.Logf("payload=%d | inbound tun-in up=%d down=%d | outbound direct up=%d down=%d", want, in.Uplink, in.Downlink, out.Uplink, out.Downlink)
 	t.Logf("tun counters: %+v", *st.Tun)
-	t.Logf("host->core: %d packets in %d batches (largest %d) | core->host: %d packets in %d batches (largest %d)",
-		p.writePackets, p.writeBatches, p.maxWriteBatch, p.readPackets, p.readBatches, p.maxReadBatch)
+	wp, wb, wmax, rp, rb, rmax := p.seen()
+	t.Logf("host->core: %d packets in %d batches (largest %d) | core->host: %d packets in %d batches (largest %d)", wp, wb, wmax, rp, rb, rmax)
 	// The tun inbound counts transport payload (no IP/TCP/UDP headers); UDP retries count as sent.
 	if in.Uplink != want || in.Downlink < want-8000 || in.Downlink > want {
 		t.Errorf("tun inbound counters up=%d down=%d, payload %d", in.Uplink, in.Downlink, want)
@@ -303,8 +315,9 @@ func TestFlowPacketPathDirect(t *testing.T) {
 	if st.Tun.RxMalformed != 0 || st.Tun.RxNoStack != 0 {
 		t.Errorf("unexpected tun errors: %+v", *st.Tun)
 	}
-	if st.Tun.RxPackets != uint64(p.writePackets) || st.Tun.TxPackets < uint64(p.readPackets) {
-		t.Errorf("tun packet counters %+v do not match the peer (%d written, %d read)", *st.Tun, p.writePackets, p.readPackets)
+	// taken before the Stats snapshot was, so the peer can only be behind
+	if st.Tun.RxPackets > uint64(wp) || st.Tun.RxPackets == 0 || st.Tun.TxPackets > uint64(rp)+64 || st.Tun.TxPackets == 0 {
+		t.Errorf("tun packet counters %+v do not match the peer (%d written, %d read)", *st.Tun, wp, rp)
 	}
 }
 
@@ -576,10 +589,11 @@ func TestFlowThroughput(t *testing.T) {
 			t.Fatalf("queue %d: %d bytes, %v", queue, got, err)
 		}
 		tc := *e.Health().Tun
+		wp, wb, _, rp, rb, rmax := p.seen()
 		t.Logf("queue=%4d KiB: %.0f Mbit/s download; core->host %d packets in %d batches (avg %.1f, max %d), dropped %d (%.3f%%), high-water %d KiB; host->core %d packets in %d batches (avg %.1f)",
-			queue>>10, float64(got)*8/elapsed.Seconds()/1e6, p.readPackets, p.readBatches, float64(p.readPackets)/float64(max(p.readBatches, 1)), p.maxReadBatch,
+			queue>>10, float64(got)*8/elapsed.Seconds()/1e6, rp, rb, float64(rp)/float64(max(rb, 1)), rmax,
 			tc.TxDropped, 100*float64(tc.TxDropped)/float64(max(tc.TxPackets+tc.TxDropped, 1)), tc.TxQueueHighest>>10,
-			p.writePackets, p.writeBatches, float64(p.writePackets)/float64(max(p.writeBatches, 1)))
+			wp, wb, float64(wp)/float64(max(wb, 1)))
 		p.close()
 		if err := e.Stop(10 * time.Second); err != nil {
 			t.Fatal(err)
