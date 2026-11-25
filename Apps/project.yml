@@ -14,6 +14,24 @@
 # identifiers in the developer account. Without a paid developer account the
 # targets cannot be signed and the tunnel cannot be installed (STATUS.md).
 #
+# App Group (NP_APP_GROUP). The app writes the start request into the group
+# container and the extension reads it (Shared/ConfigurationHandoff.swift),
+# so both targets of a platform must name the same group, in the entitlements
+# and in the Info.plist key NPAppGroupIdentifier. The identifier has a
+# different form per platform:
+#   iOS    group.<id>            registered in the developer account
+#   macOS  <TeamID>.<id>         the form macOS has always accepted without a
+#                                provisioning profile; $(TeamIdentifierPrefix)
+#                                expands to "<TeamID>." when the target is
+#                                signed with a team
+# Whether macOS accepts the iOS form for a sandboxed extension depends on the
+# OS version and the provisioning profile and was not tested; the macOS form
+# is used because it is the one that does not depend on either. [U]
+#
+# Nothing here relies on XcodeGen defaults for behaviour that matters:
+# embedding of the extension, linking of NetworkExtension, the Info.plist of
+# every target and code signing are all stated explicitly.
+#
 # Not covered: tvOS and visionOS targets, the Developer ID system-extension
 # variant of macOS, build variants per engine (ADR-0001 §3, ADR-0005 §3).
 
@@ -32,11 +50,14 @@ packages:
 settings:
   base:
     NP_BUNDLE_ID_PREFIX: org.example.networkplatform
-    NP_APP_GROUP: group.$(NP_BUNDLE_ID_PREFIX)
     DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
     MARKETING_VERSION: "0.0.1"
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.0"
+    # Reports data-race problems as warnings in Swift 5 mode; the sources
+    # are written to pass it, which the first build has to confirm.
+    SWIFT_STRICT_CONCURRENCY: complete
 
 targets:
   App-iOS:
@@ -46,16 +67,23 @@ targets:
       - path: SharedApp
         excludes:
           - "*.entitlements"
+          - "*.plist"
       - path: ../Extensions/PacketTunnel/Shared
     settings:
       base:
         PRODUCT_NAME: NetworkPlatform
         PRODUCT_BUNDLE_IDENTIFIER: $(NP_BUNDLE_ID_PREFIX)
+        NP_APP_GROUP: group.$(NP_BUNDLE_ID_PREFIX)
+        # Info.plist carries only the keys Xcode cannot generate; the rest
+        # is generated and merged into it.
+        INFOPLIST_FILE: SharedApp/Info.plist
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         CODE_SIGN_ENTITLEMENTS: SharedApp/App-iOS.entitlements
     dependencies:
       - target: PacketTunnel-iOS
+        embed: true
+      - sdk: NetworkExtension.framework
 
   App-macOS:
     type: application
@@ -64,16 +92,21 @@ targets:
       - path: SharedApp
         excludes:
           - "*.entitlements"
+          - "*.plist"
       - path: ../Extensions/PacketTunnel/Shared
     settings:
       base:
         PRODUCT_NAME: NetworkPlatform
         PRODUCT_BUNDLE_IDENTIFIER: $(NP_BUNDLE_ID_PREFIX)
+        NP_APP_GROUP: $(TeamIdentifierPrefix)$(NP_BUNDLE_ID_PREFIX)
+        INFOPLIST_FILE: SharedApp/Info.plist
         GENERATE_INFOPLIST_FILE: YES
         ENABLE_HARDENED_RUNTIME: YES
         CODE_SIGN_ENTITLEMENTS: SharedApp/App-macOS.entitlements
     dependencies:
       - target: PacketTunnel-macOS
+        embed: true
+      - sdk: NetworkExtension.framework
 
   PacketTunnel-iOS:
     type: app-extension
@@ -87,7 +120,11 @@ targets:
       base:
         PRODUCT_NAME: PacketTunnel
         PRODUCT_BUNDLE_IDENTIFIER: $(NP_BUNDLE_ID_PREFIX).PacketTunnel
+        NP_APP_GROUP: group.$(NP_BUNDLE_ID_PREFIX)
         INFOPLIST_FILE: ../Extensions/PacketTunnel/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SKIP_INSTALL: YES
         CODE_SIGN_ENTITLEMENTS: ../Extensions/PacketTunnel/PacketTunnel-iOS.entitlements
     dependencies:
       - package: NetworkPlatform
@@ -106,7 +143,11 @@ targets:
       base:
         PRODUCT_NAME: PacketTunnel
         PRODUCT_BUNDLE_IDENTIFIER: $(NP_BUNDLE_ID_PREFIX).PacketTunnel
+        NP_APP_GROUP: $(TeamIdentifierPrefix)$(NP_BUNDLE_ID_PREFIX)
         INFOPLIST_FILE: ../Extensions/PacketTunnel/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SKIP_INSTALL: YES
         ENABLE_HARDENED_RUNTIME: YES
         CODE_SIGN_ENTITLEMENTS: ../Extensions/PacketTunnel/PacketTunnel-macOS.entitlements
     dependencies:

@@ -1,4 +1,4 @@
-// Verified on Linux only (Swift 5.10.1, swift test, 2026-11-24). Not yet built or run on Apple platforms.
+// Verified on Linux only (Swift 5.10.1, swift test, 2026-11-25). Not yet built or run on Apple platforms.
 import Foundation
 import XCTest
 @testable import CoreAbstraction
@@ -13,6 +13,7 @@ final class MockCore: NetworkCore, @unchecked Sendable {
         case reload
         case statistics
         case health
+        case systemEvent
     }
 
     struct Failure: Error, CustomStringConvertible, Equatable {
@@ -34,6 +35,11 @@ final class MockCore: NetworkCore, @unchecked Sendable {
     private var lastStart: (configuration: CoreConfiguration, options: CoreStartOptions)?
     private var lastReload: CoreConfiguration?
     private var report = CoreValidationReport.valid
+    private var honoursCancellation = false
+    private var hanging: Set<Call> = []
+    private var hangWaiters: [Call: [CheckedContinuation<Void, Never>]] = [:]
+    private var cancellationsSeen: [Call] = []
+    private var events: [CoreSystemEvent] = []
 
     init(
         id: CoreIdentifier = "mock",
@@ -71,6 +77,39 @@ final class MockCore: NetworkCore, @unchecked Sendable {
 
     func setValidationReport(_ newReport: CoreValidationReport) {
         withLock { report = newReport }
+    }
+
+    /// When set, a delayed command stops sleeping and throws
+    /// `CancellationError` as soon as its task is cancelled. Otherwise the
+    /// command ignores cancellation, like a call stuck in foreign code.
+    func setHonoursCancellation(_ value: Bool) {
+        withLock { honoursCancellation = value }
+    }
+
+    /// Makes `call` block (ignoring cancellation) until `releaseHang`.
+    func setHang(for call: Call) {
+        withLock { _ = hanging.insert(call) }
+    }
+
+    func releaseHang(for call: Call) {
+        let waiters = withLock { () -> [CheckedContinuation<Void, Never>] in
+            hanging.remove(call)
+            let current = hangWaiters[call] ?? []
+            hangWaiters[call] = nil
+            return current
+        }
+        for waiter in waiters {
+            waiter.resume()
+        }
+    }
+
+    /// Commands that observed cancellation of their task.
+    var cancelledCalls: [Call] {
+        withLock { cancellationsSeen }
+    }
+
+    var receivedEvents: [CoreSystemEvent] {
+        withLock { events }
     }
 
     var calls: [Call] {
@@ -116,16 +155,48 @@ final class MockCore: NetworkCore, @unchecked Sendable {
         withLock { active -= 1 }
     }
 
+    private func waitWhileHanging(_ call: Call) async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            let resumeNow = withLock { () -> Bool in
+                guard hanging.contains(call) else { return true }
+                hangWaiters[call, default: []].append(continuation)
+                return false
+            }
+            if resumeNow {
+                continuation.resume()
+            }
+        }
+    }
+
     private func runCommand(_ call: Call) async throws {
         let plan = begin(call, isCommand: true)
+        let honours = withLock { honoursCancellation }
+        var cancelled = false
+        await waitWhileHanging(call)
         if plan.delay > 0 {
-            try? await Task.sleep(nanoseconds: plan.delay)
+            if honours {
+                do {
+                    try await Task.sleep(nanoseconds: plan.delay)
+                } catch {
+                    cancelled = true
+                }
+            } else {
+                // A detached sleep: cancellation of the calling task does
+                // not shorten it.
+                await Task.detached { try? await Task.sleep(nanoseconds: plan.delay) }.value
+            }
         } else {
             // Always suspend at least once so that overlapping calls, if the
             // lifecycle allowed them, would actually interleave.
             await Task.yield()
         }
+        if Task.isCancelled {
+            withLock { cancellationsSeen.append(call) }
+        }
         end()
+        if cancelled {
+            throw CancellationError()
+        }
         if let error = plan.error {
             throw error
         }
@@ -164,6 +235,12 @@ final class MockCore: NetworkCore, @unchecked Sendable {
             outbounds: ["proxy": TrafficCounters(uplinkBytes: 7, downlinkBytes: 9)],
             activeConnections: 3
         )
+    }
+
+    func handleSystemEvent(_ event: CoreSystemEvent) async {
+        // Counted as a command: it must never overlap start, stop or reload.
+        try? await runCommand(.systemEvent)
+        withLock { events.append(event) }
     }
 
     func health() async -> CoreHealth {
