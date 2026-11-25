@@ -111,8 +111,10 @@ JSON ради этого не правится. Дальше работает `t
 через kqueue, запись `write()` по одному пакету. [V: `engine/engine.go` `bringUp`, `proxy/tun/tun_darwin.go`]
 Переходов между языками нет вовсе, но есть системный вызов на каждый пакет.
 
-Состояние: опция проходит проверку параметров; **ни на Linux, ни на Apple режим `fd` мостом не запускался**.
-[U] На Linux его можно проверить в сетевом пространстве имён (ключ тот же) — не сделано.
+Состояние: на Linux режим `fd` проверен против настоящего стека TCP/IP ядра — tun-устройство в отдельном
+сетевом пространстве имён, TCP по 8 МиБ и UDP (включая фрагментированную датаграмму 4000 байт) по IPv4 и
+IPv6, счётчики inbound совпали с переданным байт в байт. [M: `Cores/BuildScripts/bridge-linux-netns-test.sh`]
+**На Apple режим `fd` не запускался**; код чтения utun в ядре (`tun_darwin.go`) другой, чем на Linux. [U]
 
 ## 5. Исходящие соединения ядра и петли маршрутизации
 
@@ -183,8 +185,9 @@ DoH/DoT, которые приложение делает само, этим п�
 | переполнение очереди, остановка, перезапуск | `go test ./engine -run 'TestFlowBackpressureAndRestart\|TestTunReadWakesOnStop'` | там же |
 | пропускная способность и размеры пачек | `go test ./engine -run TestFlowThroughput -v` | `bridge-measure.log` |
 | стоимость перехода C→Go | `Cores/BuildScripts/bridge-linux-cabi-test.sh` | `bridge-cabi.log` |
+| режим `fd` против ядра Linux | `Cores/BuildScripts/bridge-linux-netns-test.sh` | `bridge-netns.log` |
 
-Роль операционной системы в этих тестах играет второй экземпляр того же стека ядра (`tun.NewStack` с
+Роль операционной системы в тестах режима `flow` играет второй экземпляр того же стека ядра (`tun.NewStack` с
 `DialTCP`/`DialUDP`), соединённый с мостом только пачками пакетов. Настоящий стек TCP/IP iOS и настоящий
 `NEPacketTunnelFlow` в проверке не участвовали.
 
