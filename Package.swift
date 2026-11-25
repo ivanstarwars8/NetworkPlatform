@@ -16,9 +16,12 @@ let package = Package(
         .library(name: "CoreAbstraction", targets: ["CoreAbstraction"]),
         .library(name: "ConfigurationEngine", targets: ["ConfigurationEngine"]),
         .library(name: "RoutingEngine", targets: ["RoutingEngine"]),
+        .library(name: "AdaptiveBalancer", targets: ["AdaptiveBalancer"]),
     ],
     targets: lib("DomainModels")
         + lib("CoreAbstraction")
         + lib("ConfigurationEngine", deps: ["DomainModels"])
         + lib("RoutingEngine")
+        + lib("AdaptiveBalancer")
+        + [.executableTarget(name: "RoutingBench", dependencies: ["RoutingEngine"], path: "Benchmarks/RoutingBench")]
 )
