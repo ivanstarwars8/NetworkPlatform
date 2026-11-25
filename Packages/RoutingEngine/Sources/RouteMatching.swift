@@ -11,29 +11,108 @@ indirect enum ResolvedCondition: Sendable {
     case domainKeyword([UInt8])
     case domainRegex(LinearRegex)
     case ipCIDR(IPCIDR)
+    case ipNotIn(ExcludedPrefixes)
     case port(PortRange)
     case network(NetworkKind)
+    case sourceCIDR(IPCIDR)
+    case sourcePort(PortRange)
+    case inboundTag(String)
+    case user(String)
+    case sniffedProtocol([UInt8])
     case allOf([ResolvedCondition])
     case anyOf([ResolvedCondition])
     case not(ResolvedCondition)
 }
 
-/// The request in the form the evaluators need.
+/// The prefixes of an `ipNotIn` condition.
+struct ExcludedPrefixes: Sendable {
+    let prefixes: [IPCIDR]
+    let hasIPv4: Bool
+    let hasIPv6: Bool
+
+    init(_ prefixes: [IPCIDR]) {
+        self.prefixes = prefixes
+        self.hasIPv4 = prefixes.contains { $0.network.isIPv4 }
+        self.hasIPv6 = prefixes.contains { !$0.network.isIPv4 }
+    }
+
+    /// The engine's reversed address-set test for one address: an address
+    /// whose family has no prefix in the set never matches.
+    func isOutside(_ address: IPAddress) -> Bool {
+        if address.isIPv4 ? !hasIPv4 : !hasIPv6 { return false }
+        for prefix in prefixes where prefix.contains(address) {
+            return false
+        }
+        return true
+    }
+}
+
+/// The request in the form the evaluators need, for one evaluation pass.
 struct EvaluationInput: Sendable {
     let domain: [UInt8]?
-    let ip: IPAddress?
-    let port: UInt16?
+    /// Destination address, or the resolved addresses of the domain when the
+    /// pass uses resolution.
+    let targetIPs: [IPAddress]
+    /// `true` when `targetIPs` came from resolving the domain.
+    let usesResolvedIPs: Bool
+    /// A missing port is 0, as in the engine.
+    let port: UInt16
     let network: NetworkKind?
+    let sourceIP: IPAddress?
+    let sourcePort: UInt16
+    let inboundTag: String?
+    let user: String?
+    let sniffedProtocol: [UInt8]?
 
-    init(_ request: RouteRequest) {
+    init(_ request: RouteRequest, resolving: Bool = false) {
         if let domain = request.domain {
             self.domain = Array(domain.utf8)
         } else {
             self.domain = nil
         }
-        self.ip = request.ip
-        self.port = request.port
+        // A successful lookup replaces the destination address; a failed one
+        // (no resolved addresses) leaves it in place.
+        if resolving, request.domain != nil, !request.resolvedIPs.isEmpty {
+            self.targetIPs = request.resolvedIPs
+            self.usesResolvedIPs = true
+        } else {
+            if let ip = request.ip {
+                self.targetIPs = [ip]
+            } else {
+                self.targetIPs = []
+            }
+            self.usesResolvedIPs = false
+        }
+        self.port = request.port ?? 0
         self.network = request.network
+        self.sourceIP = request.sourceIP
+        self.sourcePort = request.sourcePort ?? 0
+        self.inboundTag = request.inboundTag
+        self.user = request.user
+        if let sniffed = request.sniffedProtocol {
+            self.sniffedProtocol = Array(sniffed.utf8)
+        } else {
+            self.sniffedProtocol = nil
+        }
+    }
+
+    /// The evaluation passes the engine's router makes for a request: one
+    /// pass, or two for `ipIfNonMatch` when resolution can change anything.
+    static func passes(for request: RouteRequest, strategy: DomainStrategy) -> (first: EvaluationInput, second: EvaluationInput?) {
+        switch strategy {
+        case .asIs:
+            return (EvaluationInput(request), nil)
+        case .ipOnDemand:
+            return (EvaluationInput(request, resolving: true), nil)
+        case .ipIfNonMatch:
+            let first = EvaluationInput(request)
+            if request.domain != nil, !request.resolvedIPs.isEmpty {
+                return (first, EvaluationInput(request, resolving: true))
+            }
+            // Without a domain there is no second pass; with a failed lookup
+            // the second pass sees the same addresses as the first.
+            return (first, nil)
+        }
     }
 }
 
@@ -95,14 +174,32 @@ extension ResolvedCondition {
             guard let domain = input.domain else { return false }
             return regex.matches(utf8: domain)
         case let .ipCIDR(cidr):
-            guard let ip = input.ip else { return false }
-            return cidr.contains(ip)
+            for ip in input.targetIPs where cidr.contains(ip) {
+                return true
+            }
+            return false
+        case let .ipNotIn(excluded):
+            for ip in input.targetIPs where excluded.isOutside(ip) {
+                return true
+            }
+            return false
         case let .port(range):
-            guard let port = input.port else { return false }
-            return range.contains(port)
+            return range.contains(input.port)
         case let .network(kind):
             guard let network = input.network else { return false }
             return network == kind
+        case let .sourceCIDR(cidr):
+            guard let ip = input.sourceIP else { return false }
+            return cidr.contains(ip)
+        case let .sourcePort(range):
+            return range.contains(input.sourcePort)
+        case let .inboundTag(tag):
+            return input.inboundTag == tag
+        case let .user(name):
+            return input.user == name
+        case let .sniffedProtocol(prefix):
+            guard let sniffed = input.sniffedProtocol, sniffed.count >= prefix.count else { return false }
+            return sniffed.starts(with: prefix)
         case let .allOf(items):
             for item in items {
                 if !item.matches(input) { return false }
@@ -123,7 +220,8 @@ extension ResolvedCondition {
         switch self {
         case .domainExact, .domainSuffix, .ipCIDR, .port, .network:
             return true
-        case .domainKeyword, .domainRegex, .allOf, .anyOf, .not:
+        case .domainKeyword, .domainRegex, .ipNotIn, .sourceCIDR, .sourcePort, .inboundTag, .user,
+             .sniffedProtocol, .allOf, .anyOf, .not:
             return false
         }
     }
@@ -247,11 +345,39 @@ struct TableResolver {
         case let .ipCIDR(cidr):
             return .ipCIDR(cidr)
 
+        case let .ipNotIn(prefixes):
+            guard !prefixes.isEmpty else {
+                throw RoutingCompileError.invalidValue(ruleIndex: ruleIndex, reason: "ipNotIn has no prefixes")
+            }
+            nodeCount += prefixes.count
+            guard nodeCount <= limits.maximumConditionNodes else {
+                throw RoutingCompileError.tableTooLarge(limit: limits.maximumConditionNodes)
+            }
+            return .ipNotIn(ExcludedPrefixes(prefixes))
+
         case let .port(range):
             return .port(range)
 
         case let .network(kind):
             return .network(kind)
+
+        case let .sourceCIDR(cidr):
+            return .sourceCIDR(cidr)
+
+        case let .sourcePort(range):
+            return .sourcePort(range)
+
+        case let .inboundTag(tag):
+            try TableResolver.checkText(tag, what: "inbound tag", ruleIndex: ruleIndex)
+            return .inboundTag(tag)
+
+        case let .user(name):
+            try TableResolver.checkText(name, what: "user", ruleIndex: ruleIndex)
+            return .user(name)
+
+        case let .sniffedProtocol(name):
+            try TableResolver.checkText(name, what: "protocol", ruleIndex: ruleIndex)
+            return .sniffedProtocol(Array(name.utf8))
 
         case let .ruleSet(tag):
             if activeSets.contains(tag) {
@@ -291,6 +417,23 @@ struct TableResolver {
     }
 }
 
+extension TableResolver {
+    /// Tags, users and protocol names: non-empty and bounded. The engine
+    /// silently drops empty entries, which would turn a rule into something
+    /// else, so they are rejected here.
+    static func checkText(_ value: String, what: String, ruleIndex: Int) throws {
+        if value.isEmpty {
+            throw RoutingCompileError.invalidValue(ruleIndex: ruleIndex, reason: "\(what) is empty")
+        }
+        if value.utf8.count > RouteAction.maximumTagLength {
+            throw RoutingCompileError.invalidValue(
+                ruleIndex: ruleIndex,
+                reason: "\(what) is longer than \(RouteAction.maximumTagLength) bytes"
+            )
+        }
+    }
+}
+
 // MARK: - Linear reference matcher
 
 /// The reference implementation of first-match-wins: evaluates rules one by
@@ -300,6 +443,7 @@ struct TableResolver {
 public struct LinearRouteMatcher: Sendable {
     public let rules: [RoutingRule]
     public let finalAction: RouteAction
+    public let domainStrategy: DomainStrategy
     let resolved: [ResolvedCondition?]
 
     public init(table: RoutingTable, limits: RoutingLimits = .standard) throws {
@@ -307,16 +451,27 @@ public struct LinearRouteMatcher: Sendable {
         self.resolved = try resolver.resolveAll(table.rules)
         self.rules = table.rules
         self.finalAction = table.finalAction
+        self.domainStrategy = table.domainStrategy
     }
 
     public func match(_ request: RouteRequest) -> RouteDecision {
-        let input = EvaluationInput(request)
-        for (index, condition) in resolved.enumerated() {
-            if let condition = condition, condition.matches(input) {
-                return RouteDecision(action: rules[index].action, ruleIndex: index)
-            }
+        let passes = EvaluationInput.passes(for: request, strategy: domainStrategy)
+        if let index = firstMatch(passes.first) {
+            return RouteDecision(action: rules[index].action, ruleIndex: index)
+        }
+        if let second = passes.second, let index = firstMatch(second) {
+            return RouteDecision(action: rules[index].action, ruleIndex: index, usedSecondPass: true)
         }
         return RouteDecision(action: finalAction, ruleIndex: nil)
+    }
+
+    func firstMatch(_ input: EvaluationInput) -> Int? {
+        for (index, condition) in resolved.enumerated() {
+            if let condition = condition, condition.matches(input) {
+                return index
+            }
+        }
+        return nil
     }
 }
 
@@ -380,6 +535,7 @@ public struct CompiledRouter: Sendable {
 
     public var rules: [RoutingRule] { reference.rules }
     public var finalAction: RouteAction { reference.finalAction }
+    public var domainStrategy: DomainStrategy { reference.domainStrategy }
 
     /// Tags of every outbound and group the table refers to (rules and the
     /// final action), for validation against the actual outbound list.
@@ -426,7 +582,8 @@ public struct CompiledRouter: Sendable {
                     case .tcp: tcpIndex = min(tcpIndex, ruleIndex)
                     case .udp: udpIndex = min(udpIndex, ruleIndex)
                     }
-                case .domainKeyword, .domainRegex, .allOf, .anyOf, .not:
+                case .domainKeyword, .domainRegex, .ipNotIn, .sourceCIDR, .sourcePort, .inboundTag, .user,
+                     .sniffedProtocol, .allOf, .anyOf, .not:
                     // splitTopLevel never puts these into `atoms`; keep the
                     // rule correct even if that ever changes.
                     residual.append(atom)
@@ -462,11 +619,28 @@ public struct CompiledRouter: Sendable {
 
     /// Routes one request. Pure and safe to call from any thread.
     public func match(_ request: RouteRequest) -> RouteDecision {
-        let best = candidates(for: EvaluationInput(request)).best
-        if best == noRuleIndex {
-            return RouteDecision(action: reference.finalAction, ruleIndex: nil)
+        let passes = EvaluationInput.passes(for: request, strategy: reference.domainStrategy)
+        let best = candidates(for: passes.first).best
+        if best != noRuleIndex {
+            return RouteDecision(action: reference.rules[best].action, ruleIndex: best)
         }
-        return RouteDecision(action: reference.rules[best].action, ruleIndex: best)
+        if let second = passes.second {
+            let later = candidates(for: second).best
+            if later != noRuleIndex {
+                return RouteDecision(action: reference.rules[later].action, ruleIndex: later, usedSecondPass: true)
+            }
+        }
+        return RouteDecision(action: reference.finalAction, ruleIndex: nil)
+    }
+
+    /// The pass that decides a request and what the indexes found in it.
+    func evaluate(_ request: RouteRequest) -> (input: EvaluationInput, candidates: IndexCandidates, usedSecondPass: Bool) {
+        let passes = EvaluationInput.passes(for: request, strategy: reference.domainStrategy)
+        let first = candidates(for: passes.first)
+        if first.best == noRuleIndex, let second = passes.second {
+            return (second, candidates(for: second), true)
+        }
+        return (passes.first, first, false)
     }
 
     /// Routes one request and records the hit.
@@ -481,15 +655,15 @@ public struct CompiledRouter: Sendable {
         if let domain = input.domain {
             result.domain = domainTrie.lookup(domain)
         }
-        if let ip = input.ip {
+        for ip in input.targetIPs {
             let found = cidrIndex.search(ip)
-            result.cidr = found.minimumIndex
-            result.longestPrefixLength = found.longestPrefixLength
-            result.longestPrefixIndex = found.longestPrefixIndex
+            if found.minimumIndex < result.cidr {
+                result.cidr = found.minimumIndex
+                result.longestPrefixLength = found.longestPrefixLength
+                result.longestPrefixIndex = found.longestPrefixIndex
+            }
         }
-        if let port = input.port {
-            result.port = portIndex.lookup(port)
-        }
+        result.port = portIndex.lookup(input.port)
         if let network = input.network {
             switch network {
             case .tcp: result.network = tcpIndex

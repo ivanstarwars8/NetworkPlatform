@@ -100,29 +100,65 @@ extension PortRange: CustomStringConvertible {
 
 /// What the router knows about one connection.
 ///
-/// Every field is optional: a condition on a missing field does not match
-/// (and its negation therefore does).
+/// The fields mirror what the engine's router sees. A condition on a missing
+/// text or address field does not match. A missing port is port 0, exactly
+/// as in the engine (a rule for the range `0-1023` matches it).
 public struct RouteRequest: Hashable, Sendable {
     /// Host names longer than this (in UTF-8 bytes, after normalisation) are
     /// dropped: they cannot be valid DNS names.
     public static let maximumDomainLength = 253
+    /// At most this many resolved addresses are kept.
+    public static let maximumResolvedIPs = 64
 
-    /// Lower-cased host name without a trailing dot, or `nil`.
+    /// Lower-cased host name, or `nil`. A trailing dot is kept: the engine
+    /// compares the name as it arrived, so `example.com.` is not under the
+    /// suffix `example.com`.
     public let domain: String?
     /// Destination address; IPv4-mapped IPv6 is stored as IPv4.
     public let ip: IPAddress?
+    /// What DNS returns for `domain`. Only consulted when the table's
+    /// `domainStrategy` asks for resolution; empty means "resolution failed
+    /// or was not simulated".
+    public let resolvedIPs: [IPAddress]
     public let port: UInt16?
     public let network: NetworkKind?
+    /// Source address of the connection as the inbound saw it.
+    public let sourceIP: IPAddress?
+    public let sourcePort: UInt16?
+    /// Tag of the inbound that accepted the connection.
+    public let inboundTag: String?
+    /// Authenticated user (e-mail / name) of the inbound, if any.
+    public let user: String?
+    /// Protocol the engine sniffed from the first bytes (`http`, `tls`,
+    /// `quic`, `bittorrent`, ...), if any.
+    public let sniffedProtocol: String?
 
-    public init(domain: String? = nil, ip: IPAddress? = nil, port: UInt16? = nil, network: NetworkKind? = nil) {
-        if let raw = domain, let normalised = DomainName.normalise(raw) {
+    public init(
+        domain: String? = nil,
+        ip: IPAddress? = nil,
+        port: UInt16? = nil,
+        network: NetworkKind? = nil,
+        resolvedIPs: [IPAddress] = [],
+        sourceIP: IPAddress? = nil,
+        sourcePort: UInt16? = nil,
+        inboundTag: String? = nil,
+        user: String? = nil,
+        sniffedProtocol: String? = nil
+    ) {
+        if let raw = domain, let normalised = DomainName.normaliseRequest(raw) {
             self.domain = normalised
         } else {
             self.domain = nil
         }
         self.ip = ip?.unmapped
+        self.resolvedIPs = resolvedIPs.prefix(RouteRequest.maximumResolvedIPs).map { $0.unmapped }
         self.port = port
         self.network = network
+        self.sourceIP = sourceIP?.unmapped
+        self.sourcePort = sourcePort
+        self.inboundTag = (inboundTag?.isEmpty ?? true) ? nil : inboundTag
+        self.user = (user?.isEmpty ?? true) ? nil : user
+        self.sniffedProtocol = (sniffedProtocol?.isEmpty ?? true) ? nil : sniffedProtocol
     }
 }
 
@@ -133,15 +169,38 @@ extension RouteRequest: CustomStringConvertible {
         if let ip = ip { parts.append("ip=\(ip)") }
         if let port = port { parts.append("port=\(port)") }
         if let network = network { parts.append("network=\(network.rawValue)") }
+        if !resolvedIPs.isEmpty {
+            parts.append("resolved=" + resolvedIPs.map { "\($0)" }.joined(separator: ","))
+        }
+        if let sourceIP = sourceIP { parts.append("source=\(sourceIP)") }
+        if let sourcePort = sourcePort { parts.append("sourcePort=\(sourcePort)") }
+        if let inboundTag = inboundTag { parts.append("inbound=\(inboundTag)") }
+        if let user = user { parts.append("user=\(user)") }
+        if let sniffedProtocol = sniffedProtocol { parts.append("protocol=\(sniffedProtocol)") }
         return parts.isEmpty ? "(empty request)" : parts.joined(separator: " ")
     }
 }
 
-/// Host-name normalisation shared by rules and requests.
+/// Host-name normalisation for rules and requests.
 enum DomainName {
-    /// Lower-cases, strips one trailing dot, rejects empty names, names longer
-    /// than `RouteRequest.maximumDomainLength` and names with whitespace or
-    /// control characters.
+    /// Request side: lower-cases (the engine lower-cases the name before
+    /// matching) and nothing else. Empty names, names longer than
+    /// `RouteRequest.maximumDomainLength` and names with whitespace or
+    /// control characters yield `nil`.
+    static func normaliseRequest(_ raw: String) -> String? {
+        let count = raw.utf8.count
+        guard count > 0, count <= RouteRequest.maximumDomainLength else { return nil }
+        let text = raw.lowercased()
+        if text.utf8.contains(where: { $0 <= 0x20 || $0 == 0x7F }) {
+            return nil
+        }
+        if text == "." { return nil }
+        return text
+    }
+
+    /// Rule side: lower-cases, strips one trailing dot, rejects empty names,
+    /// names longer than `RouteRequest.maximumDomainLength` and names with
+    /// whitespace or control characters.
     static func normalise(_ raw: String) -> String? {
         guard raw.utf8.count <= RouteRequest.maximumDomainLength + 1 else { return nil }
         var text = raw.lowercased()
@@ -169,19 +228,39 @@ enum DomainName {
 ///   `domainSuffix(".example.com")` matches subdomains only.
 /// - `domainKeyword`: the host name contains the value.
 /// - `domainRegex`: `LinearRegex` unanchored match on the host name.
-/// - `ipCIDR`: destination address is inside the prefix.
-/// - `port`: destination port is inside the range.
+/// - `ipCIDR`: some target address is inside the prefix. Target addresses
+///   are the destination address, or the resolved addresses of the domain
+///   when the table's `domainStrategy` asks for them.
+/// - `ipNotIn`: there is a target address outside every listed prefix. This
+///   is the engine's negated address match, with its two quirks kept: it is
+///   false when the request has no target address at all, and an address is
+///   only considered when the list has at least one prefix of its family
+///   (`ipNotIn([fc00::/7])` never matches an IPv4 address). It is not
+///   `not(ipCIDR)`.
+/// - `port`: destination port is inside the range (a missing port is 0).
 /// - `network`: transport network equals the value.
+/// - `sourceCIDR`, `sourcePort`: the same for the connection's source.
+/// - `inboundTag`, `user`: exact, case-sensitive comparison.
+/// - `sniffedProtocol`: the sniffed protocol starts with the value
+///   (`http` matches `http1` and `http2`).
 /// - `ruleSet`: any condition of the referenced inline rule set matches.
 /// - `and([])` is true, `or([])` is false.
+/// - `not` is plain boolean negation. The engines have no general negation,
+///   so a table that uses it cannot be lowered (see `RuleLowering`).
 public indirect enum RuleCondition: Hashable, Sendable, Codable {
     case domain(String)
     case domainSuffix(String)
     case domainKeyword(String)
     case domainRegex(String)
     case ipCIDR(IPCIDR)
+    case ipNotIn([IPCIDR])
     case port(PortRange)
     case network(NetworkKind)
+    case sourceCIDR(IPCIDR)
+    case sourcePort(PortRange)
+    case inboundTag(String)
+    case user(String)
+    case sniffedProtocol(String)
     case ruleSet(String)
     case and([RuleCondition])
     case or([RuleCondition])
@@ -286,17 +365,51 @@ public struct RuleSet: Hashable, Sendable, Codable {
     }
 }
 
+/// When the router may replace a domain by its resolved addresses for
+/// address rules. Semantics follow the engine's router.
+public enum DomainStrategy: String, Hashable, Sendable, Codable, CaseIterable {
+    /// Never resolve: a connection to a domain has no target address, so
+    /// address rules do not match it.
+    case asIs
+    /// Evaluate all rules without resolving; only if nothing matched and the
+    /// request has a domain, resolve it and evaluate all rules again.
+    case ipIfNonMatch
+    /// Address rules see the resolved addresses of the domain from the
+    /// first rule on.
+    case ipOnDemand
+}
+
 /// An ordered rule list with a default action. First match wins.
 public struct RoutingTable: Hashable, Sendable, Codable {
     public var rules: [RoutingRule]
     public var ruleSets: [RuleSet]
     /// Action for connections no rule matched.
     public var finalAction: RouteAction
+    public var domainStrategy: DomainStrategy
 
-    public init(rules: [RoutingRule] = [], ruleSets: [RuleSet] = [], finalAction: RouteAction = .direct) {
+    public init(
+        rules: [RoutingRule] = [],
+        ruleSets: [RuleSet] = [],
+        finalAction: RouteAction = .direct,
+        domainStrategy: DomainStrategy = .asIs
+    ) {
         self.rules = rules
         self.ruleSets = ruleSets
         self.finalAction = finalAction
+        self.domainStrategy = domainStrategy
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case rules, ruleSets, finalAction, domainStrategy
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        rules = try container.decode([RoutingRule].self, forKey: .rules)
+        ruleSets = try container.decode([RuleSet].self, forKey: .ruleSets)
+        finalAction = try container.decode(RouteAction.self, forKey: .finalAction)
+        // Tables stored before the field existed never resolved.
+        domainStrategy = try container.decodeIfPresent(DomainStrategy.self, forKey: .domainStrategy) ?? .asIs
     }
 }
 
@@ -309,11 +422,16 @@ public struct RouteDecision: Hashable, Sendable {
     /// final action was used.
     public let ruleIndex: Int?
 
+    /// `true` when the decision was made on the second pass of
+    /// `DomainStrategy.ipIfNonMatch`, that is with resolved addresses.
+    public let usedSecondPass: Bool
+
     public var isFinal: Bool { ruleIndex == nil }
 
-    public init(action: RouteAction, ruleIndex: Int?) {
+    public init(action: RouteAction, ruleIndex: Int?, usedSecondPass: Bool = false) {
         self.action = action
         self.ruleIndex = ruleIndex
+        self.usedSecondPass = usedSecondPass
     }
 }
 
@@ -353,6 +471,9 @@ public enum RoutingCompileError: Error, Equatable, Sendable {
     case conditionTooDeep(ruleIndex: Int, limit: Int)
     case invalidDomain(ruleIndex: Int, value: String)
     case invalidKeyword(ruleIndex: Int, value: String)
+    /// An empty or overlong inbound tag, user or protocol value, or an
+    /// empty `ipNotIn` list.
+    case invalidValue(ruleIndex: Int, reason: String)
     case invalidRegex(ruleIndex: Int, pattern: String, reason: String)
     case unknownRuleSet(ruleIndex: Int, tag: String)
     case ruleSetCycle(ruleIndex: Int, tag: String)
@@ -377,6 +498,8 @@ extension RoutingCompileError: CustomStringConvertible {
             return "rule #\(ruleIndex): invalid domain '\(value.prefix(64))'"
         case let .invalidKeyword(ruleIndex, value):
             return "rule #\(ruleIndex): invalid keyword '\(value.prefix(64))'"
+        case let .invalidValue(ruleIndex, reason):
+            return "rule #\(ruleIndex): \(reason)"
         case let .invalidRegex(ruleIndex, pattern, reason):
             return "rule #\(ruleIndex): invalid regex '\(pattern.prefix(64))': \(reason)"
         case let .unknownRuleSet(ruleIndex, tag):
