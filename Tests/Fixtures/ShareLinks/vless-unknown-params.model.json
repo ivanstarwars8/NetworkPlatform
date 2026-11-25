@@ -1,0 +1,64 @@
+{
+  "credentials" : {
+    "userID" : {
+      "kind" : "inline",
+      "value" : "76e67b80-b8d3-407a-a13f-02c1c48186ab"
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "unknown-params",
+  "server" : {
+    "host" : "u.example.com",
+    "port" : 443
+  },
+  "settings" : {
+    "vless" : {
+      "_0" : {
+        "encryption" : "none"
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "tls" : {
+        "_0" : {
+          "allowInsecure" : true,
+          "alpn" : [
+
+          ],
+          "disableSNI" : false,
+          "serverName" : "u.example.com"
+        }
+      }
+    },
+    "transport" : {
+      "tcp" : {
+        "_0" : {
+
+        }
+      }
+    }
+  },
+  "tag" : "unknown-params",
+  "unsupported" : [
+    {
+      "disposition" : "recorded",
+      "location" : "query",
+      "name" : "foo",
+      "reason" : "unknown",
+      "value" : "bar"
+    },
+    {
+      "detail" : "Not used with the selected transport or security",
+      "disposition" : "recorded",
+      "location" : "query",
+      "name" : "serviceName",
+      "reason" : "notApplicable",
+      "value" : "unused"
+    }
+  ]
+}

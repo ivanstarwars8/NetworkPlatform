@@ -1,0 +1,46 @@
+{
+  "conversion" : {
+    "engine" : "xray",
+    "engineTags" : {
+      "kcp-legacy" : "proxy-0000"
+    },
+    "engineVersion" : "26.11.9",
+    "excludedOutbounds" : [
+
+    ],
+    "issues" : [
+      {
+        "detail" : "mKCP header 'wechat' is emitted as a 'mkcp-legacy' UDP mask",
+        "kind" : "migrated",
+        "path" : "outbounds[0].stream.transport.headerType",
+        "severity" : "warning"
+      },
+      {
+        "detail" : "mKCP seed is emitted as a 'mkcp-legacy' UDP mask (AES-128-GCM)",
+        "kind" : "migrated",
+        "path" : "outbounds[0].stream.transport.seed",
+        "severity" : "warning"
+      },
+      {
+        "detail" : "mKCP header and seed together produce two masks; their order is not confirmed by an interoperability test",
+        "kind" : "untested",
+        "path" : "outbounds[0].stream.transport",
+        "severity" : "warning"
+      }
+    ],
+    "verdict" : "degraded"
+  },
+  "importReport" : {
+    "format" : "vless-url",
+    "scheme" : "vless",
+    "unsupported" : [
+
+    ],
+    "warnings" : [
+      {
+        "code" : "plaintextTransport",
+        "message" : "VLESS without TLS, REALITY or VLESS Encryption is not encrypted"
+      }
+    ]
+  }
+}

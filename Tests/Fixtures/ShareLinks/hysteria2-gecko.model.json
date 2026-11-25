@@ -1,0 +1,57 @@
+{
+  "credentials" : {
+    "password" : {
+      "kind" : "inline",
+      "value" : "FY2WsKBsjAkZYhQ+4FHQq4s+"
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "hy2-gecko",
+  "server" : {
+    "host" : "hy6.example.com",
+    "port" : 443
+  },
+  "settings" : {
+    "hysteria2" : {
+      "_0" : {
+        "obfuscation" : {
+          "password" : {
+            "kind" : "inline",
+            "value" : "UD3nWFp4ew79/MjLvzbno+6K"
+          },
+          "type" : "gecko"
+        },
+        "serverPorts" : [
+
+        ]
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "tls" : {
+        "_0" : {
+          "allowInsecure" : false,
+          "alpn" : [
+
+          ],
+          "disableSNI" : false,
+          "serverName" : "hy6.example.com"
+        }
+      }
+    },
+    "transport" : {
+      "native" : {
+
+      }
+    }
+  },
+  "tag" : "hy2-gecko",
+  "unsupported" : [
+
+  ]
+}

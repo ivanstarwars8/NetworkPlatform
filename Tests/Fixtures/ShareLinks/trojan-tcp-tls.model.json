@@ -1,0 +1,50 @@
+{
+  "credentials" : {
+    "password" : {
+      "kind" : "inline",
+      "value" : "udihPqDumwBiY6PSt26Nqr9G"
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "trojan-tcp",
+  "server" : {
+    "host" : "t.example.com",
+    "port" : 443
+  },
+  "settings" : {
+    "trojan" : {
+
+    }
+  },
+  "stream" : {
+    "security" : {
+      "tls" : {
+        "_0" : {
+          "allowInsecure" : false,
+          "alpn" : [
+            "h2",
+            "http/1.1"
+          ],
+          "disableSNI" : false,
+          "fingerprint" : "chrome",
+          "serverName" : "t.example.com"
+        }
+      }
+    },
+    "transport" : {
+      "tcp" : {
+        "_0" : {
+
+        }
+      }
+    }
+  },
+  "tag" : "trojan-tcp",
+  "unsupported" : [
+
+  ]
+}

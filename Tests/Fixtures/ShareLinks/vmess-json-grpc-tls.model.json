@@ -1,0 +1,53 @@
+{
+  "credentials" : {
+    "userID" : {
+      "kind" : "inline",
+      "value" : "7cbd604a-1e57-419f-8fe1-e39a88ade162"
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "vmess grpc",
+  "server" : {
+    "host" : "vg.example.com",
+    "port" : 443
+  },
+  "settings" : {
+    "vmess" : {
+      "_0" : {
+        "alterID" : 0,
+        "cipher" : "chacha20-poly1305"
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "tls" : {
+        "_0" : {
+          "allowInsecure" : false,
+          "alpn" : [
+
+          ],
+          "disableSNI" : false,
+          "serverName" : "vg.example.com"
+        }
+      }
+    },
+    "transport" : {
+      "grpc" : {
+        "_0" : {
+          "authority" : "",
+          "multiMode" : false,
+          "serviceName" : "svc"
+        }
+      }
+    }
+  },
+  "tag" : "vmess grpc",
+  "unsupported" : [
+
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "credentials" : {
+    "userID" : {
+      "kind" : "inline",
+      "value" : "7d7ea5d0-9ec2-432e-82e7-141bada6fc01"
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "vmess legacy",
+  "server" : {
+    "host" : "192.0.2.20",
+    "port" : 10086
+  },
+  "settings" : {
+    "vmess" : {
+      "_0" : {
+        "alterID" : 64,
+        "cipher" : "zero"
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "none" : {
+
+      }
+    },
+    "transport" : {
+      "tcp" : {
+        "_0" : {
+          "httpObfuscation" : {
+            "hosts" : [
+              "a.example.com"
+            ],
+            "paths" : [
+              "/"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "tag" : "vmess legacy",
+  "unsupported" : [
+
+  ]
+}

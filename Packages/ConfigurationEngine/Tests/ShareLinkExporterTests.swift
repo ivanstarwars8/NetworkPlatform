@@ -241,7 +241,9 @@ final class ShareLinkExporterTests: XCTestCase {
     }
 
     func testProtocolsWithoutExporterAreRefusedNotApproximated() throws {
-        for link in [Fixtures.hysteria2, Fixtures.tuic, Fixtures.socksBase64, Fixtures.wireGuard, Fixtures.vmessURL] {
+        // Hysteria2, SOCKS and VMess gained exporters once their formats were verified
+        // (ShareLinkSpecConformanceTests); TUIC and WireGuard links have no specification.
+        for link in [Fixtures.tuic, Fixtures.wireGuard] {
             let imported = try importer.importLink(link)
             XCTAssertThrowsError(try exporter.exportLink(imported.outbound)) { error in
                 XCTAssertEqual(error as? ExportError, .unsupportedProtocol(imported.outbound.kind))

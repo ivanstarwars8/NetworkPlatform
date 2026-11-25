@@ -27,11 +27,21 @@ public struct ExportedLink: Codable, Hashable, Sendable {
 public struct ShareLinkExporter: Sendable {
     public init() {}
 
-    public static let supportedKinds: [ProxyProtocolKind] = [.vless, .trojan, .shadowsocks]
+    public static let supportedKinds: [ProxyProtocolKind] = [.vless, .vmess, .trojan, .shadowsocks, .hysteria2, .socks]
 
     public func exportLink(_ outbound: Outbound) throws -> ExportedLink {
         var warnings: [ConversionWarning] = []
         let authority = try ShareLinkExporter.authority(of: outbound.server)
+        switch outbound.settings {
+        case .vmess(let settings):
+            return try ShareLinkExporter.vmessLink(outbound, settings: settings)
+        case .hysteria2(let settings):
+            return try ShareLinkExporter.hysteria2Link(outbound, settings: settings)
+        case .socks(let settings):
+            return try ShareLinkExporter.socksLink(outbound, settings: settings, authority: authority)
+        default:
+            break
+        }
         var query = QueryWriter()
         let scheme: String
         let userInfo: String
@@ -111,6 +121,234 @@ public struct ShareLinkExporter: Sendable {
             uri += "#" + PercentCoding.encode(outbound.name, as: .strict)
         }
         return ExportedLink(uri: uri, warnings: warnings)
+    }
+
+    // MARK: - VMess (v2rayN base64 JSON, version 2)
+
+    private static func vmessLink(_ outbound: Outbound, settings: VMessSettings) throws -> ExportedLink {
+        _ = try authority(of: outbound.server)
+        var warnings: [ConversionWarning] = []
+        // The stream is first written in the URL convention, then renamed to the JSON members,
+        // which reuse `type`, `host` and `path` with a meaning that depends on `net`.
+        var query = QueryWriter()
+        try appendStream(outbound, to: &query, warnings: &warnings)
+        var fields: [String: String] = [:]
+        for pair in query.items {
+            fields[pair.name] = pair.value
+        }
+        var members: [String: JSONValue] = [
+            "v": .string("2"),
+            "ps": .string(outbound.name),
+            "add": .string(outbound.server.host),
+            "port": .string(String(outbound.server.port)),
+            "id": .string(try inline(outbound.credentials.userID, slot: .userID)),
+            "aid": .string(String(settings.alterID)),
+            "scy": .string(settings.cipher.isEmpty ? "auto" : settings.cipher),
+        ]
+        var network = fields.removeValue(forKey: "type") ?? "tcp"
+        if network == "http" { network = "h2" }
+        members["net"] = .string(network)
+        var typeName = "headerType"
+        var hostName = "host"
+        var pathName = "path"
+        switch network {
+        case "kcp": pathName = "seed"
+        case "quic": hostName = "quicSecurity"; pathName = "key"
+        case "grpc": typeName = "mode"; hostName = "authority"; pathName = "serviceName"
+        case "xhttp": typeName = "mode"
+        default: break
+        }
+        var typeValue = fields.removeValue(forKey: typeName) ?? "none"
+        if network == "grpc" && typeValue == "none" { typeValue = "gun" }
+        if network == "xhttp" && typeValue == "none" { typeValue = "" }
+        members["type"] = .string(typeValue)
+        members["host"] = .string(fields.removeValue(forKey: hostName) ?? "")
+        members["path"] = .string(fields.removeValue(forKey: pathName) ?? "")
+        let security = fields.removeValue(forKey: "security") ?? "none"
+        members["tls"] = .string(security == "none" ? "" : security)
+        if fields.removeValue(forKey: "allowInsecure") != nil {
+            members["insecure"] = .string("1")
+        }
+        for name in fields.keys.sorted() {
+            members[name] = .string(fields[name] ?? "")
+        }
+        for parameter in outbound.unsupported where parameter.disposition != .preservedInEngineExtras {
+            if parameter.location == .jsonBody, parameter.reason != .duplicate,
+               let value = parameter.value, members[parameter.name] == nil {
+                members[parameter.name] = .string(value)
+            } else {
+                warnings.append(ConversionWarning(
+                    code: .notExpressible,
+                    message: "Recorded parameter '\(parameter.name)' cannot be written back to the link"
+                ))
+            }
+        }
+        if outbound.tag != outbound.name {
+            warnings.append(ConversionWarning(
+                code: .notExpressible, message: "The link carries the name only; the tag is not exported"
+            ))
+        }
+        let body = try jsonText(.object(members))
+        return ExportedLink(uri: "vmess://" + Data(body.utf8).base64EncodedString(), warnings: warnings)
+    }
+
+    // MARK: - Hysteria2 (official URI scheme)
+
+    private static func hysteria2Link(_ outbound: Outbound, settings: Hysteria2Settings) throws -> ExportedLink {
+        var warnings: [ConversionWarning] = []
+        _ = try authority(of: outbound.server)
+        guard outbound.stream.transport == .native else {
+            throw ExportError.notExpressible(reason: "Hysteria2 carries its own transport")
+        }
+        guard case .tls(let tls) = outbound.stream.security else {
+            throw ExportError.notExpressible(reason: "Hysteria2 always uses TLS")
+        }
+        let host = outbound.server.isIPv6Literal ? "[\(outbound.server.host)]" : outbound.server.host
+        var ports = String(outbound.server.port)
+        if !settings.serverPorts.isEmpty {
+            guard settings.serverPorts.first?.lower == outbound.server.port else {
+                throw ExportError.notExpressible(reason: "the server port is not the first port of the hopping list")
+            }
+            ports = settings.serverPorts
+                .map { $0.isSinglePort ? "\($0.lower)" : "\($0.lower)-\($0.upper)" }
+                .joined(separator: ",")
+        }
+        var uri = "hysteria2://"
+        if let password = outbound.credentials.password {
+            uri += PercentCoding.encode(try inline(password, slot: .password), as: .strict) + "@"
+        }
+        uri += host + ":" + ports + "/"
+
+        var query = QueryWriter()
+        if let obfuscation = settings.obfuscation {
+            query.add("obfs", obfuscation.type)
+            query.add("obfs-password", try inline(obfuscation.password, slot: .obfuscationPassword))
+        }
+        query.addIfPresent("sni", tls.serverName)
+        if tls.allowInsecure {
+            query.add("insecure", "1")
+        }
+        query.addIfPresent("pinSHA256", tls.pinnedPeerCertificateSHA256)
+        query.addIfPresent("ech", tls.echConfigList)
+        // Everything below is outside the official scheme.
+        var extensions: [String] = []
+        if !tls.alpn.isEmpty {
+            query.add("alpn", tls.alpn.joined(separator: ","))
+            extensions.append("alpn")
+        }
+        if let fingerprint = tls.fingerprint, !fingerprint.isEmpty {
+            query.add("fp", fingerprint)
+            extensions.append("fp")
+        }
+        if let names = tls.verifyPeerCertificateByName, !names.isEmpty {
+            query.add("vcn", names)
+            extensions.append("vcn")
+        }
+        if let interval = settings.hopIntervalSeconds {
+            query.add("hop-interval", String(interval))
+            extensions.append("hop-interval")
+        }
+        if let up = settings.uploadBandwidth, !up.isEmpty {
+            query.add("up", up)
+            extensions.append("up")
+        }
+        if let down = settings.downloadBandwidth, !down.isEmpty {
+            query.add("down", down)
+            extensions.append("down")
+        }
+        if !extensions.isEmpty {
+            warnings.append(ConversionWarning(
+                code: .nonStandardFormat,
+                message: "Parameters outside the official Hysteria2 scheme were written: " + extensions.joined(separator: ", ")
+            ))
+        }
+        if tls.disableSNI {
+            warnings.append(ConversionWarning(code: .notExpressible, message: "'disable SNI' is not written to the link"))
+        }
+        if !outbound.extras.isEmpty {
+            warnings.append(ConversionWarning(
+                code: .notExpressible, message: "Engine extras cannot be carried by a hysteria2:// link"
+            ))
+        }
+        appendRecorded(outbound, to: &query, warnings: &warnings)
+        if !query.isEmpty {
+            uri += "?" + query.text
+        }
+        if !outbound.name.isEmpty {
+            uri += "#" + PercentCoding.encode(outbound.name, as: .strict)
+        }
+        return ExportedLink(uri: uri, warnings: warnings)
+    }
+
+    // MARK: - SOCKS (libXray convention: base64 of user:password)
+
+    private static func socksLink(
+        _ outbound: Outbound,
+        settings: SOCKSSettings,
+        authority: String
+    ) throws -> ExportedLink {
+        var warnings: [ConversionWarning] = []
+        guard outbound.stream.transport == .tcp(TCPSettings()), outbound.stream.security == .none else {
+            throw ExportError.notExpressible(reason: "socks:// links carry no transport or TLS settings")
+        }
+        let scheme: String
+        switch settings.version {
+        case .v5: scheme = "socks"
+        case .v4: scheme = "socks4"
+        case .v4a: scheme = "socks4a"
+        }
+        var uri = scheme + "://"
+        if let username = outbound.credentials.username, !username.isEmpty {
+            guard !username.utf8.contains(0x3A) else {
+                throw ExportError.notExpressible(reason: "a user name with ':' cannot be told apart from the password")
+            }
+            var password = ""
+            if let secret = outbound.credentials.password {
+                password = try inline(secret, slot: .password)
+            }
+            uri += LenientBase64.encodeURLSafe(username + ":" + password) + "@"
+        } else if outbound.credentials.password != nil {
+            throw ExportError.notExpressible(reason: "a password without a user name")
+        }
+        uri += authority
+        var query = QueryWriter()
+        if !outbound.extras.isEmpty {
+            warnings.append(ConversionWarning(
+                code: .notExpressible, message: "Engine extras cannot be carried by a socks:// link"
+            ))
+        }
+        appendRecorded(outbound, to: &query, warnings: &warnings)
+        if !query.isEmpty {
+            uri += "?" + query.text
+        }
+        if !outbound.name.isEmpty {
+            uri += "#" + PercentCoding.encode(outbound.name, as: .strict)
+        }
+        return ExportedLink(uri: uri, warnings: warnings)
+    }
+
+    /// Writes back query parameters the importer recorded without interpreting them.
+    private static func appendRecorded(
+        _ outbound: Outbound,
+        to query: inout QueryWriter,
+        warnings: inout [ConversionWarning]
+    ) {
+        for parameter in outbound.unsupported where parameter.disposition != .preservedInEngineExtras {
+            if parameter.location == .query, parameter.reason != .duplicate,
+               let value = parameter.value, !query.contains(parameter.name) {
+                query.add(parameter.name, value)
+            } else {
+                warnings.append(ConversionWarning(
+                    code: .notExpressible,
+                    message: "Recorded parameter '\(parameter.name)' cannot be written back to the link"
+                ))
+            }
+        }
+        if outbound.tag != outbound.name {
+            warnings.append(ConversionWarning(
+                code: .notExpressible, message: "The link carries the name only; the tag is not exported"
+            ))
+        }
     }
 
     // MARK: - Pieces
@@ -284,6 +522,10 @@ struct QueryWriter {
 
     var isEmpty: Bool {
         return pairs.isEmpty
+    }
+
+    var items: [(name: String, value: String)] {
+        return pairs
     }
 
     func contains(_ name: String) -> Bool {

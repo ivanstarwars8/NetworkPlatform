@@ -1,0 +1,52 @@
+{
+  "credentials" : {
+    "userID" : {
+      "kind" : "inline",
+      "value" : "a037f543-d001-478f-9621-e21da2f8736a"
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "i-vless-wss",
+  "server" : {
+    "host" : "127.0.0.1",
+    "port" : 47016
+  },
+  "settings" : {
+    "vless" : {
+      "_0" : {
+        "encryption" : "none"
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "tls" : {
+        "_0" : {
+          "allowInsecure" : false,
+          "alpn" : [
+
+          ],
+          "disableSNI" : false,
+          "pinnedPeerCertificateSHA256" : "485767e0c2c1d3b433e90a3ffee423397e56dc526218ef42a3c754d93831ca7f",
+          "serverName" : "interop.test"
+        }
+      }
+    },
+    "transport" : {
+      "webSocket" : {
+        "_0" : {
+          "host" : "",
+          "path" : "/wss"
+        }
+      }
+    }
+  },
+  "tag" : "i-vless-wss",
+  "unsupported" : [
+
+  ]
+}

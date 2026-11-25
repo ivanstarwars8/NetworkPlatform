@@ -1,0 +1,65 @@
+{
+  "groups" : [
+
+  ],
+  "id" : "00000000-0000-4000-8000-000000000101",
+  "name" : "http",
+  "outbounds" : [
+    {
+      "credentials" : {
+        "password" : {
+          "kind" : "inline",
+          "value" : "udihPqDumwBiY6PSt26Nqr9G"
+        },
+        "username" : "user1"
+      },
+      "extras" : {
+        "storage" : {
+
+        }
+      },
+      "name" : "corp",
+      "server" : {
+        "host" : "proxy.example.com",
+        "port" : 8443
+      },
+      "settings" : {
+        "http" : {
+
+        }
+      },
+      "stream" : {
+        "security" : {
+          "tls" : {
+            "_0" : {
+              "allowInsecure" : false,
+              "alpn" : [
+                "http/1.1"
+              ],
+              "disableSNI" : false,
+              "serverName" : "proxy.example.com"
+            }
+          }
+        },
+        "transport" : {
+          "tcp" : {
+            "_0" : {
+
+            }
+          }
+        }
+      },
+      "tag" : "corp",
+      "unsupported" : [
+
+      ]
+    }
+  ],
+  "schemaVersion" : 1,
+  "selectedTag" : "corp",
+  "source" : {
+    "manual" : {
+
+    }
+  }
+}

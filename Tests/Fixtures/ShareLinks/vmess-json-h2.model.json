@@ -1,0 +1,53 @@
+{
+  "credentials" : {
+    "userID" : {
+      "kind" : "inline",
+      "value" : "76e67b80-b8d3-407a-a13f-02c1c48186ab"
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "vmess h2",
+  "server" : {
+    "host" : "h2.example.com",
+    "port" : 443
+  },
+  "settings" : {
+    "vmess" : {
+      "_0" : {
+        "alterID" : 0,
+        "cipher" : "auto"
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "tls" : {
+        "_0" : {
+          "allowInsecure" : false,
+          "alpn" : [
+
+          ],
+          "disableSNI" : false
+        }
+      }
+    },
+    "transport" : {
+      "http2" : {
+        "_0" : {
+          "hosts" : [
+            "h2.example.com"
+          ],
+          "path" : "/h2"
+        }
+      }
+    }
+  },
+  "tag" : "vmess h2",
+  "unsupported" : [
+
+  ]
+}

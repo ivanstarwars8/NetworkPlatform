@@ -1,0 +1,24 @@
+{
+  "conversion" : {
+    "engine" : "xray",
+    "engineTags" : {
+      "a" : "proxy-0000",
+      "ab" : "proxy-0001",
+      "outer" : "group-0001",
+      "t" : "proxy-0002"
+    },
+    "engineVersion" : "26.11.9",
+    "excludedOutbounds" : [
+
+    ],
+    "issues" : [
+      {
+        "detail" : "Nested groups are flattened into one balancer; inner strategies are not preserved",
+        "kind" : "approximated",
+        "path" : "groups[outer]",
+        "severity" : "warning"
+      }
+    ],
+    "verdict" : "degraded"
+  }
+}

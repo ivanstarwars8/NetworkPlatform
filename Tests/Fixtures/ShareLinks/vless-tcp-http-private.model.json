@@ -1,0 +1,52 @@
+{
+  "credentials" : {
+    "userID" : {
+      "kind" : "inline",
+      "value" : "1cc9207f-5dda-4274-bb0d-9d105c95c6e8"
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "lan-http-header",
+  "server" : {
+    "host" : "192.168.10.5",
+    "port" : 8080
+  },
+  "settings" : {
+    "vless" : {
+      "_0" : {
+        "encryption" : "none"
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "none" : {
+
+      }
+    },
+    "transport" : {
+      "tcp" : {
+        "_0" : {
+          "httpObfuscation" : {
+            "hosts" : [
+              "a.example.com",
+              "b.example.com"
+            ],
+            "paths" : [
+              "/a",
+              "/b"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "tag" : "lan-http-header",
+  "unsupported" : [
+
+  ]
+}

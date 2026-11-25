@@ -1,0 +1,1 @@
+vless://07bdfc86-4b12-4705-a9b2-477e3e708615@x.example.com:443?encryption=none&type=xhttp&host=x.example.com&path=%2Fxh&mode=packet-up&security=tls&sni=x.example.com&alpn=h2&fp=chrome#xhttp-tls

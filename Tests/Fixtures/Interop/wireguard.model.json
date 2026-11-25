@@ -1,0 +1,51 @@
+{
+  "credentials" : {
+    "privateKey" : {
+      "kind" : "inline",
+      "value" : "KFzVBHhjWlHJ138ha7PHbojjKyuBi9fEo0TkDOTbFEk="
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "i-wg",
+  "server" : {
+    "host" : "127.0.0.1",
+    "port" : 47014
+  },
+  "settings" : {
+    "wireGuard" : {
+      "_0" : {
+        "allowedIPs" : [
+
+        ],
+        "localAddresses" : [
+          "10.7.0.2/32"
+        ],
+        "mtu" : 1280,
+        "peerPublicKey" : "yONE93j/9v1k8lZxgcWm/oujy/nbK1I3OMp1JKW4TUc=",
+        "reserved" : [
+
+        ]
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "none" : {
+
+      }
+    },
+    "transport" : {
+      "native" : {
+
+      }
+    }
+  },
+  "tag" : "i-wg",
+  "unsupported" : [
+
+  ]
+}

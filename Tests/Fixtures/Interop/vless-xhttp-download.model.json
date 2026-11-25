@@ -1,0 +1,63 @@
+{
+  "credentials" : {
+    "userID" : {
+      "kind" : "inline",
+      "value" : "a037f543-d001-478f-9621-e21da2f8736a"
+    }
+  },
+  "extras" : {
+    "storage" : {
+      "xray" : {
+        "xhttp.extra" : {
+          "downloadSettings" : {
+            "address" : "127.0.0.1",
+            "network" : "xhttp",
+            "port" : 47005,
+            "security" : "none",
+            "xhttpSettings" : {
+              "path" : "/xh"
+            }
+          }
+        }
+      }
+    }
+  },
+  "name" : "i-vless-xhttp-dl",
+  "server" : {
+    "host" : "127.0.0.1",
+    "port" : 47005
+  },
+  "settings" : {
+    "vless" : {
+      "_0" : {
+        "encryption" : "none"
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "none" : {
+
+      }
+    },
+    "transport" : {
+      "xhttp" : {
+        "_0" : {
+          "host" : "",
+          "mode" : "packet-up",
+          "path" : "/xh"
+        }
+      }
+    }
+  },
+  "tag" : "i-vless-xhttp-dl",
+  "unsupported" : [
+    {
+      "detail" : "Kept verbatim for Xray under 'xhttp.extra'",
+      "disposition" : "preservedInEngineExtras",
+      "location" : "query",
+      "name" : "extra",
+      "reason" : "engineSpecific"
+    }
+  ]
+}

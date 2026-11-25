@@ -1,0 +1,44 @@
+{
+  "credentials" : {
+    "userID" : {
+      "kind" : "inline",
+      "value" : "a037f543-d001-478f-9621-e21da2f8736a"
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "i-vmess",
+  "server" : {
+    "host" : "127.0.0.1",
+    "port" : 47007
+  },
+  "settings" : {
+    "vmess" : {
+      "_0" : {
+        "alterID" : 0,
+        "cipher" : "auto"
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "none" : {
+
+      }
+    },
+    "transport" : {
+      "tcp" : {
+        "_0" : {
+
+        }
+      }
+    }
+  },
+  "tag" : "i-vmess",
+  "unsupported" : [
+
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "credentials" : {
+    "password" : {
+      "kind" : "inline",
+      "value" : "CyPSbbFD0c3iKaL9MAqCQw=="
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "ss2022-128",
+  "server" : {
+    "host" : "192.0.2.41",
+    "port" : 8390
+  },
+  "settings" : {
+    "shadowsocks" : {
+      "_0" : {
+        "method" : "2022-blake3-aes-128-gcm"
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "none" : {
+
+      }
+    },
+    "transport" : {
+      "tcp" : {
+        "_0" : {
+
+        }
+      }
+    }
+  },
+  "tag" : "ss2022-128",
+  "unsupported" : [
+
+  ]
+}

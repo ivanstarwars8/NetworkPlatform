@@ -1,0 +1,43 @@
+{
+  "credentials" : {
+    "password" : {
+      "kind" : "inline",
+      "value" : "FY2WsKBsjAkZYhQ+4FHQq4s+"
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "ss-legacy",
+  "server" : {
+    "host" : "ss.example.com",
+    "port" : 8389
+  },
+  "settings" : {
+    "shadowsocks" : {
+      "_0" : {
+        "method" : "chacha20-ietf-poly1305"
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "none" : {
+
+      }
+    },
+    "transport" : {
+      "tcp" : {
+        "_0" : {
+
+        }
+      }
+    }
+  },
+  "tag" : "ss-legacy",
+  "unsupported" : [
+
+  ]
+}

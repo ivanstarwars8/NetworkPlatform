@@ -1,0 +1,43 @@
+{
+  "credentials" : {
+    "password" : {
+      "kind" : "inline",
+      "value" : "l4YbXsaitoqaGLPOkBPry8d2qz1PcMY8c5CbYYm4pRo=:GAaNjGeCW/M++IvuaqybyeqQ/qsbOerAuCK0xJOq4Ck="
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "ss2022-ipsk",
+  "server" : {
+    "host" : "192.0.2.42",
+    "port" : 8391
+  },
+  "settings" : {
+    "shadowsocks" : {
+      "_0" : {
+        "method" : "2022-blake3-aes-256-gcm"
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "none" : {
+
+      }
+    },
+    "transport" : {
+      "tcp" : {
+        "_0" : {
+
+        }
+      }
+    }
+  },
+  "tag" : "ss2022-ipsk",
+  "unsupported" : [
+
+  ]
+}

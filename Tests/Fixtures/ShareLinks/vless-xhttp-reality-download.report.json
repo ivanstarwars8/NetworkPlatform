@@ -1,0 +1,40 @@
+{
+  "conversion" : {
+    "engine" : "xray",
+    "engineTags" : {
+      "xhttp-split" : "proxy-0000"
+    },
+    "engineVersion" : "26.11.9",
+    "excludedOutbounds" : [
+
+    ],
+    "issues" : [
+      {
+        "detail" : "XHTTP 'extra' is passed to Xray verbatim; the model does not interpret it",
+        "kind" : "engineLocked",
+        "path" : "outbounds[0].stream.transport.extra",
+        "severity" : "info"
+      }
+    ],
+    "verdict" : "exact"
+  },
+  "importReport" : {
+    "format" : "vless-url",
+    "scheme" : "vless",
+    "unsupported" : [
+      {
+        "detail" : "Kept verbatim for Xray under 'xhttp.extra'",
+        "disposition" : "preservedInEngineExtras",
+        "location" : "query",
+        "name" : "extra",
+        "reason" : "engineSpecific"
+      }
+    ],
+    "warnings" : [
+      {
+        "code" : "engineSpecific",
+        "message" : "XHTTP 'extra' contains downloadSettings; it is kept for Xray but not interpreted by the model"
+      }
+    ]
+  }
+}

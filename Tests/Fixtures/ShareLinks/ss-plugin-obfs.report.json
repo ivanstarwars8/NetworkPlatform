@@ -1,0 +1,37 @@
+{
+  "conversion" : {
+    "engine" : "xray",
+    "engineTags" : {
+
+    },
+    "engineVersion" : "26.11.9",
+    "excludedOutbounds" : [
+      "ss-plugin"
+    ],
+    "issues" : [
+      {
+        "detail" : "Xray cannot run SIP003 plugins",
+        "kind" : "unsupported",
+        "path" : "outbounds[0].settings.plugin",
+        "severity" : "error"
+      },
+      {
+        "detail" : "The selected outbound could not be compiled",
+        "kind" : "unsupported",
+        "path" : "profile.selectedTag",
+        "severity" : "error"
+      }
+    ],
+    "verdict" : "blocked"
+  },
+  "importReport" : {
+    "format" : "sip002",
+    "scheme" : "ss",
+    "unsupported" : [
+
+    ],
+    "warnings" : [
+
+    ]
+  }
+}

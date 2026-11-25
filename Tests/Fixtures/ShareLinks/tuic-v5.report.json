@@ -1,0 +1,40 @@
+{
+  "conversion" : {
+    "engine" : "xray",
+    "engineTags" : {
+
+    },
+    "engineVersion" : "26.11.9",
+    "excludedOutbounds" : [
+      "tuic"
+    ],
+    "issues" : [
+      {
+        "detail" : "Xray 26.11.9 has no TUIC outbound",
+        "kind" : "unsupported",
+        "path" : "outbounds[0].settings",
+        "severity" : "error"
+      },
+      {
+        "detail" : "The selected outbound could not be compiled",
+        "kind" : "unsupported",
+        "path" : "profile.selectedTag",
+        "severity" : "error"
+      }
+    ],
+    "verdict" : "blocked"
+  },
+  "importReport" : {
+    "format" : "tuic-url",
+    "scheme" : "tuic",
+    "unsupported" : [
+
+    ],
+    "warnings" : [
+      {
+        "code" : "nonStandardFormat",
+        "message" : "tuic:// links follow a community convention without a specification"
+      }
+    ]
+  }
+}

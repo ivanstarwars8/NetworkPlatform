@@ -1,0 +1,76 @@
+{
+  "credentials" : {
+    "userID" : {
+      "kind" : "inline",
+      "value" : "a037f543-d001-478f-9621-e21da2f8736a"
+    }
+  },
+  "extras" : {
+    "storage" : {
+      "xray" : {
+        "xhttp.extra" : {
+          "downloadSettings" : {
+            "address" : "dl.example.net",
+            "network" : "xhttp",
+            "port" : 8443,
+            "security" : "tls",
+            "tlsSettings" : {
+              "alpn" : [
+                "h2"
+              ],
+              "serverName" : "dl.example.net"
+            },
+            "xhttpSettings" : {
+              "mode" : "auto",
+              "path" : "/down"
+            }
+          },
+          "xPaddingBytes" : "100-1000"
+        }
+      }
+    }
+  },
+  "name" : "xhttp-split",
+  "server" : {
+    "host" : "192.0.2.12",
+    "port" : 443
+  },
+  "settings" : {
+    "vless" : {
+      "_0" : {
+        "encryption" : "none"
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "reality" : {
+        "_0" : {
+          "fingerprint" : "chrome",
+          "publicKey" : "VZhM7y7_-UFCl2zNHcAGmpbH_cJyhFV3yXneqhjbwC4",
+          "serverName" : "www.example.org",
+          "shortID" : "65466826"
+        }
+      }
+    },
+    "transport" : {
+      "xhttp" : {
+        "_0" : {
+          "host" : "",
+          "mode" : "stream-up",
+          "path" : "/up"
+        }
+      }
+    }
+  },
+  "tag" : "xhttp-split",
+  "unsupported" : [
+    {
+      "detail" : "Kept verbatim for Xray under 'xhttp.extra'",
+      "disposition" : "preservedInEngineExtras",
+      "location" : "query",
+      "name" : "extra",
+      "reason" : "engineSpecific"
+    }
+  ]
+}

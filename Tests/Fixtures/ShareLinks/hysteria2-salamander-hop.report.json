@@ -1,0 +1,26 @@
+{
+  "conversion" : {
+    "engine" : "xray",
+    "engineTags" : {
+      "hy2-hop" : "proxy-0000"
+    },
+    "engineVersion" : "26.11.9",
+    "excludedOutbounds" : [
+
+    ],
+    "issues" : [
+
+    ],
+    "verdict" : "exact"
+  },
+  "importReport" : {
+    "format" : "hysteria2-url",
+    "scheme" : "hy2",
+    "unsupported" : [
+
+    ],
+    "warnings" : [
+
+    ]
+  }
+}

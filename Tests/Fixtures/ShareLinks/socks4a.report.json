@@ -1,0 +1,37 @@
+{
+  "conversion" : {
+    "engine" : "xray",
+    "engineTags" : {
+
+    },
+    "engineVersion" : "26.11.9",
+    "excludedOutbounds" : [
+      "socks4a"
+    ],
+    "issues" : [
+      {
+        "detail" : "The Xray SOCKS outbound speaks SOCKS5 only",
+        "kind" : "unsupported",
+        "path" : "outbounds[0].settings.version",
+        "severity" : "error"
+      },
+      {
+        "detail" : "The selected outbound could not be compiled",
+        "kind" : "unsupported",
+        "path" : "profile.selectedTag",
+        "severity" : "error"
+      }
+    ],
+    "verdict" : "blocked"
+  },
+  "importReport" : {
+    "format" : "socks-url",
+    "scheme" : "socks4a",
+    "unsupported" : [
+
+    ],
+    "warnings" : [
+
+    ]
+  }
+}

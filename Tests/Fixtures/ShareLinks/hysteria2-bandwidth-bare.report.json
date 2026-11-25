@@ -1,0 +1,52 @@
+{
+  "conversion" : {
+    "engine" : "xray",
+    "engineTags" : {
+      "hy2-bare" : "proxy-0000"
+    },
+    "engineVersion" : "26.11.9",
+    "excludedOutbounds" : [
+
+    ],
+    "issues" : [
+      {
+        "detail" : "Imported parameter 'upmbps' (unknown) is not part of the configuration",
+        "kind" : "dropped",
+        "path" : "outbounds[0].unsupported[upmbps]",
+        "severity" : "warning"
+      },
+      {
+        "detail" : "Bandwidth has no unit Xray understands (a bare number is ambiguous between clients) and is not applied",
+        "kind" : "dropped",
+        "path" : "outbounds[0].settings.uploadBandwidth",
+        "severity" : "warning"
+      },
+      {
+        "detail" : "Bandwidth has no unit Xray understands (a bare number is ambiguous between clients) and is not applied",
+        "kind" : "dropped",
+        "path" : "outbounds[0].settings.downloadBandwidth",
+        "severity" : "warning"
+      }
+    ],
+    "verdict" : "degraded"
+  },
+  "importReport" : {
+    "format" : "hysteria2-url",
+    "scheme" : "hysteria2",
+    "unsupported" : [
+      {
+        "disposition" : "recorded",
+        "location" : "query",
+        "name" : "upmbps",
+        "reason" : "unknown",
+        "value" : "50"
+      }
+    ],
+    "warnings" : [
+      {
+        "code" : "nonStandardFormat",
+        "message" : "Bandwidth in a hysteria2:// link is a client extension, not part of the official scheme"
+      }
+    ]
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "credentials" : {
+    "password" : {
+      "kind" : "inline",
+      "value" : "udihPqDumwBiY6PSt26Nqr9G"
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "hy2-bandwidth",
+  "server" : {
+    "host" : "hy4.example.com",
+    "port" : 443
+  },
+  "settings" : {
+    "hysteria2" : {
+      "_0" : {
+        "downloadBandwidth" : "200mbps",
+        "serverPorts" : [
+
+        ],
+        "uploadBandwidth" : "50 mbps"
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "tls" : {
+        "_0" : {
+          "allowInsecure" : false,
+          "alpn" : [
+            "h3"
+          ],
+          "disableSNI" : false,
+          "serverName" : "hy4.example.com"
+        }
+      }
+    },
+    "transport" : {
+      "native" : {
+
+      }
+    }
+  },
+  "tag" : "hy2-bandwidth",
+  "unsupported" : [
+
+  ]
+}

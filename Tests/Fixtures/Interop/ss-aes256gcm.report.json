@@ -1,0 +1,26 @@
+{
+  "conversion" : {
+    "engine" : "xray",
+    "engineTags" : {
+      "i-ss" : "proxy-0000"
+    },
+    "engineVersion" : "26.11.9",
+    "excludedOutbounds" : [
+
+    ],
+    "issues" : [
+
+    ],
+    "verdict" : "exact"
+  },
+  "importReport" : {
+    "format" : "sip002",
+    "scheme" : "ss",
+    "unsupported" : [
+
+    ],
+    "warnings" : [
+
+    ]
+  }
+}

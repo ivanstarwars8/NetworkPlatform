@@ -1,0 +1,58 @@
+{
+  "credentials" : {
+    "password" : {
+      "kind" : "inline",
+      "value" : "udihPqDumwBiY6PSt26Nqr9G"
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "i-hy2",
+  "server" : {
+    "host" : "127.0.0.1",
+    "port" : 47013
+  },
+  "settings" : {
+    "hysteria2" : {
+      "_0" : {
+        "obfuscation" : {
+          "password" : {
+            "kind" : "inline",
+            "value" : "UD3nWFp4ew79/MjLvzbno+6K"
+          },
+          "type" : "salamander"
+        },
+        "serverPorts" : [
+
+        ]
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "tls" : {
+        "_0" : {
+          "allowInsecure" : false,
+          "alpn" : [
+
+          ],
+          "disableSNI" : false,
+          "pinnedPeerCertificateSHA256" : "485767e0c2c1d3b433e90a3ffee423397e56dc526218ef42a3c754d93831ca7f",
+          "serverName" : "interop.test"
+        }
+      }
+    },
+    "transport" : {
+      "native" : {
+
+      }
+    }
+  },
+  "tag" : "i-hy2",
+  "unsupported" : [
+
+  ]
+}

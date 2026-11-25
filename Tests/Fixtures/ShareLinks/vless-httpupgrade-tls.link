@@ -1,0 +1,1 @@
+vless://76e67b80-b8d3-407a-a13f-02c1c48186ab@hu.example.com:2053?encryption=none&type=httpupgrade&host=hu.example.com&path=%2Fup&security=tls#httpupgrade

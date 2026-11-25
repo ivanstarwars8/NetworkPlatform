@@ -1,0 +1,43 @@
+{
+  "credentials" : {
+    "password" : {
+      "kind" : "inline",
+      "value" : "GAaNjGeCW/M++IvuaqybyeqQ/qsbOerAuCK0xJOq4Ck="
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "ss2022-chacha",
+  "server" : {
+    "host" : "2001:db8::42",
+    "port" : 8392
+  },
+  "settings" : {
+    "shadowsocks" : {
+      "_0" : {
+        "method" : "2022-blake3-chacha20-poly1305"
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "none" : {
+
+      }
+    },
+    "transport" : {
+      "tcp" : {
+        "_0" : {
+
+        }
+      }
+    }
+  },
+  "tag" : "ss2022-chacha",
+  "unsupported" : [
+
+  ]
+}

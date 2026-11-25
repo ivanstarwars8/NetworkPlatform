@@ -1,0 +1,58 @@
+{
+  "inbounds" : [
+    {
+      "listen" : "127.0.0.1",
+      "port" : 10808,
+      "protocol" : "socks",
+      "settings" : {
+        "auth" : "noauth",
+        "udp" : true
+      },
+      "tag" : "socks-in"
+    }
+  ],
+  "log" : {
+    "loglevel" : "warning"
+  },
+  "outbounds" : [
+    {
+      "protocol" : "vless",
+      "settings" : {
+        "address" : "192.0.2.10",
+        "encryption" : "none",
+        "flow" : "xtls-rprx-vision",
+        "id" : "1cc9207f-5dda-4274-bb0d-9d105c95c6e8",
+        "port" : 443
+      },
+      "streamSettings" : {
+        "network" : "raw",
+        "realitySettings" : {
+          "fingerprint" : "chrome",
+          "password" : "VZhM7y7_-UFCl2zNHcAGmpbH_cJyhFV3yXneqhjbwC4",
+          "serverName" : "www.example.org",
+          "shortId" : "65466826",
+          "spiderX" : "/"
+        },
+        "security" : "reality"
+      },
+      "tag" : "proxy-0000"
+    },
+    {
+      "protocol" : "freedom",
+      "tag" : "direct"
+    },
+    {
+      "protocol" : "blackhole",
+      "tag" : "block"
+    }
+  ],
+  "routing" : {
+    "rules" : [
+      {
+        "network" : "tcp,udp",
+        "outboundTag" : "proxy-0000",
+        "type" : "field"
+      }
+    ]
+  }
+}

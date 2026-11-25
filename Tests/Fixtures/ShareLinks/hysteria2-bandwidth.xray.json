@@ -1,0 +1,66 @@
+{
+  "inbounds" : [
+    {
+      "listen" : "127.0.0.1",
+      "port" : 10808,
+      "protocol" : "socks",
+      "settings" : {
+        "auth" : "noauth",
+        "udp" : true
+      },
+      "tag" : "socks-in"
+    }
+  ],
+  "log" : {
+    "loglevel" : "warning"
+  },
+  "outbounds" : [
+    {
+      "protocol" : "hysteria",
+      "settings" : {
+        "address" : "hy4.example.com",
+        "port" : 443,
+        "version" : 2
+      },
+      "streamSettings" : {
+        "finalmask" : {
+          "quicParams" : {
+            "brutalDown" : "200mbps",
+            "brutalUp" : "50 mbps",
+            "congestion" : "brutal"
+          }
+        },
+        "hysteriaSettings" : {
+          "auth" : "udihPqDumwBiY6PSt26Nqr9G",
+          "version" : 2
+        },
+        "network" : "hysteria",
+        "security" : "tls",
+        "tlsSettings" : {
+          "alpn" : [
+            "h3"
+          ],
+          "serverName" : "hy4.example.com"
+        }
+      },
+      "tag" : "proxy-0000"
+    },
+    {
+      "protocol" : "freedom",
+      "tag" : "direct"
+    },
+    {
+      "protocol" : "blackhole",
+      "tag" : "block"
+    }
+  ],
+  "routing" : {
+    "rules" : [
+      {
+        "network" : "tcp,udp",
+        "outboundTag" : "proxy-0000",
+        "type" : "field"
+      }
+    ]
+  }
+}

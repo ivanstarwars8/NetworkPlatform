@@ -1,0 +1,73 @@
+{
+  "inbounds" : [
+    {
+      "listen" : "127.0.0.1",
+      "port" : 10808,
+      "protocol" : "socks",
+      "settings" : {
+        "auth" : "noauth",
+        "udp" : true
+      },
+      "tag" : "socks-in"
+    }
+  ],
+  "log" : {
+    "loglevel" : "warning"
+  },
+  "outbounds" : [
+    {
+      "protocol" : "vless",
+      "settings" : {
+        "address" : "192.0.2.80",
+        "encryption" : "none",
+        "flow" : "xtls-rprx-vision",
+        "id" : "1cc9207f-5dda-4274-bb0d-9d105c95c6e8",
+        "port" : 443
+      },
+      "streamSettings" : {
+        "network" : "raw",
+        "realitySettings" : {
+          "fingerprint" : "chrome",
+          "password" : "VZhM7y7_-UFCl2zNHcAGmpbH_cJyhFV3yXneqhjbwC4",
+          "serverName" : "www.example.org",
+          "shortId" : "65466826"
+        },
+        "security" : "reality"
+      },
+      "tag" : "proxy-0000"
+    },
+    {
+      "protocol" : "trojan",
+      "settings" : {
+        "address" : "t.example.com",
+        "password" : "udihPqDumwBiY6PSt26Nqr9G",
+        "port" : 443
+      },
+      "streamSettings" : {
+        "network" : "raw",
+        "security" : "tls",
+        "tlsSettings" : {
+          "serverName" : "t.example.com"
+        }
+      },
+      "tag" : "proxy-0001"
+    },
+    {
+      "protocol" : "freedom",
+      "tag" : "direct"
+    },
+    {
+      "protocol" : "blackhole",
+      "tag" : "block"
+    }
+  ],
+  "routing" : {
+    "rules" : [
+      {
+        "network" : "tcp,udp",
+        "outboundTag" : "proxy-0001",
+        "type" : "field"
+      }
+    ]
+  }
+}

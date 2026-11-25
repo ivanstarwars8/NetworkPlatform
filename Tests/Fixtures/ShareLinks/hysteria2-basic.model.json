@@ -1,0 +1,50 @@
+{
+  "credentials" : {
+    "password" : {
+      "kind" : "inline",
+      "value" : "udihPqDumwBiY6PSt26Nqr9G"
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "hy2-basic",
+  "server" : {
+    "host" : "hy.example.com",
+    "port" : 443
+  },
+  "settings" : {
+    "hysteria2" : {
+      "_0" : {
+        "serverPorts" : [
+
+        ]
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "tls" : {
+        "_0" : {
+          "allowInsecure" : false,
+          "alpn" : [
+
+          ],
+          "disableSNI" : false,
+          "serverName" : "hy.example.com"
+        }
+      }
+    },
+    "transport" : {
+      "native" : {
+
+      }
+    }
+  },
+  "tag" : "hy2-basic",
+  "unsupported" : [
+
+  ]
+}

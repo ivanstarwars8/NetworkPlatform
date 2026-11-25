@@ -1,0 +1,52 @@
+{
+  "credentials" : {
+    "password" : {
+      "kind" : "inline",
+      "value" : "UD3nWFp4ew79/MjLvzbno+6K"
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "trojan-grpc",
+  "server" : {
+    "host" : "tg.example.com",
+    "port" : 443
+  },
+  "settings" : {
+    "trojan" : {
+
+    }
+  },
+  "stream" : {
+    "security" : {
+      "tls" : {
+        "_0" : {
+          "allowInsecure" : false,
+          "alpn" : [
+
+          ],
+          "disableSNI" : false,
+          "pinnedPeerCertificateSHA256" : "685f8e8c7197c0abb9ab999d0893db8244ce9b197fe2ae003c99d28d7f3f9183",
+          "serverName" : "tg.example.com",
+          "verifyPeerCertificateByName" : "tg.example.com"
+        }
+      }
+    },
+    "transport" : {
+      "grpc" : {
+        "_0" : {
+          "authority" : "",
+          "multiMode" : false,
+          "serviceName" : "tg"
+        }
+      }
+    }
+  },
+  "tag" : "trojan-grpc",
+  "unsupported" : [
+
+  ]
+}

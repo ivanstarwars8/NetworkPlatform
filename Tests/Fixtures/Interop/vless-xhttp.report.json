@@ -1,0 +1,29 @@
+{
+  "conversion" : {
+    "engine" : "xray",
+    "engineTags" : {
+      "i-vless-xhttp" : "proxy-0000"
+    },
+    "engineVersion" : "26.11.9",
+    "excludedOutbounds" : [
+
+    ],
+    "issues" : [
+
+    ],
+    "verdict" : "exact"
+  },
+  "importReport" : {
+    "format" : "vless-url",
+    "scheme" : "vless",
+    "unsupported" : [
+
+    ],
+    "warnings" : [
+      {
+        "code" : "plaintextTransport",
+        "message" : "VLESS without TLS, REALITY or VLESS Encryption is not encrypted"
+      }
+    ]
+  }
+}

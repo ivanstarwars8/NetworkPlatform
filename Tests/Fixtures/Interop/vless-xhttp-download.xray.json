@@ -1,0 +1,65 @@
+{
+  "inbounds" : [
+    {
+      "listen" : "127.0.0.1",
+      "port" : 10808,
+      "protocol" : "socks",
+      "settings" : {
+        "auth" : "noauth",
+        "udp" : true
+      },
+      "tag" : "socks-in"
+    }
+  ],
+  "log" : {
+    "loglevel" : "warning"
+  },
+  "outbounds" : [
+    {
+      "protocol" : "vless",
+      "settings" : {
+        "address" : "127.0.0.1",
+        "encryption" : "none",
+        "id" : "a037f543-d001-478f-9621-e21da2f8736a",
+        "port" : 47005
+      },
+      "streamSettings" : {
+        "network" : "xhttp",
+        "security" : "none",
+        "xhttpSettings" : {
+          "extra" : {
+            "downloadSettings" : {
+              "address" : "127.0.0.1",
+              "network" : "xhttp",
+              "port" : 47005,
+              "security" : "none",
+              "xhttpSettings" : {
+                "path" : "/xh"
+              }
+            }
+          },
+          "mode" : "packet-up",
+          "path" : "/xh"
+        }
+      },
+      "tag" : "proxy-0000"
+    },
+    {
+      "protocol" : "freedom",
+      "tag" : "direct"
+    },
+    {
+      "protocol" : "blackhole",
+      "tag" : "block"
+    }
+  ],
+  "routing" : {
+    "rules" : [
+      {
+        "network" : "tcp,udp",
+        "outboundTag" : "proxy-0000",
+        "type" : "field"
+      }
+    ]
+  }
+}

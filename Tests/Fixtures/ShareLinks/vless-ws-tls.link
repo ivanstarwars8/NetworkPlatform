@@ -1,0 +1,1 @@
+vless://7d7ea5d0-9ec2-432e-82e7-141bada6fc01@cdn.example.com:443?encryption=none&type=ws&host=cdn.example.com&path=%2Fws%3Fed%3D2560&security=tls&sni=cdn.example.com&alpn=http%2F1.1&fp=firefox#ws-tls

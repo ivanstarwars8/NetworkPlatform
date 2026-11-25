@@ -1,0 +1,57 @@
+{
+  "inbounds" : [
+    {
+      "listen" : "127.0.0.1",
+      "port" : 10808,
+      "protocol" : "socks",
+      "settings" : {
+        "auth" : "noauth",
+        "udp" : true
+      },
+      "tag" : "socks-in"
+    }
+  ],
+  "log" : {
+    "loglevel" : "warning"
+  },
+  "outbounds" : [
+    {
+      "protocol" : "vmess",
+      "settings" : {
+        "address" : "vu.example.com",
+        "id" : "07bdfc86-4b12-4705-a9b2-477e3e708615",
+        "port" : 443,
+        "security" : "aes-128-gcm"
+      },
+      "streamSettings" : {
+        "httpupgradeSettings" : {
+          "host" : "vu.example.com",
+          "path" : "/hu"
+        },
+        "network" : "httpupgrade",
+        "security" : "tls",
+        "tlsSettings" : {
+          "serverName" : "vu.example.com"
+        }
+      },
+      "tag" : "proxy-0000"
+    },
+    {
+      "protocol" : "freedom",
+      "tag" : "direct"
+    },
+    {
+      "protocol" : "blackhole",
+      "tag" : "block"
+    }
+  ],
+  "routing" : {
+    "rules" : [
+      {
+        "network" : "tcp,udp",
+        "outboundTag" : "proxy-0000",
+        "type" : "field"
+      }
+    ]
+  }
+}

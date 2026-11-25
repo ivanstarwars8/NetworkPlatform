@@ -1,0 +1,244 @@
+{
+  "groups" : [
+    {
+      "healthCheck" : {
+        "intervalSeconds" : 60,
+        "timeoutMilliseconds" : 3000,
+        "url" : "https://www.gstatic.com/generate_204"
+      },
+      "kind" : "urlTest",
+      "members" : [
+        {
+          "outbound" : {
+            "tag" : "a"
+          }
+        },
+        {
+          "outbound" : {
+            "tag" : "ab"
+          }
+        },
+        {
+          "outbound" : {
+            "tag" : "t"
+          }
+        },
+        {
+          "outbound" : {
+            "tag" : "tuic"
+          }
+        }
+      ],
+      "name" : "auto",
+      "tag" : "auto"
+    }
+  ],
+  "id" : "00000000-0000-4000-8000-000000000102",
+  "name" : "urltest",
+  "outbounds" : [
+    {
+      "credentials" : {
+        "userID" : {
+          "kind" : "inline",
+          "value" : "1cc9207f-5dda-4274-bb0d-9d105c95c6e8"
+        }
+      },
+      "extras" : {
+        "storage" : {
+
+        }
+      },
+      "name" : "a",
+      "server" : {
+        "host" : "192.0.2.80",
+        "port" : 443
+      },
+      "settings" : {
+        "vless" : {
+          "_0" : {
+            "encryption" : "none",
+            "flow" : "xtls-rprx-vision"
+          }
+        }
+      },
+      "stream" : {
+        "security" : {
+          "reality" : {
+            "_0" : {
+              "fingerprint" : "chrome",
+              "publicKey" : "VZhM7y7_-UFCl2zNHcAGmpbH_cJyhFV3yXneqhjbwC4",
+              "serverName" : "www.example.org",
+              "shortID" : "65466826"
+            }
+          }
+        },
+        "transport" : {
+          "tcp" : {
+            "_0" : {
+
+            }
+          }
+        }
+      },
+      "tag" : "a",
+      "unsupported" : [
+
+      ]
+    },
+    {
+      "credentials" : {
+        "userID" : {
+          "kind" : "inline",
+          "value" : "7d7ea5d0-9ec2-432e-82e7-141bada6fc01"
+        }
+      },
+      "extras" : {
+        "storage" : {
+
+        }
+      },
+      "name" : "ab",
+      "server" : {
+        "host" : "192.0.2.81",
+        "port" : 443
+      },
+      "settings" : {
+        "vless" : {
+          "_0" : {
+            "encryption" : "none",
+            "flow" : "xtls-rprx-vision"
+          }
+        }
+      },
+      "stream" : {
+        "security" : {
+          "reality" : {
+            "_0" : {
+              "fingerprint" : "chrome",
+              "publicKey" : "VZhM7y7_-UFCl2zNHcAGmpbH_cJyhFV3yXneqhjbwC4",
+              "serverName" : "www.example.org",
+              "shortID" : "65466826"
+            }
+          }
+        },
+        "transport" : {
+          "tcp" : {
+            "_0" : {
+
+            }
+          }
+        }
+      },
+      "tag" : "ab",
+      "unsupported" : [
+
+      ]
+    },
+    {
+      "credentials" : {
+        "password" : {
+          "kind" : "inline",
+          "value" : "udihPqDumwBiY6PSt26Nqr9G"
+        }
+      },
+      "extras" : {
+        "storage" : {
+
+        }
+      },
+      "name" : "t",
+      "server" : {
+        "host" : "t.example.com",
+        "port" : 443
+      },
+      "settings" : {
+        "trojan" : {
+
+        }
+      },
+      "stream" : {
+        "security" : {
+          "tls" : {
+            "_0" : {
+              "allowInsecure" : false,
+              "alpn" : [
+
+              ],
+              "disableSNI" : false,
+              "serverName" : "t.example.com"
+            }
+          }
+        },
+        "transport" : {
+          "tcp" : {
+            "_0" : {
+
+            }
+          }
+        }
+      },
+      "tag" : "t",
+      "unsupported" : [
+
+      ]
+    },
+    {
+      "credentials" : {
+        "password" : {
+          "kind" : "inline",
+          "value" : "udihPqDumwBiY6PSt26Nqr9G"
+        },
+        "userID" : {
+          "kind" : "inline",
+          "value" : "1cc9207f-5dda-4274-bb0d-9d105c95c6e8"
+        }
+      },
+      "extras" : {
+        "storage" : {
+
+        }
+      },
+      "name" : "tuic",
+      "server" : {
+        "host" : "tu.example.com",
+        "port" : 443
+      },
+      "settings" : {
+        "tuic" : {
+          "_0" : {
+
+          }
+        }
+      },
+      "stream" : {
+        "security" : {
+          "tls" : {
+            "_0" : {
+              "allowInsecure" : false,
+              "alpn" : [
+
+              ],
+              "disableSNI" : false
+            }
+          }
+        },
+        "transport" : {
+          "native" : {
+
+          }
+        }
+      },
+      "tag" : "tuic",
+      "unsupported" : [
+
+      ]
+    }
+  ],
+  "schemaVersion" : 1,
+  "selectedTag" : "auto",
+  "source" : {
+    "manual" : {
+
+    }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "conversion" : {
+    "engine" : "xray",
+    "engineTags" : {
+      "trojan-ws" : "proxy-0000"
+    },
+    "engineVersion" : "26.11.9",
+    "excludedOutbounds" : [
+
+    ],
+    "issues" : [
+      {
+        "detail" : "Server name is absent; the WebSocket host is used, as libXray does",
+        "kind" : "migrated",
+        "path" : "outbounds[0].stream.security.serverName",
+        "severity" : "info"
+      }
+    ],
+    "verdict" : "exact"
+  },
+  "importReport" : {
+    "format" : "trojan-url",
+    "scheme" : "trojan",
+    "unsupported" : [
+
+    ],
+    "warnings" : [
+
+    ]
+  }
+}

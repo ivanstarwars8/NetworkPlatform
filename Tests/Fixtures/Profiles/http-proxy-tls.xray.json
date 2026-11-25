@@ -1,0 +1,56 @@
+{
+  "inbounds" : [
+    {
+      "listen" : "127.0.0.1",
+      "port" : 10808,
+      "protocol" : "socks",
+      "settings" : {
+        "auth" : "noauth",
+        "udp" : true
+      },
+      "tag" : "socks-in"
+    }
+  ],
+  "log" : {
+    "loglevel" : "warning"
+  },
+  "outbounds" : [
+    {
+      "protocol" : "http",
+      "settings" : {
+        "address" : "proxy.example.com",
+        "pass" : "udihPqDumwBiY6PSt26Nqr9G",
+        "port" : 8443,
+        "user" : "user1"
+      },
+      "streamSettings" : {
+        "network" : "raw",
+        "security" : "tls",
+        "tlsSettings" : {
+          "alpn" : [
+            "http/1.1"
+          ],
+          "serverName" : "proxy.example.com"
+        }
+      },
+      "tag" : "proxy-0000"
+    },
+    {
+      "protocol" : "freedom",
+      "tag" : "direct"
+    },
+    {
+      "protocol" : "blackhole",
+      "tag" : "block"
+    }
+  ],
+  "routing" : {
+    "rules" : [
+      {
+        "network" : "tcp,udp",
+        "outboundTag" : "proxy-0000",
+        "type" : "field"
+      }
+    ]
+  }
+}

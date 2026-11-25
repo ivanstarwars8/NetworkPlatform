@@ -1,0 +1,49 @@
+{
+  "credentials" : {
+    "userID" : {
+      "kind" : "inline",
+      "value" : "7cbd604a-1e57-419f-8fe1-e39a88ade162"
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "kcp-legacy",
+  "server" : {
+    "host" : "10.0.0.2",
+    "port" : 4000
+  },
+  "settings" : {
+    "vless" : {
+      "_0" : {
+        "encryption" : "none"
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "none" : {
+
+      }
+    },
+    "transport" : {
+      "kcp" : {
+        "_0" : {
+          "headerType" : "wechat-video",
+          "mtu" : 1350,
+          "seed" : {
+            "kind" : "inline",
+            "value" : "udihPqDumwBiY6PSt26Nqr9G"
+          },
+          "tti" : 50
+        }
+      }
+    }
+  },
+  "tag" : "kcp-legacy",
+  "unsupported" : [
+
+  ]
+}

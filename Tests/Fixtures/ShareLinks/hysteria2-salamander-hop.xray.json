@@ -1,0 +1,74 @@
+{
+  "inbounds" : [
+    {
+      "listen" : "127.0.0.1",
+      "port" : 10808,
+      "protocol" : "socks",
+      "settings" : {
+        "auth" : "noauth",
+        "udp" : true
+      },
+      "tag" : "socks-in"
+    }
+  ],
+  "log" : {
+    "loglevel" : "warning"
+  },
+  "outbounds" : [
+    {
+      "protocol" : "hysteria",
+      "settings" : {
+        "address" : "hy2.example.com",
+        "port" : 443,
+        "version" : 2
+      },
+      "streamSettings" : {
+        "finalmask" : {
+          "udp" : [
+            {
+              "settings" : {
+                "password" : "UD3nWFp4ew79/MjLvzbno+6K"
+              },
+              "type" : "salamander"
+            },
+            {
+              "settings" : {
+                "interval" : 45,
+                "mode" : "intervalLocal,intervalRemote",
+                "remotePorts" : "443,5000-6000"
+              },
+              "type" : "udphop"
+            }
+          ]
+        },
+        "hysteriaSettings" : {
+          "auth" : "FY2WsKBsjAkZYhQ+4FHQq4s+",
+          "version" : 2
+        },
+        "network" : "hysteria",
+        "security" : "tls",
+        "tlsSettings" : {
+          "serverName" : "hy2.example.com"
+        }
+      },
+      "tag" : "proxy-0000"
+    },
+    {
+      "protocol" : "freedom",
+      "tag" : "direct"
+    },
+    {
+      "protocol" : "blackhole",
+      "tag" : "block"
+    }
+  ],
+  "routing" : {
+    "rules" : [
+      {
+        "network" : "tcp,udp",
+        "outboundTag" : "proxy-0000",
+        "type" : "field"
+      }
+    ]
+  }
+}
