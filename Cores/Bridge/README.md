@@ -101,7 +101,13 @@ go test ./engine -run '^$' -fuzz '^FuzzPrepareConfig$' -fuzztime 60s   # так�
 - Под `GOOS=darwin` пакет `engine` только компилируется (`go build`, `go vet` с `CGO_ENABLED=0`); под
   `GOOS=ios` без SDK не собирается вовсе. C-архив под Apple не собирался.
 - Под детектором гонок тесты с `flow: xtls-rprx-vision` иногда сообщают гонку **внутри ядра**
-  (`proxy/proxy.go`: `XtlsFilterTls` против `VisionReader.ReadMultiBuffer`). В коде моста гонок нет.
+  (`proxy/proxy.go`: `XtlsFilterTls` против `VisionReader.ReadMultiBuffer`, общий `TrafficState` читающей и
+  пишущей половин outbound). `TestFlowThroughProxyWithDNS` под `-race` из-за этого падает воспроизводимо
+  (2 прогона из 2); в стеках гонки мост присутствует только как создатель горутины. Тот же тест под `-race`
+  через протокол без Vision проходит: `NP_TEST_FLOW_PROXY='Trojan+TLS'` или `'VLESS+XHTTP'`. Остальные тесты
+  под `-race` проходят.
+- С REALITY первое соединение к тестовому серверу занимает около 5 с: серверная библиотека ждёт пробу
+  post-handshake-записей цели (`xtls/reality` `record_detect.go`), локальная цель их не шлёт. Следующие — миллисекунды.
 - `core.New`, вернувший ошибку, не отдаёт частично созданный экземпляр — закрыть его нечем.
 - `Validate` с конструированием экземпляра меняет процесс-глобальное состояние ядра (системный диалер,
   обработчик журнала), поэтому при работающем движке выполняется только сборка конфигурации.

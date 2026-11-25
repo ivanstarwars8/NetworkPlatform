@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/netip"
+	"os"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -374,7 +375,24 @@ func TestFlowThroughProxyWithDNS(t *testing.T) {
 	resolver, queries := startTestResolver(t, "tunnel.np-test.", [4]byte{203, 0, 113, 7})
 
 	serverPort := freePort(t)
-	in, out := protoCases()[1].build(t, serverPort) // VLESS+REALITY+Vision
+	// VLESS+REALITY+Vision by default. NP_TEST_FLOW_PROXY selects another case by name: under the race
+	// detector the pinned core reports a race of its own inside Vision (proxy/proxy.go, TrafficState shared by
+	// VisionReader and VisionWriter), which fails this test without telling anything about the bridge. Running
+	// it a second time over a protocol without Vision gives the bridge's packet path its own race verdict.
+	proxyCase := protoCases()[1]
+	if name := os.Getenv("NP_TEST_FLOW_PROXY"); name != "" {
+		found := false
+		for _, c := range protoCases() {
+			if c.name == name {
+				proxyCase, found = c, true
+			}
+		}
+		if !found {
+			t.Fatalf("NP_TEST_FLOW_PROXY=%q: no such protocol case", name)
+		}
+	}
+	t.Logf("proxy protocol: %s", proxyCase.name)
+	in, out := proxyCase.build(t, serverPort)
 	// The server sends everything to the echo port, except what is addressed to the resolver.
 	server := obj{}
 	if err := jsonUnmarshal(serverConfig(t, in, serverPort, fmt.Sprintf("127.0.0.1:%d", echo)), &server); err != nil {
@@ -401,6 +419,9 @@ func TestFlowThroughProxyWithDNS(t *testing.T) {
 	p := newFlowPeer(t, e, mtu)
 
 	const tcpBytes = 1 << 20
+	// With REALITY the first connection takes about five seconds: the server library waits for its probe of
+	// the target's post-handshake records (xtls/reality record_detect.go, 5 s read deadline), and the local
+	// test target sends nothing after its handshake. Measured: first echo 5.04 s, the next one 16 ms.
 	c := p.dialTCP("10.9.0.1:443")
 	echoTCP(t, c, tcpBytes)
 	c.Close()
