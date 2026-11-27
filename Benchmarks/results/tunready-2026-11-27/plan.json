@@ -1,0 +1,50 @@
+{
+  "addressing" : {
+    "dnsIPv4Address" : "198.18.0.2",
+    "dnsIPv6Address" : "fd66:6e70::2",
+    "ipv4Address" : "198.18.0.1",
+    "ipv4PrefixLength" : 30,
+    "ipv6Address" : "fd66:6e70::1",
+    "ipv6PrefixLength" : 126,
+    "mtu" : 1500
+  },
+  "excludedRoutes" : [
+    {
+      "address" : "203.0.113.1",
+      "prefixLength" : 32
+    },
+    {
+      "address" : "10.0.0.0",
+      "prefixLength" : 8
+    },
+    {
+      "address" : "172.16.0.0",
+      "prefixLength" : 12
+    },
+    {
+      "address" : "192.168.0.0",
+      "prefixLength" : 16
+    },
+    {
+      "address" : "169.254.0.0",
+      "prefixLength" : 16
+    },
+    {
+      "address" : "224.0.0.0",
+      "prefixLength" : 4
+    },
+    {
+      "address" : "255.255.255.255",
+      "prefixLength" : 32
+    },
+    {
+      "address" : "fe80::",
+      "prefixLength" : 10
+    },
+    {
+      "address" : "ff00::",
+      "prefixLength" : 8
+    }
+  ],
+  "remoteAddress" : "203.0.113.1"
+}

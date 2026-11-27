@@ -217,3 +217,33 @@ TCP/IP iOS, `NEPacketTunnelFlow` и переход Swift↔Go в проверк�
   (`bridge-benchmarks.md` §2): есть ли он на устройстве.
 - Время жизни UDP-сессий стека ядра (`connIdle`, по умолчанию 300 с) и память под ними на устройстве
   (`bridge-benchmarks.md` §6).
+
+## 11. Что выпускает компилятор для туннеля (2026-11-27, поток tunready)
+
+`XrayCompileOptions.packetTunnel(dnsServers:addressing:)` (`Packages/ConfigurationEngine`) — конфиг для
+расширения: профиль памяти `mobile` и туннель. Адреса интерфейса, резолверы и MTU берутся из одного значения —
+`TunnelAddressing` (`Packages/DomainModels/Sources/TunnelAddressing.swift`); из него же строится
+`TunnelNetworkPlan.init(addressing:excludedRoutes:remoteAddress:)`, который расширение превращает в
+`NEPacketTunnelNetworkSettings`. Компилятор возвращает рядом с конфигом `XrayTunnelPlan` (адреса, исключаемые
+маршруты, `tunnelRemoteAddress`), так что конфиг и интерфейс строятся из одних данных. [V]
+
+- **Inbound:** `{"tag":"tun-in","protocol":"tun","settings":{"mtu":<TunnelAddressing.mtu>}}`, уровень 0 (к нему
+  относится политика `mobile`). В режиме `flow` мост заменяет его своим пакетным inbound с тем же тегом и MTU (§3).
+- **DNS:** правило 1 — весь UDP/53 из `tun-in` на любой адрес → outbound `dns` (перехват, а не только адреса
+  резолверов туннеля); правило 2 — собственные запросы резолвера ядра (`dns.tag = "dns-internal"`) идут туда же,
+  куда трафик пользователя (outbound или балансир). `localhost` и схемы `+local` в туннеле отвергаются (они
+  обходят маршрутизацию, `app/dns/nameserver.go`); без серверов — `1.1.1.1`, `8.8.8.8` через прокси (запись
+  `migrated` в отчёте).
+- **Исключения:** правило 3 — IP-литералы серверов и локальные диапазоны (`10/8`, `172.16/12`, `192.168/16`,
+  `169.254/16`, `224/4`, `255.255.255.255/32`, `fe80::/10`, `ff00::/8`) → `direct`; тот же список — в
+  `excludedRoutes` плана. Списки обязаны совпадать: прямое соединение к адресу, который система направляет в
+  туннель, вернулось бы в туннель. ULA (`fc00::/7`) не исключается — собственный IPv6-префикс туннеля ULA.
+  Сервер, заданный доменом, до старта не исключить (запись `untested` в отчёте, без имени сервера).
+- **Адреса по умолчанию:** IPv4 `198.18.0.1/30`, резолвер `198.18.0.2` (диапазон RFC 2544: не частный и не
+  публичный, с исключениями не пересекается); IPv6 `fd66:6e70::1/126`, резолвер `fd66:6e70::2`; MTU 1500.
+
+Сквозная проверка на Linux — `Cores/BuildScripts/bridge-tunlab.sh compiled DIR`: интерфейс tun в netns
+настраивается по `plan.json`, мост (`nplab bridge -options`) получает конфиг `config.json` и опции адаптера
+`bridge-options.json` без правок руками; файлы выгружают `testExportCompiledTunnelConfiguration`
+(ConfigurationEngine) и `testExportPacketTunnelBridgeOptions` (EngineXray) при заданном `NP_EXPORT_DIR`.
+Результат прогона — `Benchmarks/results/tunready-2026-11-27/`.

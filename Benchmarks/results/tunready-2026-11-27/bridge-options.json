@@ -1,0 +1,1 @@
+{"logLevel":"warning","memory":{"profile":"mobile"},"startTimeoutMs":15000,"stopTimeoutMs":4000,"tun":{"mode":"flow","mtu":1500}}
