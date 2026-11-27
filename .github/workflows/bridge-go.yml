@@ -61,11 +61,21 @@ jobs:
           NP_TEST_FLOW_PROXY: Trojan+TLS
         run: go test -race -count=1 -timeout 10m -run '^TestFlowThroughProxyWithDNS$' ./engine
       # Known failure, reported, not hidden. Passes only while each Vision case either passes or fails with a
-      # data race inside Xray-core with no bridge frame in the report; any other failure fails the step.
+      # data race whose conflicting accesses are inside Xray-core (proxy/proxy.go); any other failure fails.
       - name: KNOWN FAILURE check, race, Vision cases (Xray-core data race)
         env:
           NP_STOCK_XRAY: ${{ runner.temp }}/xray
         run: |
+          # True when a bridge frame is in an access stack (Read/Write/Previous ... at) of a race report. The
+          # bridge may appear in "Goroutine N created at" (it dispatches the connection to the core); the
+          # conflicting accesses themselves must be in the core for the failure to count as the known one.
+          bridge_access() {
+            sed 's/^.*Z //' "$1" | awk '
+              /^(Read|Write|Previous read|Previous write|Atomic)/ { acc = 1; next }
+              /^$/ || /^Goroutine/ { acc = 0 }
+              acc && /networkplatform\/bridge/ { found = 1 }
+              END { exit !found }'
+          }
           status=0
           for run in '^TestFlowThroughProxyWithDNS$' '^TestProtocolsOverLoopback$/^VLESS\+REALITY\+Vision$'; do
             log="$RUNNER_TEMP/vision-race.log"
@@ -78,8 +88,8 @@ jobs:
               continue
             fi
             races=$(grep -c 'WARNING: DATA RACE' "$log" || true)
-            if [ "$races" -gt 0 ] && grep -q 'xtls/xray-core.*/proxy/proxy.go' "$log" && ! grep -q 'networkplatform/bridge' <(awk '/WARNING: DATA RACE/,/^==================$/' "$log"); then
-              echo "::warning::KNOWN FAILURE: $run fails under -race with $races Xray-core data race report(s) in Vision (proxy/proxy.go); no bridge frame in the reports. See STATUS.md."
+            if [ "$races" -gt 0 ] && grep -q 'xtls/xray-core.*/proxy/proxy.go' "$log" && ! bridge_access "$log"; then
+              echo "::warning::KNOWN FAILURE: $run fails under -race with $races Xray-core data race report(s) in Vision (proxy/proxy.go); no bridge frame in the conflicting accesses. See STATUS.md."
               grep -A6 'WARNING: DATA RACE' "$log" | head -24
             else
               echo "$run failed for a reason other than the known Vision race:"
