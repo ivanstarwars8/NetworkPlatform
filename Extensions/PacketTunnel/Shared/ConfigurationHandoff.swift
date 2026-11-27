@@ -1,5 +1,5 @@
 // compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS,
-// visionOS, unsigned (CODE_SIGNING_ALLOWED=NO), https://github.com/ivanstarwars8/NetworkPlatform/actions/runs/45966628451
+// visionOS, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 45966628451 (workflow apple.yml)
 // (compiled and unit-tested on Linux only, see the note in TunnelMessages.swift;
 // the `canImport(Darwin)` and `canImport(CryptoKit)` branches were never compiled)
 //

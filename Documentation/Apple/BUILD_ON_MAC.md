@@ -27,7 +27,7 @@ xcodegen --version
 ## 2. Клон и Swift-пакет
 
 ```sh
-git clone https://github.com/ivanstarwars8/NetworkPlatform.git
+git clone <URL репозитория> NetworkPlatform
 cd NetworkPlatform
 swift build --build-tests
 swift test --skip-build              # на CI: 477 тестов, 0 падений

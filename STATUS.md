@@ -47,15 +47,15 @@
 
 | Платформа | `XrayOnly` | `MihomoOnly` | `Dual` |
 |---|---|---|---|
-| iOS + iPadOS (одна цель, `TARGETED_DEVICE_FAMILY` 1,2), устройство arm64, Debug и Release | скомпилировано на CI, [прогон](https://github.com/ivanstarwars8/NetworkPlatform/actions/runs/45967419430) | не собирается: нет `NPMihomoBridge.xcframework` и цели расширения Mihomo; фаза «Flavour guard» останавливает сборку с этой причиной ([проверка отказа](https://github.com/ivanstarwars8/NetworkPlatform/actions/runs/45967419430)) | не собирается: нужны артефакт Mihomo и второе расширение; та же фаза ([проверка отказа](https://github.com/ivanstarwars8/NetworkPlatform/actions/runs/45967419430)) |
-| iOS Simulator (arm64 + x86_64) | скомпилировано на CI, [прогон](https://github.com/ivanstarwars8/NetworkPlatform/actions/runs/45967419430) | не собирается (та же причина) | не собирается (та же причина) |
-| macOS (arm64 + x86_64) | скомпилировано на CI, [прогон](https://github.com/ivanstarwars8/NetworkPlatform/actions/runs/45967419430) | не собирается (та же причина) | не собирается (та же причина) |
-| tvOS, устройство arm64 | скомпилировано на CI, [прогон](https://github.com/ivanstarwars8/NetworkPlatform/actions/runs/45967419430) | не собирается (та же причина) | не собирается (та же причина) |
-| visionOS, устройство arm64 | скомпилировано на CI, [прогон](https://github.com/ivanstarwars8/NetworkPlatform/actions/runs/45967419430) | не собирается (та же причина) | не собирается (та же причина) |
+| iOS + iPadOS (одна цель, `TARGETED_DEVICE_FAMILY` 1,2), устройство arm64, Debug и Release | скомпилировано на CI, [прогон](../../actions/runs/45967419430) | не собирается: нет `NPMihomoBridge.xcframework` и цели расширения Mihomo; фаза «Flavour guard» останавливает сборку с этой причиной ([проверка отказа](../../actions/runs/45967419430)) | не собирается: нужны артефакт Mihomo и второе расширение; та же фаза ([проверка отказа](../../actions/runs/45967419430)) |
+| iOS Simulator (arm64 + x86_64) | скомпилировано на CI, [прогон](../../actions/runs/45967419430) | не собирается (та же причина) | не собирается (та же причина) |
+| macOS (arm64 + x86_64) | скомпилировано на CI, [прогон](../../actions/runs/45967419430) | не собирается (та же причина) | не собирается (та же причина) |
+| tvOS, устройство arm64 | скомпилировано на CI, [прогон](../../actions/runs/45967419430) | не собирается (та же причина) | не собирается (та же причина) |
+| visionOS, устройство arm64 | скомпилировано на CI, [прогон](../../actions/runs/45967419430) | не собирается (та же причина) | не собирается (та же причина) |
 
 Проверки продукта в каждом задании: `PacketTunnel.appex` встроен в `NetworkPlatform.app`; в бинарнике расширения (в Debug — в `PacketTunnel.debug.dylib`) есть символы моста `_npb_*`; `vtool` показывает нужную платформу и минимум ОС (iOS 17.0, macOS 14.0, tvOS 17.0, visionOS 1.0); `CFBundleIdentifier` расширения берётся из xcconfig. Предупреждений в исходниках `Apps/` и `Extensions/` при `SWIFT_STRICT_CONCURRENCY=complete` — 0. Первая сборка дала 4 предупреждения: `NSLock` в async-функции `TunnelPendingReply` и не-Sendable результат `loadAllFromPreferences()`. Они исправлены. Размер: расширение iOS Release — 32 МБ (arm64).
 
-Мост Xray для Apple (`Cores/BuildScripts/bridge-apple-xcframework.sh`, Go 1.27.4, Xray-core v26.11.9; [сборка срезов](https://github.com/ivanstarwars8/NetworkPlatform/actions/runs/45965441355)):
+Мост Xray для Apple (`Cores/BuildScripts/bridge-apple-xcframework.sh`, Go 1.27.4, Xray-core v26.11.9; [сборка срезов](../../actions/runs/45965441355)):
 
 | Срез | Результат | Платформа в Mach-O |
 |---|---|---|
@@ -69,11 +69,11 @@
 
 tvOS и visionOS у Go официального порта нет. Срезы собраны портом `GOOS=ios` с `clang -target …-tvos17.0` / `…-xros1.0`: Go копирует платформу из cgo-объектов. Они собраны и слинкованы в расширения, но **Go-рантайм на tvOS и visionOS не запускался** — работоспособность не доказана.
 
-Выполнено на macOS (не только скомпилировано): `cabi/ctest/abi_test.c` против среза macos-arm64 — **C ABI TEST PASSED** ([прогон](https://github.com/ivanstarwars8/NetworkPlatform/actions/runs/45967419430)). Переход C→Go: 127 нс/пакет при пачке 1, 15,7 нс при пачке 64 (40 Б). На устройствах iOS/tvOS/visionOS мост не запускался.
+Выполнено на macOS (не только скомпилировано): `cabi/ctest/abi_test.c` против среза macos-arm64 — **C ABI TEST PASSED** ([прогон](../../actions/runs/45967419430)). Переход C→Go: 127 нс/пакет при пачке 1, 15,7 нс при пачке 64 (40 Б). На устройствах iOS/tvOS/visionOS мост не запускался.
 
-Swift-пакет на macOS (`swift-package.yml`, Xcode 16.4): **477 тестов, 0 падений** ([прогон](https://github.com/ivanstarwars8/NetworkPlatform/actions/runs/45967419340)). Тесты `CoreAbstraction` включают `TunnelSession.swift` и `Shared/` через символические ссылки. Тот же прогон на Linux (`swift:5.10`) — 477/0. Это отдельный результат, не Apple.
+Swift-пакет на macOS (`swift-package.yml`, Xcode 16.4): **477 тестов, 0 падений** ([прогон](../../actions/runs/45967419340)). Тесты `CoreAbstraction` включают `TunnelSession.swift` и `Shared/` через символические ссылки. Тот же прогон на Linux (`swift:5.10`) — 477/0. Это отдельный результат, не Apple.
 
-Go-мост на Linux (`bridge-go.yml`, [прогон](https://github.com/ivanstarwars8/NetworkPlatform/actions/runs/45967601248)): gofmt, vet, `go test` — ok; `-race` со штатным xray — ok для всего, кроме двух случаев с Vision; flow + DNS через Trojan+TLS под `-race` — ok; тест C ABI на linux/amd64 — ok. Известный провал (не скрыт, шаг «KNOWN FAILURE check»): `TestFlowThroughProxyWithDNS` **и** `TestProtocolsOverLoopback/VLESS+REALITY+Vision` падают под `-race` из-за гонки внутри Vision ядра (`proxy/proxy.go` 255/384). Шаг проходит, только если конфликтующие обращения лежат в ядре, и падает при любой другой причине. Второй случай на сервере разработки не воспроизводился — гонка недетерминирована.
+Go-мост на Linux (`bridge-go.yml`, [прогон](../../actions/runs/45967601248)): gofmt, vet, `go test` — ok; `-race` со штатным xray — ok для всего, кроме двух случаев с Vision; flow + DNS через Trojan+TLS под `-race` — ok; тест C ABI на linux/amd64 — ok. Известный провал (не скрыт, шаг «KNOWN FAILURE check»): `TestFlowThroughProxyWithDNS` **и** `TestProtocolsOverLoopback/VLESS+REALITY+Vision` падают под `-race` из-за гонки внутри Vision ядра (`proxy/proxy.go` 255/384). Шаг проходит, только если конфликтующие обращения лежат в ядре, и падает при любой другой причине. Второй случай на сервере разработки не воспроизводился — гонка недетерминирована.
 
 Чего CI не может и что осталось за устройством и подписью: подпись и provisioning profile, применение entitlements, App Group (`$(TeamIdentifierPrefix)` на macOS без команды раскрывается в пустую строку — в неподписанной сборке группа `org.example.networkplatform`), установка, загрузка расширения системой, запуск Go на iOS/tvOS/visionOS, лимит памяти, всё из `Documentation/Apple/DEVICE_TEST_PLAN.md`.
 

@@ -1,5 +1,5 @@
 // compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS,
-// visionOS, unsigned (CODE_SIGNING_ALLOWED=NO), https://github.com/ivanstarwars8/NetworkPlatform/actions/runs/45966628451
+// visionOS, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 45966628451 (workflow apple.yml)
 //
 // The last successfully started request, kept so that the system can start
 // the tunnel without the app (On-Demand, the switch in Settings).
