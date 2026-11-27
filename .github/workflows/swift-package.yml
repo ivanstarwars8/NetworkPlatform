@@ -13,6 +13,7 @@ on:
       - Benchmarks/RoutingBench/**
       - Extensions/PacketTunnel/Shared/**
       - Extensions/PacketTunnel/TunnelSession.swift
+      - Apps/SharedApp/TunnelStartRequest+Compiled.swift
       - .github/workflows/swift-package.yml
   pull_request:
     paths: *paths
