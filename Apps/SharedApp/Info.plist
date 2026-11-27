@@ -8,5 +8,8 @@
 <dict>
 	<key>NPAppGroupIdentifier</key>
 	<string>$(NP_APP_GROUP)</string>
+	<!-- Bundle identifier of the Xray extension (TunnelEngineCatalog); differs from app + ".PacketTunnelXray" in the Byk build. -->
+	<key>NPXrayExtensionBundleIdentifier</key>
+	<string>$(NP_XRAY_EXTENSION_BUNDLE_ID)</string>
 </dict>
 </plist>

@@ -60,6 +60,9 @@ ext="$app/PlugIns/PacketTunnelXray.appex"
 check_bundle "$ext" "$ext_id" extension
 [ "$(plutil -extract NSExtension.NSExtensionPointIdentifier raw "$ext/Info.plist")" = com.apple.networkextension.packet-tunnel ] \
   || fail "extension point is not packet-tunnel"
+# The app selects its extension by this identifier (TunnelEngineCatalog); it must be the embedded one.
+got="$(plutil -extract NPXrayExtensionBundleIdentifier raw "$app/Info.plist" 2>/dev/null || true)"
+[ "$got" = "$ext_id" ] || fail "app Info.plist NPXrayExtensionBundleIdentifier is '$got', expected $ext_id"
 
 name="$(plutil -extract CFBundleDisplayName raw "$app/Info.plist")"
 echo "== app display name: $name"
