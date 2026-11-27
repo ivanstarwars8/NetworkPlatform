@@ -1,5 +1,6 @@
-// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS,
-// visionOS, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 45966628451 (workflow apple.yml)
+// UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode
+// (the single-extension form was compiled on macOS CI in GitHub Actions run 45966628451, never run; the
+// choice of the extension by engine is new).
 //
 // Control-plane side of the tunnel (ADR-0003 §3.1): owns the
 // `NETunnelProviderManager`, mirrors `NEVPNStatus` (the source of truth about
@@ -11,10 +12,15 @@
 // hand-off (`ConfigurationHandoff`) are in Extensions/PacketTunnel/Shared and
 // are tested on Linux; this file adds only the Network Extension calls.
 //
-// Not implemented: On-Demand rules, choosing between several extensions by
-// `providerBundleIdentifier` (ADR-0001 §3, rule 5), compiling a start
-// request. Nothing calls `connect(with:)` yet; `connect()` starts the tunnel
-// without a request, which works only when the extension has a snapshot.
+// Engines: one extension per engine (ADR-0001 §3). The build's engines and
+// their extensions come from `TunnelEngineCatalog` (Shared/). There is one VPN
+// configuration; `connect(with:)` points its `providerBundleIdentifier` at the
+// extension of the request's engine before starting (ADR-0001 rule 5; whether
+// the system accepts that rewrite is check E-3 on a device).
+//
+// Not implemented: On-Demand rules, compiling a start request. Nothing calls
+// `connect(with:)` yet; `connect()` starts the tunnel without a request, which
+// works only when the extension has a snapshot.
 
 import Foundation
 // NetworkExtension has no Sendable annotations: `loadAllFromPreferences()`
@@ -27,25 +33,37 @@ final class TunnelController: ObservableObject {
     @Published private(set) var isInstalled = false
     @Published private(set) var engineReport: TunnelStatusReport?
     @Published private(set) var lastError: String?
+    /// The engine whose extension the VPN configuration points at.
+    @Published private(set) var selectedCoreID: String?
+
+    /// The engines of this build (flavour conditions).
+    let catalog = TunnelEngineCatalog.thisBuild
 
     private var manager: NETunnelProviderManager?
     private var statusObserver: NotificationObservation?
     private var nextRequestID: UInt64 = 1
     private var queryInFlight = false
 
-    /// The extension's bundle identifier is the app's plus a fixed suffix
-    /// (Apps/project.yml).
-    static var providerBundleIdentifier: String {
-        (Bundle.main.bundleIdentifier ?? "") + ".PacketTunnel"
+    private var appBundleIdentifier: String {
+        Bundle.main.bundleIdentifier ?? ""
     }
 
-    /// Finds the VPN configuration that belongs to our extension, if any.
+    /// The bundle identifier of the extension that runs `coreID` in this
+    /// build (Apps/project.yml), `nil` when the build has no such engine.
+    func providerBundleIdentifier(for coreID: String) -> String? {
+        catalog.providerBundleIdentifier(for: coreID, appBundleIdentifier: appBundleIdentifier)
+    }
+
+    /// Finds the VPN configuration that belongs to one of our extensions, if any.
     func refresh() async {
         do {
             let managers = try await NETunnelProviderManager.loadAllFromPreferences()
+            let catalog = self.catalog
+            let app = appBundleIdentifier
             let ours = managers.first { candidate in
-                let proto = candidate.protocolConfiguration as? NETunnelProviderProtocol
-                return proto?.providerBundleIdentifier == TunnelController.providerBundleIdentifier
+                guard let proto = candidate.protocolConfiguration as? NETunnelProviderProtocol,
+                      let identifier = proto.providerBundleIdentifier else { return false }
+                return catalog.coreID(forProviderBundleIdentifier: identifier, appBundleIdentifier: app) != nil
             }
             adopt(ours)
         } catch {
@@ -53,11 +71,15 @@ final class TunnelController: ObservableObject {
         }
     }
 
-    /// Creates and saves the VPN configuration. The system asks the user for
-    /// permission.
+    /// Creates and saves the VPN configuration, pointed at the extension of
+    /// this build's first engine. The system asks the user for permission.
     func install() async {
+        guard let coreID = catalog.defaultEntry?.coreID, let provider = providerBundleIdentifier(for: coreID) else {
+            lastError = "This build contains no engine extension."
+            return
+        }
         let proto = NETunnelProviderProtocol()
-        proto.providerBundleIdentifier = TunnelController.providerBundleIdentifier
+        proto.providerBundleIdentifier = provider
         // Required by the system and shown in Settings; not used for routing.
         proto.serverAddress = "NetworkPlatform"
 
@@ -82,11 +104,13 @@ final class TunnelController: ObservableObject {
         start(options: nil)
     }
 
-    /// Starts the tunnel with a compiled request. The request goes to the
-    /// extension through a file in the App Group container; the start options
-    /// carry only a reference to it (length and SHA-256 included).
-    func connect(with request: TunnelStartRequest) {
+    /// Starts the tunnel with a compiled request. The extension is the one of
+    /// the request's engine. The request goes to the extension through a file
+    /// in the App Group container; the start options carry only a reference to
+    /// it (length and SHA-256 included).
+    func connect(with request: TunnelStartRequest) async {
         guard manager != nil else { return }
+        guard await selectExtension(for: request.coreID) else { return }
         do {
             let handoff = ConfigurationHandoff(directory: try ConfigurationHandoff.sharedDirectory())
             let reference = try handoff.write(request)
@@ -111,6 +135,33 @@ final class TunnelController: ObservableObject {
             return true
         } catch {
             lastError = "Starting the tunnel failed: \(error.localizedDescription)"
+            return false
+        }
+    }
+
+    /// Points the VPN configuration at the extension of `coreID` (one engine
+    /// per extension process, ADR-0001). Saved only when it changes; a change
+    /// takes effect at the next start, so it is refused while the tunnel runs.
+    private func selectExtension(for coreID: String) async -> Bool {
+        guard let manager = manager, let proto = manager.protocolConfiguration as? NETunnelProviderProtocol else { return false }
+        guard let provider = providerBundleIdentifier(for: coreID) else {
+            lastError = "This build has no extension for the engine \(coreID)."
+            return false
+        }
+        if proto.providerBundleIdentifier == provider { return true }
+        guard status == .disconnected || status == .invalid else {
+            lastError = "Disconnect before switching to the engine \(coreID)."
+            return false
+        }
+        proto.providerBundleIdentifier = provider
+        manager.protocolConfiguration = proto
+        do {
+            try await manager.saveToPreferences()
+            try await manager.loadFromPreferences()
+            selectedCoreID = coreID
+            return true
+        } catch {
+            lastError = "Switching the extension failed: \(error.localizedDescription)"
             return false
         }
     }
@@ -195,6 +246,11 @@ final class TunnelController: ObservableObject {
         statusObserver = nil
         manager = newManager
         isInstalled = newManager != nil
+        if let identifier = (newManager?.protocolConfiguration as? NETunnelProviderProtocol)?.providerBundleIdentifier {
+            selectedCoreID = catalog.coreID(forProviderBundleIdentifier: identifier, appBundleIdentifier: appBundleIdentifier)
+        } else {
+            selectedCoreID = nil
+        }
         status = newManager?.connection.status ?? .invalid
         if status != .connected {
             engineReport = nil

@@ -17,7 +17,12 @@ allTargets += lib("CoreAbstraction", testDeps: ["DomainModels"])
 allTargets += lib("ConfigurationEngine", deps: ["DomainModels"])
 allTargets += lib("RoutingEngine")
 allTargets += lib("AdaptiveBalancer")
-allTargets += lib("EngineXray", deps: ["CoreAbstraction"], testDeps: ["DomainModels"])
+// The C ABI both bridges share: lifecycle driver, packet pump, log reader (pure Swift, no Go).
+allTargets += lib("EngineBridge", deps: ["CoreAbstraction"], testDeps: ["EngineBridgeTestSupport"])
+// Fakes of the bridge and of the packet flow for the tests of EngineBridge and of both adapters; no product.
+allTargets += [.target(name: "EngineBridgeTestSupport", dependencies: ["EngineBridge"], path: "Packages/EngineBridge/TestSupport")]
+allTargets += lib("EngineXray", deps: ["CoreAbstraction", "EngineBridge"], testDeps: ["DomainModels", "EngineBridgeTestSupport"])
+allTargets += lib("EngineMihomo", deps: ["CoreAbstraction", "EngineBridge"], testDeps: ["DomainModels", "EngineBridgeTestSupport"])
 allTargets += [.executableTarget(name: "RoutingBench", dependencies: ["RoutingEngine"], path: "Benchmarks/RoutingBench", exclude: ["run-all.sh"])]
 
 let package = Package(
@@ -29,7 +34,9 @@ let package = Package(
         .library(name: "ConfigurationEngine", targets: ["ConfigurationEngine"]),
         .library(name: "RoutingEngine", targets: ["RoutingEngine"]),
         .library(name: "AdaptiveBalancer", targets: ["AdaptiveBalancer"]),
+        .library(name: "EngineBridge", targets: ["EngineBridge"]),
         .library(name: "EngineXray", targets: ["EngineXray"]),
+        .library(name: "EngineMihomo", targets: ["EngineMihomo"]),
     ],
     targets: allTargets
 )

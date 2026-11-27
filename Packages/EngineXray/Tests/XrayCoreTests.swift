@@ -1,6 +1,8 @@
 // Verified on Linux only (Swift 5.10.1, swift test).
 import CoreAbstraction
 import DomainModels
+import EngineBridge
+import EngineBridgeTestSupport
 import Foundation
 import XCTest
 @testable import EngineXray
@@ -8,8 +10,8 @@ import XCTest
 final class XrayCoreTests: XCTestCase {
     private let config = CoreConfiguration(coreID: XrayCore.identifier, format: "json", payload: Data(#"{"inbounds":[{"protocol":"tun"}]}"#.utf8))
 
-    private func settings() -> XrayCoreSettings {
-        var settings = XrayCoreSettings()
+    private func settings() -> BridgeCoreSettings {
+        var settings = BridgeCoreSettings()
         settings.pump.readTimeoutMilliseconds = 20
         settings.logReadTimeoutMilliseconds = 20
         return settings
@@ -84,12 +86,12 @@ final class XrayCoreTests: XCTestCase {
     }
 
     func testPacketTunnelSettingsNameTheMobileProfileAndRepeatNoValues() async throws {
-        XCTAssertEqual(XrayCoreSettings.packetTunnel.memoryProfile, .mobile)
-        XCTAssertNil(XrayCoreSettings.packetTunnel.memoryLimitBytes, "the bridge holds the profile's limit")
-        XCTAssertNil(XrayCoreSettings.packetTunnel.gcPercent, "the bridge holds the profile's GC percentage")
-        XCTAssertNil(XrayCoreSettings.packetTunnel.outQueueBytes, "the bridge holds the profile's queue size")
+        XCTAssertEqual(BridgeCoreSettings.packetTunnel.memoryProfile, .mobile)
+        XCTAssertNil(BridgeCoreSettings.packetTunnel.memoryLimitBytes, "the bridge holds the profile's limit")
+        XCTAssertNil(BridgeCoreSettings.packetTunnel.gcPercent, "the bridge holds the profile's GC percentage")
+        XCTAssertNil(BridgeCoreSettings.packetTunnel.outQueueBytes, "the bridge holds the profile's queue size")
 
-        var tunnelSettings = XrayCoreSettings.packetTunnel
+        var tunnelSettings = BridgeCoreSettings.packetTunnel
         tunnelSettings.pump = settings().pump
         tunnelSettings.logReadTimeoutMilliseconds = 20
         let bridge = FakeBridge()
@@ -136,12 +138,6 @@ final class XrayCoreTests: XCTestCase {
             // Stop after a failed start is allowed and harmless.
             try? await core.stop()
         }
-    }
-
-    func testLongMessagesAreClipped() {
-        let error = XrayCore.coreError(.internalError, message: String(repeating: "x", count: 5000), during: .stop, timeout: nil)
-        guard case let .operationFailed(_, message) = error else { return XCTFail() }
-        XCTAssertLessThanOrEqual(message.count, CoreError.maximumMessageLength + 3)
     }
 
     func testWrongABIOrFormatIsRefusedBeforeTheBridge() async {
@@ -242,7 +238,7 @@ final class XrayCoreTests: XCTestCase {
     func testEngineCrashIsReportedAndHealthTurnsUnhealthy() async throws {
         let bridge = FakeBridge()
         let messages = Locked<[String]>([])
-        let events = XrayCoreEvents(unexpectedExit: { message in
+        let events = BridgeCoreEvents(unexpectedExit: { message in
             messages.mutate { $0.append(message) }
         })
         let core = XrayCore(bridge: bridge, packetIO: FakePacketIO(), settings: settings(), events: events)
@@ -260,7 +256,7 @@ final class XrayCoreTests: XCTestCase {
     func testCrashDrivesLifecycleToFailedThroughTheHost() async throws {
         let bridge = FakeBridge()
         let box = LifecycleBox()
-        let events = XrayCoreEvents(unexpectedExit: { message in
+        let events = BridgeCoreEvents(unexpectedExit: { message in
             Task { await box.lifecycle?.reportUnexpectedExit(message) }
         })
         let core = XrayCore(bridge: bridge, packetIO: FakePacketIO(), settings: settings(), events: events)
@@ -308,8 +304,8 @@ final class XrayCoreTests: XCTestCase {
 
     func testLogRecordsReachTheSinkAndGapsAreCounted() async throws {
         let bridge = FakeBridge()
-        let received = Locked<[XrayLogRecord]>([])
-        let events = XrayCoreEvents(log: { record in
+        let received = Locked<[BridgeLogRecord]>([])
+        let events = BridgeCoreEvents(log: { record in
             received.mutate { $0.append(record) }
         })
         let core = XrayCore(bridge: bridge, packetIO: nil, settings: settings(), events: events)

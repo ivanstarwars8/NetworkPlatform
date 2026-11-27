@@ -1,7 +1,8 @@
 // Verified on Linux only (Swift 5.10.1, swift test).
 import Foundation
 import XCTest
-@testable import EngineXray
+@testable import EngineBridge
+import EngineBridgeTestSupport
 
 final class PacketBatchTests: XCTestCase {
     func testEncoderFramesLittleEndianLengths() {

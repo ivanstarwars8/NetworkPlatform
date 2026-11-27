@@ -83,10 +83,12 @@ public final class PacketPump: @unchecked Sendable {
         case stopped
     }
 
-    private let bridge: any XrayBridgeABI
+    private let bridge: any BridgeABI
+    /// Short engine name for thread names ("xray", "mihomo").
+    private let engine: String
     private let io: any TunnelPacketIO
     private let configuration: PacketPumpConfiguration
-    private let onEngineGone: @Sendable (XrayBridgeCode) -> Void
+    private let onEngineGone: @Sendable (BridgeCode) -> Void
     private let queue: BoundedBatchQueue<[Data]>
 
     private let lock = NSLock()
@@ -99,12 +101,14 @@ public final class PacketPump: @unchecked Sendable {
     /// `onEngineGone` is called at most once, from a pump thread, when the bridge reports that the packet
     /// device closed or no engine runs while the pump was not stopping: the engine stopped on its own.
     public init(
-        bridge: any XrayBridgeABI,
+        bridge: any BridgeABI,
+        engine: String = "bridge",
         io: any TunnelPacketIO,
         configuration: PacketPumpConfiguration = .standard,
-        onEngineGone: @escaping @Sendable (XrayBridgeCode) -> Void
+        onEngineGone: @escaping @Sendable (BridgeCode) -> Void
     ) {
         self.bridge = bridge
+        self.engine = engine
         self.io = io
         self.configuration = configuration
         self.onEngineGone = onEngineGone
@@ -137,13 +141,13 @@ public final class PacketPump: @unchecked Sendable {
             self.writerLoop()
             self.writerDone.signal()
         }
-        writer.name = "np.xray.pump.in"
+        writer.name = "np.\(engine).pump.in"
         writer.qualityOfService = .userInitiated
         let reader = Thread { [self] in
             self.readerLoop()
             self.readerDone.signal()
         }
-        reader.name = "np.xray.pump.out"
+        reader.name = "np.\(engine).pump.out"
         reader.qualityOfService = .userInitiated
         writer.start()
         reader.start()
@@ -271,7 +275,7 @@ public final class PacketPump: @unchecked Sendable {
         let result = encoder.withFramedBytes { bridge.tunWrite($0) }
         encoder.reset()
         if result < 0 {
-            let code = XrayBridgeCode.fromDataPlane(result)
+            let code = BridgeCode.fromDataPlane(result)
             rejected &+= UInt64(framed)
             lastError = code.rawValue
             if code == .notRunning || code == .closed {
@@ -299,7 +303,7 @@ public final class PacketPump: @unchecked Sendable {
             let result = bridge.tunRead(into: buffer, timeoutMilliseconds: configuration.readTimeoutMilliseconds)
             if result == 0 { continue }
             if result < 0 {
-                let code = XrayBridgeCode.fromDataPlane(result)
+                let code = BridgeCode.fromDataPlane(result)
                 update { $0.lastBridgeError = code.rawValue }
                 guard isRunning else { return }
                 // Every error ends the reader: with a buffer of a maximum-size frame, `buffer_too_small`
@@ -336,7 +340,7 @@ public final class PacketPump: @unchecked Sendable {
         lock.unlock()
     }
 
-    private func reportEngineGone(_ code: XrayBridgeCode) {
+    private func reportEngineGone(_ code: BridgeCode) {
         lock.lock()
         let report = stateValue == .running && !engineGoneReported
         if report { engineGoneReported = true }

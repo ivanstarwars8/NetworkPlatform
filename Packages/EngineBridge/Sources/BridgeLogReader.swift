@@ -6,11 +6,12 @@ import Foundation
 /// The ring never blocks the core; records lost to overflow show as gaps in `seq`, which are counted here.
 /// The sink receives the core's messages as they are: they may contain destination addresses, so the host
 /// must log them as private (ADR-0003 §4).
-final class XrayLogReader: @unchecked Sendable {
-    private let bridge: any XrayBridgeABI
+final class BridgeLogReader: @unchecked Sendable {
+    private let bridge: any BridgeABI
+    private let threadName: String
     private let timeoutMilliseconds: Int32
     private let bufferBytes: Int
-    private let sink: @Sendable (XrayLogRecord) -> Void
+    private let sink: @Sendable (BridgeLogRecord) -> Void
 
     private let lock = NSLock()
     private var running = false
@@ -20,10 +21,17 @@ final class XrayLogReader: @unchecked Sendable {
     private var delivered: UInt64 = 0
     private let done = DispatchSemaphore(value: 0)
 
-    init(bridge: any XrayBridgeABI, settings: XrayCoreSettings, sink: @escaping @Sendable (XrayLogRecord) -> Void) {
+    init(
+        bridge: any BridgeABI,
+        engine: String,
+        timeoutMilliseconds: Int32,
+        bufferBytes: Int,
+        sink: @escaping @Sendable (BridgeLogRecord) -> Void
+    ) {
         self.bridge = bridge
-        self.timeoutMilliseconds = settings.logReadTimeoutMilliseconds
-        self.bufferBytes = max(4096, settings.logBufferBytes)
+        self.threadName = "np.\(engine).log"
+        self.timeoutMilliseconds = timeoutMilliseconds
+        self.bufferBytes = max(4096, bufferBytes)
         self.sink = sink
     }
 
@@ -47,7 +55,7 @@ final class XrayLogReader: @unchecked Sendable {
             self.loop()
             self.done.signal()
         }
-        thread.name = "np.xray.log"
+        thread.name = threadName
         thread.qualityOfService = .utility
         thread.start()
     }
@@ -84,7 +92,7 @@ final class XrayLogReader: @unchecked Sendable {
             for index in 0..<end where buffer[index] == 0x0A {
                 if index > lineStart {
                     let line = Data(UnsafeRawBufferPointer(rebasing: buffer[lineStart..<index]))
-                    if let record = try? decoder.decode(XrayLogRecord.self, from: line) {
+                    if let record = try? decoder.decode(BridgeLogRecord.self, from: line) {
                         account(record)
                         sink(record)
                     }
@@ -94,7 +102,7 @@ final class XrayLogReader: @unchecked Sendable {
         }
     }
 
-    private func account(_ record: XrayLogRecord) {
+    private func account(_ record: BridgeLogRecord) {
         lock.lock()
         if let last = lastSeq, record.seq > last &+ 1 {
             missed &+= record.seq - last - 1

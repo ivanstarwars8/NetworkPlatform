@@ -1,5 +1,6 @@
-// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS,
-// visionOS, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46022252282 (workflow apple.yml)
+// UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode
+// (the XrayOnly form of this file was compiled on macOS CI in GitHub Actions run 46022252282, never run;
+// the per-engine registration is new).
 //
 // Minimal Packet Tunnel host (ADR-0001 §4, ADR-0003 §2–3).
 //
@@ -20,11 +21,14 @@
 // - No task captures the provider strongly, and nothing non-Sendable crosses
 //   a task boundary except through `ProviderReference`.
 //
-// Engines: in flavours with Xray (`NP_ENGINE_XRAY`) the registry holds the
-// `XrayCore` adapter (Packages/EngineXray) over the C archive of the bridge
-// (XrayBridgeBinding.swift), with the packet pump on `packetFlow`. In any
-// other flavour the registry stays empty and a start ends with
-// `core_not_registered`. Nothing of this has run on a device.
+// Engines: this file is compiled into one extension target per engine
+// (Apps/project.yml), each with exactly one engine condition. The Xray
+// extension (`NP_ENGINE_XRAY`) registers `XrayCore` (Packages/EngineXray),
+// the Mihomo extension (`NP_ENGINE_MIHOMO`) registers `MihomoCore`
+// (Packages/EngineMihomo); both run over the C archive of their bridge
+// (BridgeBinding.swift) with the packet pump on `packetFlow`. A start request
+// for the other engine ends with `core_not_registered`: the app picks the
+// extension by engine (TunnelEngineCatalog). Nothing of this has run on a device.
 //
 // What is missing, and therefore what this file cannot do yet:
 // - The utun file descriptor is not located (ADR-0001 §4, risk R-08), so
@@ -32,8 +36,13 @@
 // - Network path changes are not observed.
 
 import CoreAbstraction
+#if NP_ENGINE_XRAY || NP_ENGINE_MIHOMO
+import EngineBridge
+#endif
 #if NP_ENGINE_XRAY
 import EngineXray
+#elseif NP_ENGINE_MIHOMO
+import EngineMihomo
 #endif
 import Foundation
 import NetworkExtension
@@ -54,11 +63,11 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     // MARK: Start and stop
 
     override func startTunnel(options: [String: NSObject]?) async throws {
-        #if NP_ENGINE_XRAY
-        let abi = XrayBridgeInfo.abiVersion
-        log.info("xray bridge linked, abi \(abi), \(XrayBridgeInfo.versionJSON(), privacy: .public)")
-        if abi != XrayBridgeInfo.expectedABIVersion {
-            log.error("xray bridge abi \(abi) differs from the expected \(XrayBridgeInfo.expectedABIVersion)")
+        #if NP_ENGINE_XRAY || NP_ENGINE_MIHOMO
+        let abi = BridgeInfo.abiVersion
+        log.info("\(BridgeInfo.engine, privacy: .public) bridge linked, abi \(abi), \(BridgeInfo.versionJSON(), privacy: .public)")
+        if abi != BridgeInfo.expectedABIVersion {
+            log.error("\(BridgeInfo.engine, privacy: .public) bridge abi \(abi) differs from the expected \(BridgeInfo.expectedABIVersion)")
         }
         #endif
         registerEngines()
@@ -143,21 +152,53 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         )
     }
 
-    /// Registers the engines of this flavour once per process. The factory
+    /// Registers the engine of this extension once per process. The factory
     /// runs when a start request names the engine.
     private func registerEngines() {
+        #if NP_ENGINE_XRAY || NP_ENGINE_MIHOMO
+        let bridge = CBridgeBinding()
+        let io = PacketTunnelFlowIO(flow: packetFlow)
+        let events = makeEngineEvents()
         #if NP_ENGINE_XRAY
         guard registry.descriptor(for: XrayCore.identifier) == nil else { return }
-        let bridge = XrayBridgeBinding()
         let descriptor = XrayCore.makeDescriptor(bridge: bridge)
-        let io = PacketTunnelFlowIO(flow: packetFlow)
-        let session = self.session
-        let log = self.log
         // The bridge's `mobile` memory profile; its values live in the bridge
         // (Documentation/Performance/memory-budget.md). Measured on Linux only,
         // not on a device (E-4).
-        let fixedSettings = XrayCoreSettings.packetTunnel
-        let events = XrayCoreEvents(
+        let fixedSettings = BridgeCoreSettings.packetTunnel
+        let factory: @Sendable () -> any NetworkCore = {
+            XrayCore(bridge: bridge, packetIO: io, descriptor: descriptor, settings: fixedSettings, events: events)
+        }
+        #else
+        guard registry.descriptor(for: MihomoCore.identifier) == nil else { return }
+        let descriptor = MihomoCore.makeDescriptor(bridge: bridge)
+        // `mobile` profile as for Xray (memory-budget.md §10); the core's home
+        // (cache.db, provider caches) in the extension's own caches directory.
+        var fixedSettings = MihomoCoreSettings.packetTunnel
+        fixedSettings.homeDirectory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("mihomo", isDirectory: true).path
+        let settings = fixedSettings
+        let factory: @Sendable () -> any NetworkCore = {
+            MihomoCore(bridge: bridge, packetIO: io, descriptor: descriptor, settings: settings, events: events)
+        }
+        #endif
+        do {
+            try registry.register(descriptor, factory: factory)
+            log.info("engine registered: \(descriptor.id.rawValue, privacy: .public) \(descriptor.version, privacy: .public)")
+        } catch {
+            log.error("engine registration failed: \(TunnelRunner.describe(error), privacy: .public)")
+        }
+        #endif
+    }
+
+    #if NP_ENGINE_XRAY || NP_ENGINE_MIHOMO
+    /// Callbacks of the adapter: an engine that stops by itself goes to the
+    /// lifecycle (watchdog); log records go to the unified log.
+    private func makeEngineEvents() -> BridgeCoreEvents {
+        let session = self.session
+        let log = self.log
+        let engine = BridgeInfo.engine
+        return BridgeCoreEvents(
             unexpectedExit: { message in
                 log.error("\(message, privacy: .public)")
                 Task {
@@ -170,20 +211,12 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 // Core messages may name destinations: private (ADR-0003 §4).
                 log.log(
                     level: PacketTunnelProvider.logType(record.level),
-                    "xray \(record.kind, privacy: .public): \(record.message, privacy: .private)"
+                    "\(engine, privacy: .public) \(record.kind, privacy: .public): \(record.message, privacy: .private)"
                 )
             }
         )
-        do {
-            try registry.register(descriptor) {
-                XrayCore(bridge: bridge, packetIO: io, descriptor: descriptor, settings: fixedSettings, events: events)
-            }
-            log.info("engine registered: \(descriptor.id.rawValue, privacy: .public) \(descriptor.version, privacy: .public)")
-        } catch {
-            log.error("engine registration failed: \(TunnelRunner.describe(error), privacy: .public)")
-        }
-        #endif
     }
+    #endif
 
     private static func logType(_ level: String?) -> OSLogType {
         switch level {

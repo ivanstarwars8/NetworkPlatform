@@ -1,7 +1,8 @@
 // Verified on Linux only (Swift 5.10.1, swift test).
 import Foundation
 import XCTest
-@testable import EngineXray
+@testable import EngineBridge
+import EngineBridgeTestSupport
 
 final class PacketPumpTests: XCTestCase {
     private func makeRunning() -> (FakeBridge, FakePacketIO) {
@@ -90,7 +91,7 @@ final class PacketPumpTests: XCTestCase {
 
     func testCrashOfTheEngineIsReportedOnceByTheReader() {
         let (bridge, io) = makeRunning()
-        let reports = Locked<[XrayBridgeCode]>([])
+        let reports = Locked<[BridgeCode]>([])
         let pump = PacketPump(bridge: bridge, io: io, configuration: quickConfiguration()) { code in
             reports.mutate { $0.append(code) }
         }
@@ -181,7 +182,7 @@ final class PacketPumpTests: XCTestCase {
 }
 
 /// A bridge whose `tunWrite` blocks until `release()`, to observe backpressure.
-final class BlockingWriteBridge: XrayBridgeABI, @unchecked Sendable {
+final class BlockingWriteBridge: BridgeABI, @unchecked Sendable {
     private let inner = FakeBridge()
     private let condition = NSCondition()
     private var released = false

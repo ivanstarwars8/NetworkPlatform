@@ -1,31 +1,38 @@
-# XcodeGen specification: app + Packet Tunnel extension for iOS/iPadOS (one universal target), macOS,
+# XcodeGen specification: app + Packet Tunnel extensions for iOS/iPadOS (one universal target), macOS,
 # tvOS and visionOS, in the build flavours of ADR-0007 (XrayOnly, MihomoOnly, Dual).
 #
-#   Cores/BuildScripts/bridge-apple-xcframework.sh     # NPXrayBridge.xcframework, needs Go
+#   Cores/BuildScripts/bridge-apple-xcframework.sh                          # NPXrayBridge.xcframework
+#   NP_BRIDGE_ENGINE=mihomo Cores/BuildScripts/bridge-apple-xcframework.sh  # NPMihomoBridge.xcframework
 #   cd Apps && xcodegen generate
+#   Tools/apple-build-flavour.sh <platform> <flavour> [Debug|Release]       # build + product checks
 #
-# Verified state: the XrayOnly flavour of every target compiles and links on the macOS CI runner without
-# signing (.github/workflows/apple.yml; links and results in STATUS.md). Nothing was signed, installed or
-# run. MihomoOnly and Dual are declared but stop at the "Flavour guard" build phase (see below).
-# The generated NetworkPlatform.xcodeproj is not stored in git.
+# Verified state: see STATUS.md and .github/workflows/apple.yml (unsigned compile on the macOS CI runner).
+# Nothing was signed, installed or run. The generated NetworkPlatform.xcodeproj is not stored in git.
 #
 # Before a signed build set, in Configurations/Local.xcconfig (git-ignored) or on the command line
 # (Documentation/Apple/BUILD_ON_MAC.md):
 #   NP_BUNDLE_ID_PREFIX  - a bundle identifier owned by the signing team (default: a placeholder)
 #   DEVELOPMENT_TEAM     - the Apple Developer team identifier
-# and register the App Group and the Network Extension capability for both identifiers.
+# and register the App Group and the Network Extension capability for every identifier.
 #
-# Targets (one per platform, XcodeGen suffixes the name with _<platform>):
-#   App_<p>           application; embeds PacketTunnel_<p>; does not link Go (ADR-0001)
-#   PacketTunnel_<p>  app extension (NEPacketTunnelProvider); links CoreAbstraction, EngineXray and NPXrayBridge
+# Targets (one per platform, XcodeGen suffixes the name with _<platform>), ADR-0001 §3 and ADR-0009:
+#   PacketTunnelXray_<p>    extension with the Xray bridge only (EngineXray + NPXrayBridge), no GPL code
+#   PacketTunnelMihomo_<p>  extension with the Mihomo bridge only (EngineMihomo + NPMihomoBridge), GPL-3.0
+#   AppXrayOnly_<p>         application embedding PacketTunnelXray
+#   AppMihomoOnly_<p>       application embedding PacketTunnelMihomo
+#   AppDual_<p>             application embedding both extensions
+# The applications are one template; they differ only in the extensions they embed, which Xcode cannot
+# choose per build configuration. None of them links Go (ADR-0001 rule 2).
 #
-# Build configurations = flavour x {Debug, Release}; each flavour sets NP_FLAVOUR and Swift compilation
-# conditions through Configurations/<flavour>.xcconfig (ADR-0004: flavours by xcconfig, no duplicated
-# targets). MihomoOnly and Dual need the Mihomo bridge artifact and, for Dual, a second extension target;
-# neither exists, so the extension's guard phase fails those builds with the reason instead of producing
-# an app that pretends to contain Mihomo.
+# Build configurations = flavour x {Debug, Release} through Configurations/<flavour>.xcconfig. The flavour
+# sets NP_FLAVOUR and the app's compilation conditions (which engines the build contains). Each extension
+# compiles with its own engine's condition only (NP_ENGINE_CONDITIONS), also in Dual. The "Flavour guard"
+# phases refuse a configuration that does not match the target: an app target of another flavour, or an
+# extension whose engine the flavour does not contain.
 #
-# App Group (NP_APP_GROUP): both targets of a platform name the same group, in the entitlements and in
+# Schemes: NetworkPlatform-<flavour>-<platform>, e.g. NetworkPlatform-MihomoOnly-iOS.
+#
+# App Group (NP_APP_GROUP): all targets of a platform name the same group, in the entitlements and in
 # the Info.plist key NPAppGroupIdentifier. iOS, tvOS, visionOS use group.<id>; macOS uses <TeamID>.<id>
 # ($(TeamIdentifierPrefix) expands to "<TeamID>." only when signed with a team). [U] for a signed build.
 #
@@ -69,50 +76,67 @@ settings:
     SWIFT_VERSION: "5.0"
     # Reports data-race problems as warnings in Swift 5 mode.
     SWIFT_STRICT_CONCURRENCY: complete
-    # Flavour conditions come from the xcconfig; DEBUG is kept for debug configurations.
-    SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) $(NP_FLAVOUR_CONDITIONS)"
+    # Engine conditions: the flavour's for the app; each extension target overrides them with its own.
+    NP_ENGINE_CONDITIONS: $(NP_FLAVOUR_CONDITIONS)
+    SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) $(NP_ENGINE_CONDITIONS)"
     NP_APP_GROUP: group.$(NP_BUNDLE_ID_PREFIX)
     "NP_APP_GROUP[sdk=macosx*]": $(TeamIdentifierPrefix)$(NP_BUNDLE_ID_PREFIX)
     "ENABLE_HARDENED_RUNTIME[sdk=macosx*]": YES
   configs:
     debug:
-      SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) DEBUG $(NP_FLAVOUR_CONDITIONS)"
+      SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) DEBUG $(NP_ENGINE_CONDITIONS)"
 
 schemes:
-  NetworkPlatform-iOS:
-    build:
-      targets:
-        App_iOS: all
-    run:
-      config: Debug-XrayOnly
-    archive:
-      config: Release-XrayOnly
-  NetworkPlatform-macOS:
-    build:
-      targets:
-        App_macOS: all
-    run:
-      config: Debug-XrayOnly
-    archive:
-      config: Release-XrayOnly
-  NetworkPlatform-tvOS:
-    build:
-      targets:
-        App_tvOS: all
-    run:
-      config: Debug-XrayOnly
-    archive:
-      config: Release-XrayOnly
-  NetworkPlatform-visionOS:
-    build:
-      targets:
-        App_visionOS: all
-    run:
-      config: Debug-XrayOnly
-    archive:
-      config: Release-XrayOnly
+  NetworkPlatform-XrayOnly-iOS:
+    build: { targets: { AppXrayOnly_iOS: all } }
+    run: { config: Debug-XrayOnly }
+    archive: { config: Release-XrayOnly }
+  NetworkPlatform-XrayOnly-macOS:
+    build: { targets: { AppXrayOnly_macOS: all } }
+    run: { config: Debug-XrayOnly }
+    archive: { config: Release-XrayOnly }
+  NetworkPlatform-XrayOnly-tvOS:
+    build: { targets: { AppXrayOnly_tvOS: all } }
+    run: { config: Debug-XrayOnly }
+    archive: { config: Release-XrayOnly }
+  NetworkPlatform-XrayOnly-visionOS:
+    build: { targets: { AppXrayOnly_visionOS: all } }
+    run: { config: Debug-XrayOnly }
+    archive: { config: Release-XrayOnly }
+  NetworkPlatform-MihomoOnly-iOS:
+    build: { targets: { AppMihomoOnly_iOS: all } }
+    run: { config: Debug-MihomoOnly }
+    archive: { config: Release-MihomoOnly }
+  NetworkPlatform-MihomoOnly-macOS:
+    build: { targets: { AppMihomoOnly_macOS: all } }
+    run: { config: Debug-MihomoOnly }
+    archive: { config: Release-MihomoOnly }
+  NetworkPlatform-MihomoOnly-tvOS:
+    build: { targets: { AppMihomoOnly_tvOS: all } }
+    run: { config: Debug-MihomoOnly }
+    archive: { config: Release-MihomoOnly }
+  NetworkPlatform-MihomoOnly-visionOS:
+    build: { targets: { AppMihomoOnly_visionOS: all } }
+    run: { config: Debug-MihomoOnly }
+    archive: { config: Release-MihomoOnly }
+  NetworkPlatform-Dual-iOS:
+    build: { targets: { AppDual_iOS: all } }
+    run: { config: Debug-Dual }
+    archive: { config: Release-Dual }
+  NetworkPlatform-Dual-macOS:
+    build: { targets: { AppDual_macOS: all } }
+    run: { config: Debug-Dual }
+    archive: { config: Release-Dual }
+  NetworkPlatform-Dual-tvOS:
+    build: { targets: { AppDual_tvOS: all } }
+    run: { config: Debug-Dual }
+    archive: { config: Release-Dual }
+  NetworkPlatform-Dual-visionOS:
+    build: { targets: { AppDual_visionOS: all } }
+    run: { config: Debug-Dual }
+    archive: { config: Release-Dual }
 
-targets:
+targetTemplates:
   App:
     type: application
     platform: [iOS, macOS, tvOS, visionOS]
@@ -122,6 +146,14 @@ targets:
           - "*.entitlements"
           - "*.plist"
       - path: ../Extensions/PacketTunnel/Shared
+    preBuildScripts:
+      - name: Flavour guard
+        basedOnDependencyAnalysis: false
+        script: |
+          if [ "${NP_FLAVOUR:-}" != "${NP_APP_FLAVOUR}" ]; then
+            echo "error: target ${TARGET_NAME} is the ${NP_APP_FLAVOUR} application; build it with Debug-${NP_APP_FLAVOUR} or Release-${NP_APP_FLAVOUR} (configuration flavour: '${NP_FLAVOUR:-unset}')."
+            exit 1
+          fi
     settings:
       base:
         PRODUCT_NAME: NetworkPlatform
@@ -136,8 +168,6 @@ targets:
         CODE_SIGN_ENTITLEMENTS: SharedApp/App-iOS.entitlements
         "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]": SharedApp/App-macOS.entitlements
     dependencies:
-      - target: PacketTunnel_${platform}
-        embed: true
       # Engine-neutral model (no engine code): Shared/ uses TunnelAddressing for the interface plan.
       - package: NetworkPlatform
         product: DomainModels
@@ -155,19 +185,13 @@ targets:
       - name: Flavour guard
         basedOnDependencyAnalysis: false
         script: |
-          case "${NP_FLAVOUR:-}" in
-            XrayOnly) exit 0 ;;
-            MihomoOnly|Dual)
-              echo "error: flavour ${NP_FLAVOUR} is declared but not buildable yet: the Mihomo engine artifact (NPMihomoBridge.xcframework) and the Mihomo Packet Tunnel extension target do not exist (ADR-0007, STATUS.md)."
-              exit 1 ;;
-            *)
-              echo "error: NP_FLAVOUR is not set; build with one of the flavour configurations (Debug-XrayOnly, ...)."
-              exit 1 ;;
+          case " ${NP_FLAVOUR_CONDITIONS:-} " in
+            *" ${NP_ENGINE_CONDITIONS} "*) exit 0 ;;
           esac
+          echo "error: ${TARGET_NAME} contains ${NP_ENGINE_CONDITIONS}, which the flavour '${NP_FLAVOUR:-unset}' does not (${NP_FLAVOUR_CONDITIONS:-none})."
+          exit 1
     settings:
       base:
-        PRODUCT_NAME: PacketTunnel
-        PRODUCT_BUNDLE_IDENTIFIER: $(NP_BUNDLE_ID_PREFIX).PacketTunnel
         INFOPLIST_FILE: ../Extensions/PacketTunnel/Info.plist
         GENERATE_INFOPLIST_FILE: NO
         APPLICATION_EXTENSION_API_ONLY: YES
@@ -180,12 +204,69 @@ targets:
         product: CoreAbstraction
       - package: NetworkPlatform
         product: DomainModels
-      # Adapter of the Xray bridge (NetworkCore + packet pump). Pure Swift; the npb_* calls are made by
-      # Extensions/PacketTunnel/XrayBridgeBinding.swift, so the package never links Go.
+      # Shared C ABI driver, packet pump, PacketTunnelFlowIO (pure Swift, no Go).
+      - package: NetworkPlatform
+        product: EngineBridge
+      - sdk: NetworkExtension.framework
+
+targets:
+  PacketTunnelXray:
+    templates: [PacketTunnel]
+    settings:
+      base:
+        PRODUCT_NAME: PacketTunnelXray
+        PRODUCT_BUNDLE_IDENTIFIER: $(NP_BUNDLE_ID_PREFIX).PacketTunnelXray
+        NP_ENGINE_CONDITIONS: NP_ENGINE_XRAY
+    dependencies:
+      # Adapter of the Xray bridge (NetworkCore + packet pump of EngineBridge). Pure Swift; the npb_* calls
+      # are made by Extensions/PacketTunnel/XrayBridgeBinding.swift, so the package never links Go.
       - package: NetworkPlatform
         product: EngineXray
       # Static C archive of the Go bridge (Cores/BuildScripts/bridge-apple-xcframework.sh); not embedded.
       # Its module map links libresolv, CoreFoundation and Security, which the Go runtime needs.
       - framework: ../Cores/Bridge/build/apple/NPXrayBridge.xcframework
         embed: false
-      - sdk: NetworkExtension.framework
+
+  PacketTunnelMihomo:
+    templates: [PacketTunnel]
+    settings:
+      base:
+        PRODUCT_NAME: PacketTunnelMihomo
+        PRODUCT_BUNDLE_IDENTIFIER: $(NP_BUNDLE_ID_PREFIX).PacketTunnelMihomo
+        NP_ENGINE_CONDITIONS: NP_ENGINE_MIHOMO
+    dependencies:
+      # Adapter of the Mihomo bridge; the npb_* calls are in Extensions/PacketTunnel/MihomoBridgeBinding.swift.
+      - package: NetworkPlatform
+        product: EngineMihomo
+      # Static C archive of the Mihomo bridge (NP_BRIDGE_ENGINE=mihomo bridge-apple-xcframework.sh). GPL-3.0.
+      - framework: ../Cores/MihomoBridge/build/apple/NPMihomoBridge.xcframework
+        embed: false
+
+  AppXrayOnly:
+    templates: [App]
+    settings:
+      base:
+        NP_APP_FLAVOUR: XrayOnly
+    dependencies:
+      - target: PacketTunnelXray_${platform}
+        embed: true
+
+  AppMihomoOnly:
+    templates: [App]
+    settings:
+      base:
+        NP_APP_FLAVOUR: MihomoOnly
+    dependencies:
+      - target: PacketTunnelMihomo_${platform}
+        embed: true
+
+  AppDual:
+    templates: [App]
+    settings:
+      base:
+        NP_APP_FLAVOUR: Dual
+    dependencies:
+      - target: PacketTunnelXray_${platform}
+        embed: true
+      - target: PacketTunnelMihomo_${platform}
+        embed: true

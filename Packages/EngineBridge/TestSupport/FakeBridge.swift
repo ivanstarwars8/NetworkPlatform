@@ -1,50 +1,55 @@
 // Verified on Linux only (Swift 5.10.1, swift test).
+// Test doubles shared by the tests of EngineBridge, EngineXray and EngineMihomo (no product links this module).
+import EngineBridge
 import Foundation
-@testable import EngineXray
 
 /// A stand-in for the Go bridge that keeps the ABI's observable rules: control-plane JSON replies, frames
 /// in both directions, `npb_tun_read` that waits up to its timeout and returns `closed` (-13) when the
 /// engine stops, `npb_stop` that interrupts a blocked start.
-final class FakeBridge: XrayBridgeABI, @unchecked Sendable {
+public final class FakeBridge: BridgeABI, @unchecked Sendable {
     private let condition = NSCondition()
 
-    var abi: Int32 = 1
-    var startReply = #"{"code":0}"#
-    var stopReply = #"{"code":0}"#
-    var validateReply = #"{"code":0,"data":{"inbounds":[],"outbounds":[],"hasTun":true,"depth":"instance"}}"#
-    var statsReply = #"{"code":0,"data":{"uptimeMs":1500,"inbounds":[{"tag":"tun-in","uplink":100,"downlink":2000}],"outbounds":[{"tag":"proxy","uplink":150,"downlink":2100},{"tag":"direct","uplink":0,"downlink":0}]}}"#
-    /// When set, `start` blocks until `stop` is called and then returns this reply.
-    var startBlocksUntilStop = false
-    /// A value for every `tunWrite` call instead of the packet count (negative = error code).
-    var tunWriteOverride: Int32?
+    public init() {}
 
-    private(set) var running = false
-    private(set) var startCalls: [(config: Data, options: Data)] = []
-    private(set) var validateCalls: [(config: Data, options: Data)] = []
-    private(set) var stopCalls = 0
+    public var abi: Int32 = 1
+    /// Defaults to the Xray bridge's reply; the Mihomo tests set the Mihomo bridge's.
+    public var versionReply = #"{"code":0,"data":{"abi":1,"core":"26.11.9","go":"go1.27.4"}}"#
+    public var startReply = #"{"code":0}"#
+    public var stopReply = #"{"code":0}"#
+    public var validateReply = #"{"code":0,"data":{"inbounds":[],"outbounds":[],"hasTun":true,"depth":"instance"}}"#
+    public var statsReply = #"{"code":0,"data":{"uptimeMs":1500,"inbounds":[{"tag":"tun-in","uplink":100,"downlink":2000}],"outbounds":[{"tag":"proxy","uplink":150,"downlink":2100},{"tag":"direct","uplink":0,"downlink":0}]}}"#
+    /// When set, `start` blocks until `stop` is called and then returns this reply.
+    public var startBlocksUntilStop = false
+    /// A value for every `tunWrite` call instead of the packet count (negative = error code).
+    public var tunWriteOverride: Int32?
+
+    public private(set) var running = false
+    public private(set) var startCalls: [(config: Data, options: Data)] = []
+    public private(set) var validateCalls: [(config: Data, options: Data)] = []
+    public private(set) var stopCalls = 0
     private var tunWriteCallsValue = 0
 
-    var tunWriteCalls: Int {
+    public var tunWriteCalls: Int {
         condition.lock()
         defer { condition.unlock() }
         return tunWriteCallsValue
     }
     /// Packets the engine received, in order.
-    private(set) var inbound: [Data] = []
+    public private(set) var inbound: [Data] = []
     private var outbound: [Data] = []
     private var logs: [String] = []
     private var stopSignalled = false
 
     // MARK: Test controls
 
-    func queueOutbound(_ packets: [Data]) {
+    public func queueOutbound(_ packets: [Data]) {
         condition.lock()
         outbound.append(contentsOf: packets)
         condition.broadcast()
         condition.unlock()
     }
 
-    func queueLog(_ line: String) {
+    public func queueLog(_ line: String) {
         condition.lock()
         logs.append(line)
         condition.broadcast()
@@ -52,20 +57,20 @@ final class FakeBridge: XrayBridgeABI, @unchecked Sendable {
     }
 
     /// The engine dies on its own: the packet device closes.
-    func crash() {
+    public func crash() {
         condition.lock()
         running = false
         condition.broadcast()
         condition.unlock()
     }
 
-    func inboundSnapshot() -> [Data] {
+    public func inboundSnapshot() -> [Data] {
         condition.lock()
         defer { condition.unlock() }
         return inbound
     }
 
-    func waitForInbound(count: Int, timeout: TimeInterval = 5) -> Bool {
+    public func waitForInbound(count: Int, timeout: TimeInterval = 5) -> Bool {
         let deadline = Date(timeIntervalSinceNow: timeout)
         condition.lock()
         defer { condition.unlock() }
@@ -75,13 +80,13 @@ final class FakeBridge: XrayBridgeABI, @unchecked Sendable {
         return true
     }
 
-    func read<T>(_ body: (FakeBridge) -> T) -> T {
+    public func read<T>(_ body: (FakeBridge) -> T) -> T {
         condition.lock()
         defer { condition.unlock() }
         return body(self)
     }
 
-    func set(_ body: (FakeBridge) -> Void) {
+    public func set(_ body: (FakeBridge) -> Void) {
         condition.lock()
         body(self)
         condition.unlock()
@@ -89,18 +94,22 @@ final class FakeBridge: XrayBridgeABI, @unchecked Sendable {
 
     // MARK: ABI
 
-    func abiVersion() -> Int32 { abi }
+    public func abiVersion() -> Int32 { abi }
 
-    func version() -> String { #"{"code":0,"data":{"abi":1,"core":"26.11.9","go":"go1.27.4"}}"# }
+    public func version() -> String {
+        condition.lock()
+        defer { condition.unlock() }
+        return versionReply
+    }
 
-    func validate(configuration: Data, options: Data) -> String {
+    public func validate(configuration: Data, options: Data) -> String {
         condition.lock()
         defer { condition.unlock() }
         validateCalls.append((configuration, options))
         return validateReply
     }
 
-    func start(configuration: Data, options: Data) -> String {
+    public func start(configuration: Data, options: Data) -> String {
         condition.lock()
         defer { condition.unlock() }
         startCalls.append((configuration, options))
@@ -115,7 +124,7 @@ final class FakeBridge: XrayBridgeABI, @unchecked Sendable {
         return startReply
     }
 
-    func stop(timeoutMilliseconds: Int32) -> String {
+    public func stop(timeoutMilliseconds: Int32) -> String {
         condition.lock()
         defer { condition.unlock() }
         stopCalls += 1
@@ -125,28 +134,28 @@ final class FakeBridge: XrayBridgeABI, @unchecked Sendable {
         return stopReply
     }
 
-    func stats() -> String {
+    public func stats() -> String {
         condition.lock()
         defer { condition.unlock() }
         return running ? statsReply : #"{"code":11,"error":"not running"}"#
     }
 
-    func health() -> String {
+    public func health() -> String {
         condition.lock()
         defer { condition.unlock() }
         let state = running ? "running" : "idle"
         return #"{"code":0,"data":{"state":"\#(state)","coreRunning":\#(running),"lastErrorCode":0}}"#
     }
 
-    func memory() -> String { #"{"code":0,"data":{}}"# }
+    public func memory() -> String { #"{"code":0,"data":{}}"# }
 
-    func state() -> Int32 {
+    public func state() -> Int32 {
         condition.lock()
         defer { condition.unlock() }
         return running ? 2 : 0
     }
 
-    func readLog(into buffer: UnsafeMutableRawBufferPointer, timeoutMilliseconds: Int32) -> Int32 {
+    public func readLog(into buffer: UnsafeMutableRawBufferPointer, timeoutMilliseconds: Int32) -> Int32 {
         guard buffer.count >= 4096 else { return -12 }
         let deadline = Date(timeIntervalSinceNow: Double(timeoutMilliseconds) / 1000)
         condition.lock()
@@ -165,7 +174,7 @@ final class FakeBridge: XrayBridgeABI, @unchecked Sendable {
         return Int32(written)
     }
 
-    func tunWrite(_ batch: UnsafeMutableRawBufferPointer) -> Int32 {
+    public func tunWrite(_ batch: UnsafeMutableRawBufferPointer) -> Int32 {
         condition.lock()
         defer { condition.unlock() }
         tunWriteCallsValue += 1
@@ -182,7 +191,7 @@ final class FakeBridge: XrayBridgeABI, @unchecked Sendable {
         return count
     }
 
-    func tunRead(into buffer: UnsafeMutableRawBufferPointer, timeoutMilliseconds: Int32) -> Int32 {
+    public func tunRead(into buffer: UnsafeMutableRawBufferPointer, timeoutMilliseconds: Int32) -> Int32 {
         let deadline = Date(timeIntervalSinceNow: Double(timeoutMilliseconds) / 1000)
         condition.lock()
         defer { condition.unlock() }
@@ -203,8 +212,8 @@ final class FakeBridge: XrayBridgeABI, @unchecked Sendable {
 }
 
 /// Frame splitting without the family check, for the fake (the engine side takes any frame).
-enum PacketBatchDecoderRaw {
-    static func frames(_ bytes: UnsafeRawBufferPointer, emit: (UnsafeRawBufferPointer) -> Void) {
+public enum PacketBatchDecoderRaw {
+    public static func frames(_ bytes: UnsafeRawBufferPointer, emit: (UnsafeRawBufferPointer) -> Void) {
         var offset = 0
         while bytes.count - offset >= 2 {
             let size = Int(bytes[offset]) | Int(bytes[offset + 1]) << 8
@@ -217,7 +226,9 @@ enum PacketBatchDecoderRaw {
 }
 
 /// A fake `NEPacketTunnelFlow`: the test supplies batches for `readPackets`, written batches are recorded.
-final class FakePacketIO: TunnelPacketIO, @unchecked Sendable {
+public final class FakePacketIO: TunnelPacketIO, @unchecked Sendable {
+    public init() {}
+
     private let condition = NSCondition()
     private var pendingBatches: [[Data]] = []
     private var waitingHandler: (@Sendable ([Data]) -> Void)?
@@ -225,19 +236,19 @@ final class FakePacketIO: TunnelPacketIO, @unchecked Sendable {
     private var writtenValue: [(packets: [Data], families: [PacketAddressFamily])] = []
     private var writeResultValue = true
 
-    var readCalls: Int {
+    public var readCalls: Int {
         condition.lock()
         defer { condition.unlock() }
         return readCallsValue
     }
 
-    var written: [(packets: [Data], families: [PacketAddressFamily])] {
+    public var written: [(packets: [Data], families: [PacketAddressFamily])] {
         condition.lock()
         defer { condition.unlock() }
         return writtenValue
     }
 
-    var writeResult: Bool {
+    public var writeResult: Bool {
         get {
             condition.lock()
             defer { condition.unlock() }
@@ -251,7 +262,7 @@ final class FakePacketIO: TunnelPacketIO, @unchecked Sendable {
     }
 
     /// Supplies a batch to the next (or the currently armed) read.
-    func supply(_ batch: [Data]) {
+    public func supply(_ batch: [Data]) {
         condition.lock()
         if let handler = waitingHandler {
             waitingHandler = nil
@@ -264,14 +275,14 @@ final class FakePacketIO: TunnelPacketIO, @unchecked Sendable {
     }
 
     /// Whether a read is armed and waiting for packets.
-    var hasArmedRead: Bool {
+    public var hasArmedRead: Bool {
         condition.lock()
         defer { condition.unlock() }
         return waitingHandler != nil
     }
 
     /// Completes an armed read (used to simulate a completion arriving after stop).
-    func completeArmedRead(with batch: [Data]) -> Bool {
+    public func completeArmedRead(with batch: [Data]) -> Bool {
         condition.lock()
         guard let handler = waitingHandler else {
             condition.unlock()
@@ -283,7 +294,7 @@ final class FakePacketIO: TunnelPacketIO, @unchecked Sendable {
         return true
     }
 
-    func readPackets(_ handler: @escaping @Sendable ([Data]) -> Void) {
+    public func readPackets(_ handler: @escaping @Sendable ([Data]) -> Void) {
         condition.lock()
         readCallsValue += 1
         if !pendingBatches.isEmpty {
@@ -297,7 +308,7 @@ final class FakePacketIO: TunnelPacketIO, @unchecked Sendable {
         condition.unlock()
     }
 
-    func writePackets(_ packets: [Data], families: [PacketAddressFamily]) -> Bool {
+    public func writePackets(_ packets: [Data], families: [PacketAddressFamily]) -> Bool {
         condition.lock()
         writtenValue.append((packets, families))
         let result = writeResultValue
@@ -306,13 +317,13 @@ final class FakePacketIO: TunnelPacketIO, @unchecked Sendable {
         return result
     }
 
-    func writtenPackets() -> [Data] {
+    public func writtenPackets() -> [Data] {
         condition.lock()
         defer { condition.unlock() }
         return writtenValue.flatMap { $0.packets }
     }
 
-    func waitForWritten(count: Int, timeout: TimeInterval = 5) -> Bool {
+    public func waitForWritten(count: Int, timeout: TimeInterval = 5) -> Bool {
         let deadline = Date(timeIntervalSinceNow: timeout)
         condition.lock()
         defer { condition.unlock() }
@@ -324,14 +335,14 @@ final class FakePacketIO: TunnelPacketIO, @unchecked Sendable {
 }
 
 /// A minimal IPv4 or IPv6 packet: the version nibble and filler bytes. The pump never looks further.
-func packet(version: UInt8, size: Int, fill: UInt8) -> Data {
+public func packet(version: UInt8, size: Int, fill: UInt8) -> Data {
     var bytes = [UInt8](repeating: fill, count: size)
     bytes[0] = version << 4 | 5
     return Data(bytes)
 }
 
 /// Polls `condition` until it holds or `timeout` passes.
-func eventually(timeout: TimeInterval = 5, _ condition: () -> Bool) -> Bool {
+public func eventually(timeout: TimeInterval = 5, _ condition: () -> Bool) -> Bool {
     let deadline = Date(timeIntervalSinceNow: timeout)
     while Date() < deadline {
         if condition() { return true }
@@ -341,21 +352,21 @@ func eventually(timeout: TimeInterval = 5, _ condition: () -> Bool) -> Bool {
 }
 
 /// A value shared between test code and callbacks on other threads.
-final class Locked<Value>: @unchecked Sendable {
+public final class Locked<Value>: @unchecked Sendable {
     private let lock = NSLock()
     private var stored: Value
 
-    init(_ value: Value) {
+    public init(_ value: Value) {
         stored = value
     }
 
-    var value: Value {
+    public var value: Value {
         lock.lock()
         defer { lock.unlock() }
         return stored
     }
 
-    func mutate(_ body: (inout Value) -> Void) {
+    public func mutate(_ body: (inout Value) -> Void) {
         lock.lock()
         body(&stored)
         lock.unlock()
