@@ -193,6 +193,32 @@ final class MihomoCoreTests: XCTestCase {
         }
     }
 
+    func testConnectionsAreMappedFromTheTracker() async throws {
+        let bridge = mihomoBridge()
+        let core = MihomoCore(bridge: bridge, packetIO: nil, settings: settings(), clock: { Date(timeIntervalSince1970: 20) })
+        XCTAssertTrue(core.capabilities.features.contains(.connectionList))
+        try await core.start(config, options: .none)
+        let list = try await core.connections(limit: 50)
+        XCTAssertEqual(bridge.read { $0.lastConnectionsLimit }, 50)
+        XCTAssertEqual(list.total, 1)
+        XCTAssertEqual(list.capturedAt, Date(timeIntervalSince1970: 20))
+        XCTAssertEqual(list.items, [
+            CoreConnection(
+                id: "c1", network: "tcp", destination: "example.com:443", rule: "Match",
+                chain: ["group-0001", "proxy-0001"], uploadBytes: 10, downloadBytes: 20,
+                startedAt: Date(timeIntervalSince1970: 1_700_000_000)
+            ),
+        ])
+        bridge.set { $0.connectionsReply = #"{"code":10,"error":"boom"}"# }
+        do {
+            _ = try await core.connections(limit: 1)
+            XCTFail()
+        } catch let error as CoreError {
+            guard case .operationFailed(.statistics, _) = error else { return XCTFail("\(error)") }
+        }
+        try await core.stop()
+    }
+
     func testCancellationInterruptsABlockedStart() async throws {
         let bridge = mihomoBridge()
         bridge.set { $0.startBlocksUntilStop = true }

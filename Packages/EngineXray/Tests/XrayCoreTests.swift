@@ -65,6 +65,22 @@ final class XrayCoreTests: XCTestCase {
         XCTAssertEqual(after.status, .unknown)
     }
 
+    /// The Xray core keeps no connection list: the adapter says so without asking the bridge.
+    func testConnectionListIsUnsupported() async throws {
+        let bridge = FakeBridge()
+        let core = XrayCore(bridge: bridge, packetIO: FakePacketIO(), settings: settings())
+        XCTAssertFalse(core.capabilities.features.contains(.connectionList))
+        try await core.start(config, options: .none)
+        do {
+            _ = try await core.connections(limit: 10)
+            XCTFail()
+        } catch let error as CoreError {
+            XCTAssertEqual(error, .unsupportedFeature(.connectionList))
+        }
+        XCTAssertNil(bridge.read { $0.lastConnectionsLimit })
+        try await core.stop()
+    }
+
     func testFileDescriptorSelectsFdModeWithoutPump() async throws {
         let bridge = FakeBridge()
         let core = XrayCore(bridge: bridge, packetIO: FakePacketIO(), settings: settings())

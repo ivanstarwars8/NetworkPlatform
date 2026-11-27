@@ -27,6 +27,9 @@
 // `traffic` the bridge's byte counters (`.statistics` message). Texts shown are
 // passed through `ConfigValueRedactor` (UUIDs and IP literals removed).
 //
+// The analyser (Features/Analyzer) also asks for per-outbound counters (part of `.statistics`) and for the
+// engine's connection list (`.connections`), only while its screen is visible.
+//
 // Not implemented: On-Demand rules.
 
 import ConfigurationEngine
@@ -217,6 +220,13 @@ final class TunnelController: ObservableObject {
     func queryTraffic() async throws -> TunnelTrafficReport {
         let request = makeRequest(.statistics)
         return try TunnelExchange.trafficReport(of: try await send(request), for: request)
+    }
+
+    /// The newest connections the engine tracks (analyser, Профи). Throws `unsupported_feature` for an
+    /// engine that keeps no list (Xray) and `not_connected` while the tunnel is down.
+    func queryConnections() async throws -> TunnelConnectionReport {
+        let request = makeRequest(.connections)
+        return try TunnelExchange.connectionReport(of: try await send(request), for: request)
     }
 
     /// Updates `traffic`; only while connected (nobody answers otherwise).

@@ -13,6 +13,8 @@ final class AppShellTests: XCTestCase {
         XCTAssertTrue(basic.contains(.profiles))
         XCTAssertTrue(basic.contains(.settings))
         XCTAssertFalse(basic.contains(.engineDiagnostics), "engine diagnostics is a Профи screen")
+        XCTAssertFalse(basic.contains(.toolbox), "the toolbox is a Профи screen")
+        XCTAssertFalse(basic.contains(.analyzer), "the analyser is a Профи screen")
     }
 
     func testHigherLevelsIncludeLowerOnes() {
@@ -27,7 +29,7 @@ final class AppShellTests: XCTestCase {
     func testTabs() {
         XCTAssertEqual(AppArea.visible(at: .basic), [.connection, .profiles, .settings])
         XCTAssertEqual(AppArea.visible(at: .pro), [.connection, .profiles, .tools, .settings])
-        XCTAssertEqual(AppArea.tools.destinations(at: .pro), [.engineDiagnostics])
+        XCTAssertEqual(AppArea.tools.destinations(at: .pro), [.toolbox, .analyzer, .engineDiagnostics])
         XCTAssertTrue(AppArea.tools.destinations(at: .basic).isEmpty)
     }
 

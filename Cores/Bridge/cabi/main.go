@@ -127,6 +127,16 @@ func npb_stats() *C.char {
 	return reply(st, nil)
 }
 
+// npb_connections exists so that both bridges export the same functions (one Swift binding). The Xray core
+// keeps no list of connections in-process, so it always answers code 5 (unsupported). Added to ABI v1
+// (additive: no existing function changed).
+//
+//export npb_connections
+func npb_connections(limit C.int32_t) *C.char {
+	_ = limit
+	return reply(nil, &engine.Error{Code: engine.CodeConfigUnsupport, Message: "the Xray core keeps no connection list"})
+}
+
 // npb_health returns engine.Health. It works in every state.
 //
 //export npb_health

@@ -35,6 +35,15 @@ allTargets += [
     .target(name: "DesignSystem", path: "Packages/DesignSystem/Sources/DesignSystem", resources: [.copy("Resources/Fonts")]),
     .testTarget(name: "DesignSystemTests", dependencies: ["DesignSystem"], path: "Packages/DesignSystem/Tests/DesignSystemTests"),
 ]
+// The network toolbox and traffic analyser of the Профи level: TCP connect timing, DNS over UDP to a chosen
+// resolver, certificate summaries, HTTP phase timing, the DNS leak check, bounded analyser history and the
+// redacted diagnostics bundle. App-side only, no engine code. The C target reads the system DNS configuration
+// (resolv.h), which no Swift system module exposes.
+allTargets += [
+    .target(name: "CNetworkToolbox", path: "Packages/NetworkToolbox/Sources/CNetworkToolbox", linkerSettings: [.linkedLibrary("resolv")]),
+    .target(name: "NetworkToolbox", dependencies: ["CNetworkToolbox"], path: "Packages/NetworkToolbox/Sources/NetworkToolbox"),
+    .testTarget(name: "NetworkToolboxTests", dependencies: ["NetworkToolbox"], path: "Packages/NetworkToolbox/Tests/NetworkToolboxTests"),
+]
 allTargets += [.executableTarget(name: "RoutingBench", dependencies: ["RoutingEngine"], path: "Benchmarks/RoutingBench", exclude: ["run-all.sh"])]
 
 let package = Package(
@@ -48,6 +57,7 @@ let package = Package(
         .library(name: "AdaptiveBalancer", targets: ["AdaptiveBalancer"]),
         .library(name: "ProfileLibrary", targets: ["ProfileLibrary"]),
         .library(name: "DesignSystem", targets: ["DesignSystem"]),
+        .library(name: "NetworkToolbox", targets: ["NetworkToolbox"]),
         .library(name: "EngineBridge", targets: ["EngineBridge"]),
         .library(name: "EngineXray", targets: ["EngineXray"]),
         .library(name: "EngineMihomo", targets: ["EngineMihomo"]),

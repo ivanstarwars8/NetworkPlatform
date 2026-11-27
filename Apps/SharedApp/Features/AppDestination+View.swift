@@ -10,6 +10,8 @@ extension AppDestination {
         switch self {
         case .connection: ConnectionScreen()
         case .profiles: ProfilesScreen()
+        case .toolbox: ToolboxScreen()
+        case .analyzer: AnalyzerScreen()
         case .engineDiagnostics: DiagnosticsView()
         case .settings: SettingsScreen()
         }

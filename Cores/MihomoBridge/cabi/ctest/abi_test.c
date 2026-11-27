@@ -123,6 +123,10 @@ int main(void) {
             printf("stats: %s\n", r);
             CHECK(code_of(r) == 0 && strstr(r, "\"total\"") && strstr(r, "\"rxPackets\""), "stats");
             npb_free(r);
+            r = npb_connections(10);
+            printf("connections: %s\n", r);
+            CHECK(code_of(r) == 0 && strstr(r, "\"items\":"), "connections: %s", r);
+            npb_free(r);
             r = npb_memory();
             printf("memory: %s\n", r);
             CHECK(code_of(r) == 0 && strstr(r, "\"limit\":41943040"), "memory");
@@ -152,6 +156,9 @@ int main(void) {
     npb_free(r);
     r = npb_stats();
     CHECK(code_of(r) == 11, "stats while idle: %s", r);
+    npb_free(r);
+    r = npb_connections(10);
+    CHECK(code_of(r) == 11, "connections while idle: %s", r);
     npb_free(r);
 
     printf(failures ? "C ABI TEST FAILED (%d)\n" : "C ABI TEST PASSED\n", failures);

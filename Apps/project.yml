@@ -170,6 +170,8 @@ targetTemplates:
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_CFBundleDisplayName: $(NP_DISPLAY_NAME)
+        # The toolbox may probe addresses on the local network (iOS local network privacy).
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: "Проверки сети обращаются к узлам локальной сети, которые вы указали."
         # Empty by default (unsigned CI builds); the signed TestFlight build passes the App Store profile name.
         PROVISIONING_PROFILE_SPECIFIER: $(NP_APP_PROFILE_SPECIFIER)
         # iPhone and iPad from one target.
@@ -192,6 +194,10 @@ targetTemplates:
       # Tokens, fonts (SIL OFL, package resources) and components of the UI; SwiftUI only, no engine code.
       - package: NetworkPlatform
         product: DesignSystem
+      # Network toolbox and analyser state of the Профи level (sockets, DNS codec, certificate summaries,
+      # redacted diagnostics); no engine code. Its C target links libresolv for the system DNS configuration.
+      - package: NetworkPlatform
+        product: NetworkToolbox
       - sdk: NetworkExtension.framework
 
   PacketTunnel:

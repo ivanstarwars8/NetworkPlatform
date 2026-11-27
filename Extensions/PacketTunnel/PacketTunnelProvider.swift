@@ -306,11 +306,52 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 let statistics = try await CoreDeadline.run(.statistics, timeout: deadlines.statistics) {
                     try await lifecycle.statistics()
                 }
+                let outbounds = statistics.outbounds
+                    .sorted { $0.key < $1.key }
+                    .prefix(TunnelTrafficReport.maximumOutbounds)
+                    .map { TunnelTrafficReport.Outbound(tag: $0.key, uplinkBytes: $0.value.uplinkBytes, downlinkBytes: $0.value.downlinkBytes) }
                 let report = TunnelTrafficReport(
                     uplinkBytes: statistics.traffic.uplinkBytes,
-                    downlinkBytes: statistics.traffic.downlinkBytes
+                    downlinkBytes: statistics.traffic.downlinkBytes,
+                    outbounds: outbounds.isEmpty ? nil : Array(outbounds),
+                    activeConnections: statistics.activeConnections,
+                    uptimeSeconds: statistics.uptime
                 )
                 return TunnelResponse(version: TunnelIPC.protocolVersion, id: request.id, outcome: .statistics(report))
+            } catch {
+                let normalised = CoreError.normalise(error, during: .statistics)
+                return TunnelExchange.failure(
+                    id: request.id,
+                    TunnelIPCError.Code(rawValue: normalised.code),
+                    normalised.description
+                )
+            }
+        case .connections:
+            guard let lifecycle = await session.lifecycle else {
+                return TunnelExchange.failure(id: request.id, .notRunning, "no engine is running")
+            }
+            do {
+                // Read only when the app asks (the analyser, at most once per second while visible); bounded
+                // like statistics. Destinations are not logged.
+                let snapshot = try await CoreDeadline.run(.statistics, timeout: deadlines.statistics) {
+                    try await lifecycle.connections(limit: TunnelConnectionReport.maximumItems)
+                }
+                let items = snapshot.items.prefix(TunnelConnectionReport.maximumItems).map { item in
+                    TunnelConnectionReport.Item(
+                        id: TunnelConnectionReport.bounded(item.id, limit: TunnelConnectionReport.maximumTagBytes),
+                        network: TunnelConnectionReport.bounded(item.network, limit: TunnelConnectionReport.maximumTagBytes),
+                        destination: TunnelConnectionReport.bounded(item.destination),
+                        rule: item.rule.map { TunnelConnectionReport.bounded($0) },
+                        chain: item.chain.prefix(TunnelConnectionReport.maximumChainLength).map {
+                            TunnelConnectionReport.bounded($0, limit: TunnelConnectionReport.maximumTagBytes)
+                        },
+                        uploadBytes: item.uploadBytes,
+                        downloadBytes: item.downloadBytes,
+                        startedAt: item.startedAt
+                    )
+                }
+                let report = TunnelConnectionReport(total: snapshot.total, items: Array(items))
+                return TunnelResponse(version: TunnelIPC.protocolVersion, id: request.id, outcome: .connections(report))
             } catch {
                 let normalised = CoreError.normalise(error, during: .statistics)
                 return TunnelExchange.failure(

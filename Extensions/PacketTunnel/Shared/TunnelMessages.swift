@@ -292,6 +292,8 @@ struct TunnelRequest: Codable, Equatable, Sendable {
         case status
         /// Traffic counters of the running engine.
         case statistics
+        /// The newest connections the engine tracks (engines with `CoreFeature.connectionList`).
+        case connections
     }
 
     var version: UInt16
@@ -303,6 +305,7 @@ struct TunnelResponse: Codable, Equatable, Sendable {
     enum Outcome: Codable, Equatable, Sendable {
         case status(TunnelStatusReport)
         case statistics(TunnelTrafficReport)
+        case connections(TunnelConnectionReport)
         case failure(TunnelIPCError)
     }
 
@@ -327,8 +330,62 @@ struct TunnelStatusReport: Codable, Equatable, Sendable {
 }
 
 struct TunnelTrafficReport: Codable, Equatable, Sendable {
+    struct Outbound: Codable, Equatable, Sendable {
+        /// Engine tag of the outbound (as compiled), not a user-facing name.
+        var tag: String
+        var uplinkBytes: UInt64
+        var downlinkBytes: UInt64
+    }
+
     var uplinkBytes: UInt64
     var downlinkBytes: UInt64
+    /// Per-outbound counters, when the engine counts per outbound; at most `maximumOutbounds`, sorted by tag.
+    /// Absent in replies of extensions built before the field existed.
+    var outbounds: [Outbound]? = nil
+    /// Connections the engine tracks right now, when it can say.
+    var activeConnections: Int? = nil
+    /// Seconds since the engine started.
+    var uptimeSeconds: Double? = nil
+
+    /// A limit of this project, keeping the reply far below `TunnelIPC.maximumMessageBytes`.
+    static let maximumOutbounds = 64
+}
+
+/// The newest connections the engine tracks, newest first. Destinations are the user's data: shown in the
+/// app, never logged by either side.
+struct TunnelConnectionReport: Codable, Equatable, Sendable {
+    struct Item: Codable, Equatable, Sendable {
+        var id: String
+        var network: String
+        var destination: String
+        var rule: String?
+        var chain: [String]
+        var uploadBytes: UInt64
+        var downloadBytes: UInt64
+        var startedAt: Date?
+    }
+
+    /// Every connection the engine tracks; `items` may hold fewer.
+    var total: Int
+    var items: [Item]
+
+    /// Limits of this project: the largest possible reply (every field at its bound) stays below
+    /// `TunnelIPC.maximumMessageBytes` (64 KiB); checked by a test.
+    static let maximumItems = 50
+    static let maximumTextBytes = 200
+    static let maximumTagBytes = 64
+    static let maximumChainLength = 4
+
+    /// Shortens an over-long string to `limit` UTF-8 bytes (on a character boundary, "..." appended).
+    static func bounded(_ text: String, limit: Int = maximumTextBytes) -> String {
+        guard text.utf8.count > limit else { return text }
+        var result = ""
+        for character in text {
+            if result.utf8.count + String(character).utf8.count > limit - 3 { break }
+            result.append(character)
+        }
+        return result + "..."
+    }
 }
 
 // MARK: - Encoding and checking, both directions
@@ -350,8 +407,7 @@ enum TunnelExchange {
     }
 
     /// Checks a reply against the request it should answer and returns its
-    /// outcome. A `.failure` outcome is thrown, so the caller only ever sees
-    /// `.status` or `.statistics`.
+    /// outcome. A `.failure` outcome is thrown, so the caller never sees it.
     static func outcome(of reply: Data?, for request: TunnelRequest) throws -> TunnelResponse.Outcome {
         guard let reply = reply, !reply.isEmpty else {
             throw TunnelIPCError(.noReply, "the extension answered without data")
@@ -378,6 +434,13 @@ enum TunnelExchange {
     static func statusReport(of reply: Data?, for request: TunnelRequest) throws -> TunnelStatusReport {
         guard case let .status(report) = try outcome(of: reply, for: request) else {
             throw TunnelIPCError(.unexpectedReply, "expected a status report")
+        }
+        return report
+    }
+
+    static func connectionReport(of reply: Data?, for request: TunnelRequest) throws -> TunnelConnectionReport {
+        guard case let .connections(report) = try outcome(of: reply, for: request) else {
+            throw TunnelIPCError(.unexpectedReply, "expected a connection report")
         }
         return report
     }

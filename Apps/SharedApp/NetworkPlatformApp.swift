@@ -12,6 +12,8 @@ import SwiftUI
 struct NetworkPlatformApp: App {
     @StateObject private var tunnel = TunnelController()
     @StateObject private var library = ProfileLibraryModel(catalog: .thisBuild)
+    /// Analyser history and the event timeline (Features/Analyzer); events only, no polling.
+    @StateObject private var analyzer = AnalyzerStore()
 
     init() {
         AppearanceSetup.apply()
@@ -22,8 +24,12 @@ struct NetworkPlatformApp: App {
             RootView()
                 .environmentObject(tunnel)
                 .environmentObject(library)
+                .environmentObject(analyzer)
                 .bykScreen()
-                .task { await tunnel.refresh() }
+                .task {
+                    analyzer.attach(to: tunnel)
+                    await tunnel.refresh()
+                }
                 #if os(macOS)
                 .frame(minWidth: 720, minHeight: 520)
                 #endif

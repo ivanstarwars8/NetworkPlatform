@@ -33,7 +33,7 @@ enum ExperienceLevel: String, CaseIterable, Comparable, Sendable {
         switch self {
         case .basic: return "Подключение, профили и скорость."
         case .advanced: return "Серверы, группы, правила, DNS и статистика."
-        case .pro: return "Инструменты для сетевых инженеров: диагностика движка."
+        case .pro: return "Инструменты для сетевых инженеров: проверки сети, анализатор трафика, диагностика движка."
         }
     }
 
@@ -106,6 +106,8 @@ enum AppArea: String, CaseIterable, Sendable {
 enum AppDestination: String, CaseIterable, Identifiable, Sendable {
     case connection
     case profiles
+    case toolbox
+    case analyzer
     case engineDiagnostics
     case settings
 
@@ -115,7 +117,7 @@ enum AppDestination: String, CaseIterable, Identifiable, Sendable {
     var level: ExperienceLevel {
         switch self {
         case .connection, .profiles, .settings: return .basic
-        case .engineDiagnostics: return .pro
+        case .toolbox, .analyzer, .engineDiagnostics: return .pro
         }
     }
 
@@ -123,7 +125,7 @@ enum AppDestination: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .connection: return .connection
         case .profiles: return .profiles
-        case .engineDiagnostics: return .tools
+        case .toolbox, .analyzer, .engineDiagnostics: return .tools
         case .settings: return .settings
         }
     }
@@ -132,6 +134,8 @@ enum AppDestination: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .connection: return "Подключение"
         case .profiles: return "Профили"
+        case .toolbox: return "Проверки сети"
+        case .analyzer: return "Анализатор"
         case .engineDiagnostics: return "Диагностика движка"
         case .settings: return "Настройки"
         }
@@ -141,6 +145,8 @@ enum AppDestination: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .connection: return "power"
         case .profiles: return "list.bullet.rectangle"
+        case .toolbox: return "ruler"
+        case .analyzer: return "waveform.path.ecg"
         case .engineDiagnostics: return "stethoscope"
         case .settings: return "gearshape"
         }
@@ -149,6 +155,8 @@ enum AppDestination: String, CaseIterable, Identifiable, Sendable {
     /// One line under the title in the tools list.
     var summary: String? {
         switch self {
+        case .toolbox: return "Пинг TCP, порт, DNS, HTTPS и сертификат, адреса, утечка DNS."
+        case .analyzer: return "График трафика, соединения, выходы, ошибки и смена сети."
         case .engineDiagnostics: return "Состояние движка, память расширения, счётчики трафика."
         case .connection, .profiles, .settings: return nil
         }

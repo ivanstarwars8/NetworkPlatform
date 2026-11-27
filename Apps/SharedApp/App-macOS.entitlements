@@ -2,8 +2,9 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!-- UNVERIFIED: never used for signing. The macOS CI builds are unsigned (CODE_SIGNING_ALLOWED=NO), so
      these entitlements were not applied or checked against a provisioning profile. -->
-<!-- The app itself opens no network connections and no listeners, so it has
-     neither network.client nor network.server. -->
+<!-- The app opens outgoing connections only for the user-started network tools of the Профи level
+     (Features/Toolbox: TCP connect, DNS over UDP, one HTTPS request), so it has network.client. It opens no
+     listeners, so it has no network.server. -->
 <plist version="1.0">
 <dict>
 	<key>com.apple.developer.networking.networkextension</key>
@@ -11,6 +12,8 @@
 		<string>packet-tunnel-provider</string>
 	</array>
 	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.network.client</key>
 	<true/>
 	<key>com.apple.security.application-groups</key>
 	<array>

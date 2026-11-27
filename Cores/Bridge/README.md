@@ -38,6 +38,7 @@ Go-модуль `networkplatform/bridge`: один экземпляр Xray-core 
 | `npb_reload(config)` | см. ниже |
 | `npb_state`, `npb_health` | состояние автомата, последняя ошибка, счётчики очередей |
 | `npb_stats` | трафик по inbound/outbound и счётчики пакетного интерфейса |
+| `npb_connections(limit)` | всегда код 5: ядро Xray не ведёт список соединений в процессе; функция есть ради одинакового набора экспортов обоих мостов |
 | `npb_memory` | снимок памяти Go-рантайма (`runtime/metrics`) |
 | `npb_log_read(buf, cap, timeoutMs)` | записи журнала строками JSON |
 | `npb_tun_write`, `npb_tun_read` | пачки IP-пакетов, режим `flow` |

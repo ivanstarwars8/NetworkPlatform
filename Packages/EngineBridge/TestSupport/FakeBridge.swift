@@ -140,6 +140,16 @@ public final class FakeBridge: BridgeABI, @unchecked Sendable {
         return running ? statsReply : #"{"code":11,"error":"not running"}"#
     }
 
+    public var connectionsReply = #"{"code":0,"data":{"total":1,"items":[{"id":"c1","network":"tcp","destination":"example.com:443","rule":"Match","chain":["group-0001","proxy-0001"],"upload":10,"download":20,"startMs":1700000000000}]}}"#
+    public private(set) var lastConnectionsLimit: Int32?
+
+    public func connections(limit: Int32) -> String {
+        condition.lock()
+        defer { condition.unlock() }
+        lastConnectionsLimit = limit
+        return running ? connectionsReply : #"{"code":11,"error":"not running"}"#
+    }
+
     public func health() -> String {
         condition.lock()
         defer { condition.unlock() }
