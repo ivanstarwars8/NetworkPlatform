@@ -1,5 +1,6 @@
 // Verified on Linux only (Swift 5.10.1, swift test).
 import CoreAbstraction
+import DomainModels
 import Foundation
 import XCTest
 @testable import EngineXray
@@ -79,6 +80,31 @@ final class XrayCoreTests: XCTestCase {
         try await core.start(config, options: .none)
         XCTAssertNil(options(bridge.read { $0.startCalls[0].options })["tun"])
         XCTAssertNil(options(bridge.read { $0.startCalls[0].options })["memory"])
+        try await core.stop()
+    }
+
+    func testPacketTunnelSettingsNameTheMobileProfileAndRepeatNoValues() async throws {
+        XCTAssertEqual(XrayCoreSettings.packetTunnel.memoryProfile, .mobile)
+        XCTAssertNil(XrayCoreSettings.packetTunnel.memoryLimitBytes, "the bridge holds the profile's limit")
+        XCTAssertNil(XrayCoreSettings.packetTunnel.gcPercent, "the bridge holds the profile's GC percentage")
+        XCTAssertNil(XrayCoreSettings.packetTunnel.outQueueBytes, "the bridge holds the profile's queue size")
+
+        var tunnelSettings = XrayCoreSettings.packetTunnel
+        tunnelSettings.pump = settings().pump
+        tunnelSettings.logReadTimeoutMilliseconds = 20
+        let bridge = FakeBridge()
+        let core = XrayCore(bridge: bridge, packetIO: FakePacketIO(), settings: tunnelSettings)
+
+        _ = try await core.validate(config)
+        let checked = options(bridge.read { $0.validateCalls[0].options })
+        XCTAssertEqual(checked["memory"] as? [String: String], ["profile": "mobile"], "geodata is refused when checking too")
+
+        try await core.start(config, options: CoreStartOptions(mtu: 1500))
+        let sent = options(bridge.read { $0.startCalls[0].options })
+        XCTAssertEqual(sent["memory"] as? [String: String], ["profile": "mobile"], "only the profile name, no 32 MiB / GOGC 50")
+        let tun = sent["tun"] as? [String: Any]
+        XCTAssertEqual(tun?["mode"] as? String, "flow")
+        XCTAssertNil(tun?["outQueueBytes"], "the profile's queue size applies")
         try await core.stop()
     }
 
@@ -317,5 +343,22 @@ actor LifecycleBox {
 
     func set(_ lifecycle: CoreLifecycle) {
         self.lifecycle = lifecycle
+    }
+}
+
+/// Exports the start options the extension sends to the bridge, for the end-to-end run on Linux
+/// (`Cores/BuildScripts/bridge-tunlab.sh compiled`). Writes NP_EXPORT_DIR/bridge-options.json when set.
+final class XrayBridgeOptionsExportTests: XCTestCase {
+    func testExportPacketTunnelBridgeOptions() throws {
+        let core = XrayCore(bridge: FakeBridge(), packetIO: FakePacketIO(), settings: .packetTunnel)
+        // The MTU the extension passes is the plan's, i.e. TunnelAddressing's (TunnelSession: `request.network.mtu`).
+        let options = core.bridgeOptions(for: CoreStartOptions(mtu: TunnelAddressing.standard.mtu), validating: false)
+        XCTAssertEqual(options.memory, XrayBridgeOptions.Memory(profile: "mobile"))
+        XCTAssertEqual(options.tun?.mode, "flow")
+        XCTAssertEqual(options.tun?.mtu, TunnelAddressing.standard.mtu)
+        guard let directory = ProcessInfo.processInfo.environment["NP_EXPORT_DIR"], !directory.isEmpty else { return }
+        let url = URL(fileURLWithPath: directory, isDirectory: true)
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        try options.encoded().write(to: url.appendingPathComponent("bridge-options.json"))
     }
 }

@@ -2,7 +2,7 @@
 // visionOS, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 45966628451 (workflow apple.yml)
 //
 // Status of that mark for the files in Shared/: they import only Foundation
-// and ARE compiled and unit-tested on Linux, through a symbolic link in
+// (TunnelMessages.swift also DomainModels) and ARE compiled and unit-tested on Linux, through a symbolic link in
 // Packages/CoreAbstraction/Tests (Swift 5.10.1, 2026-11-25). They have not
 // been compiled for an Apple platform or run inside an app or an extension.
 //
@@ -10,9 +10,11 @@
 // This directory is compiled into both targets by Apps/project.yml. It is
 // meant to become the `TunnelIPC` package module (ADR-0004 §2.3).
 //
-// It imports nothing but Foundation on purpose: the app must not depend on
+// It imports nothing but Foundation and DomainModels (the engine-neutral
+// model, which has no engine code) on purpose: the app must not depend on
 // engine code (ADR-0001 §3, rule 2).
 
+import DomainModels
 import Foundation
 
 enum TunnelIPC {
@@ -141,6 +143,71 @@ struct TunnelNetworkPlan: Codable, Equatable, Sendable {
     var mtu: Int
     var routesAllIPv4: Bool
     var routesAllIPv6: Bool
+    /// Destinations that bypass the tunnel (`excludedRoutes`): the proxy servers' addresses and local
+    /// networks. Absent in plans written before the field existed.
+    var excludedRoutes: [TunnelRoute]
+
+    init(
+        remoteAddress: String,
+        ipv4Address: String,
+        ipv4SubnetMask: String,
+        ipv6Address: String?,
+        ipv6PrefixLength: Int?,
+        dnsServers: [String],
+        mtu: Int,
+        routesAllIPv4: Bool,
+        routesAllIPv6: Bool,
+        excludedRoutes: [TunnelRoute] = []
+    ) {
+        self.remoteAddress = remoteAddress
+        self.ipv4Address = ipv4Address
+        self.ipv4SubnetMask = ipv4SubnetMask
+        self.ipv6Address = ipv6Address
+        self.ipv6PrefixLength = ipv6PrefixLength
+        self.dnsServers = dnsServers
+        self.mtu = mtu
+        self.routesAllIPv4 = routesAllIPv4
+        self.routesAllIPv6 = routesAllIPv6
+        self.excludedRoutes = excludedRoutes
+    }
+
+    /// The full-tunnel plan for the addresses a configuration was compiled for
+    /// (`XrayTunnelPlan` of ConfigurationEngine carries all three arguments). The interface
+    /// addresses, resolvers and MTU come from `TunnelAddressing` only, so the system interface and
+    /// the engine's DNS hijack and packet stack cannot disagree.
+    init(addressing: TunnelAddressing, excludedRoutes: [TunnelRoute], remoteAddress: String) {
+        self.init(
+            remoteAddress: remoteAddress,
+            ipv4Address: addressing.ipv4Address,
+            ipv4SubnetMask: addressing.ipv4SubnetMask,
+            ipv6Address: addressing.ipv6Address,
+            ipv6PrefixLength: addressing.ipv6Address == nil ? nil : addressing.ipv6PrefixLength,
+            dnsServers: addressing.dnsServers,
+            mtu: addressing.mtu,
+            routesAllIPv4: true,
+            routesAllIPv6: addressing.ipv6Address != nil && addressing.ipv6PrefixLength != nil,
+            excludedRoutes: excludedRoutes
+        )
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case remoteAddress, ipv4Address, ipv4SubnetMask, ipv6Address, ipv6PrefixLength, dnsServers, mtu
+        case routesAllIPv4, routesAllIPv6, excludedRoutes
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        remoteAddress = try container.decode(String.self, forKey: .remoteAddress)
+        ipv4Address = try container.decode(String.self, forKey: .ipv4Address)
+        ipv4SubnetMask = try container.decode(String.self, forKey: .ipv4SubnetMask)
+        ipv6Address = try container.decodeIfPresent(String.self, forKey: .ipv6Address)
+        ipv6PrefixLength = try container.decodeIfPresent(Int.self, forKey: .ipv6PrefixLength)
+        dnsServers = try container.decode([String].self, forKey: .dnsServers)
+        mtu = try container.decode(Int.self, forKey: .mtu)
+        routesAllIPv4 = try container.decode(Bool.self, forKey: .routesAllIPv4)
+        routesAllIPv6 = try container.decode(Bool.self, forKey: .routesAllIPv6)
+        excludedRoutes = try container.decodeIfPresent([TunnelRoute].self, forKey: .excludedRoutes) ?? []
+    }
 
     /// Bounds of this project, wide enough for both engines (ADR-0001 §4:
     /// 1500 and 4064) and narrow enough to stop nonsense before it reaches
@@ -149,6 +216,7 @@ struct TunnelNetworkPlan: Codable, Equatable, Sendable {
     static let minimumIPv6MTU = 1_280
     static let maximumDNSServers = 16
     static let maximumAddressLength = 64
+    static let maximumExcludedRoutes = 256
 
     /// Rejects plans that are structurally impossible. This is not address
     /// parsing: the system does that when the settings are applied.
@@ -191,6 +259,15 @@ struct TunnelNetworkPlan: Codable, Equatable, Sendable {
         }
         for server in dnsServers {
             try checkAddress(server, "DNS server")
+        }
+        guard excludedRoutes.count <= TunnelNetworkPlan.maximumExcludedRoutes else {
+            throw invalid("more than \(TunnelNetworkPlan.maximumExcludedRoutes) excluded routes")
+        }
+        for route in excludedRoutes {
+            try checkAddress(route.address, "excluded route")
+            guard (0...(route.isIPv6 ? 128 : 32)).contains(route.prefixLength) else {
+                throw invalid("excluded route prefix length \(route.prefixLength) is out of range")
+            }
         }
     }
 }

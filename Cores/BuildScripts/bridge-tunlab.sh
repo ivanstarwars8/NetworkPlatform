@@ -13,6 +13,9 @@
 #   Cores/BuildScripts/bridge-tunlab.sh memcmp [reps]    default vs mobile memory profile: cold start, throughput, 200-flow burst
 # MOBILE=1 runs the bridge with memory.profile=mobile and gives the client config the policy level of the
 # compiler's mobile profile (XrayMemoryProfile.mobile); CONNIDLE / BUFSIZE override its connIdle / bufferSize.
+#   Cores/BuildScripts/bridge-tunlab.sh compiled-link    server keys for `compiled` (kept in $NP_LAB_OUT/cfg) + the share link of the lab server
+#   Cores/BuildScripts/bridge-tunlab.sh compiled DIR     run the Swift compiler's output (DIR/config.json, plan.json, bridge-options.json,
+#                                                       see ConfigurationEngine TunnelExportTests) in flow mode: TCP, UDP, DNS, IPv6, no DNS leak
 #   Cores/BuildScripts/bridge-tunlab.sh teardown         kill lab processes, delete the namespaces
 # Results go to $NP_LAB_OUT (default Logs/tunlab, git-ignored), one JSON object per line.
 #
@@ -120,6 +123,8 @@ teardown() {
 # ---------------------------------------------------------------------------------------------- configs
 gen_configs() {
 	local keys priv pub uuid sskey
+	# KEEP_KEYS=1 reuses the keys of an earlier run (the compiled-config run needs the keys its link carried)
+	if [ -n "${KEEP_KEYS:-}" ] && [ -s "$CFG/server.json" ]; then return 0; fi
 	keys="$("$BIN/xray" x25519)"
 	priv="$(awk -F': *' 'tolower($1) ~ /private/ {print $2}' <<<"$keys")"
 	pub="$(awk -F': *' 'tolower($1) ~ /password|public/ {print $2; exit}' <<<"$keys")"
@@ -596,8 +601,88 @@ do_diag() {
 	stop_client
 }
 
+# ---------------------------------------------------------------------------------------------- compiled
+do_compiled_link() {
+	[ -x "$BIN/xray" ] || do_build
+	gen_configs
+	printf 'vless://%s@%s:443?type=tcp&security=reality&sni=np.test&fp=chrome&pbk=%s&sid=0123abcd&flow=xtls-rprx-vision#lab\n' \
+		"$(cat "$CFG/uuid")" "$SERVER4" "$(cat "$CFG/pub")"
+}
+
+# The interface is configured from the plan the compiler exported (the analogue of NEPacketTunnelNetworkSettings),
+# and the bridge runs the compiled config with the options the Swift adapter sends. Nothing is hand-written here.
+do_compiled() {
+	local dir=${1:?usage: compiled DIR}
+	local cfg="$dir/config.json" plan="$dir/plan.json" opts="$dir/bridge-options.json"
+	for f in "$cfg" "$plan" "$opts"; do [ -s "$f" ] || { echo "missing $f" >&2; exit 2; }; done
+	RES="$OUT/compiled.jsonl"
+	: >"$RES"
+	KEEP_KEYS=1 setup
+	trap 'stop_client; teardown' EXIT
+	local a4 p4 a6 p6 d4 d6 mtu
+	a4=$(jq -r .addressing.ipv4Address "$plan"); p4=$(jq -r .addressing.ipv4PrefixLength "$plan")
+	a6=$(jq -r '.addressing.ipv6Address // empty' "$plan"); p6=$(jq -r '.addressing.ipv6PrefixLength // empty' "$plan")
+	d4=$(jq -r .addressing.dnsIPv4Address "$plan"); d6=$(jq -r '.addressing.dnsIPv6Address // empty' "$plan")
+	mtu=$(jq -r .addressing.mtu "$plan")
+	inc ip addr flush dev nptun0
+	inc ip addr add "$a4/$p4" dev nptun0
+	[ -n "$a6" ] && inc ip -6 addr add "$a6/$p6" dev nptun0 nodad
+	set_mtu "$mtu"
+	routes_tunnel
+	# excluded routes leave through the veth, like excludedRoutes leave through the physical interface
+	local route applied=0 refused=0
+	for route in $(jq -r '.excludedRoutes[] | "\(.address)/\(.prefixLength)"' "$plan"); do
+		if [[ $route == *:* ]]; then
+			inc ip -6 route replace "$route" via fd00:200::2 dev vc 2>/dev/null && applied=$((applied + 1)) || { refused=$((refused + 1)); log "route $route not accepted by Linux"; }
+		else
+			inc ip route replace "$route" via 10.200.0.2 dev vc 2>/dev/null && applied=$((applied + 1)) || { refused=$((refused + 1)); log "route $route not accepted by Linux"; }
+		fi
+	done
+	echo "{\"label\":\"compiled\",\"test\":\"plan\",\"ok\":true,\"values\":{\"ipv4\":\"$a4/$p4\",\"ipv6\":\"$a6/$p6\",\"mtu\":$mtu,\"excludedApplied\":$applied,\"excludedRefused\":$refused}}" | tee -a "$RES"
+	# DNS leak counter: UDP/TCP port 53 leaving the client namespace outside the tunnel
+	inc nft add table inet npleak
+	inc nft add chain inet npleak out '{ type filter hook output priority 0; }'
+	inc nft add rule inet npleak out oifname vc udp dport 53 counter
+	inc nft add rule inet npleak out oifname vc tcp dport 53 counter
+	start_far
+	start_client flow "$cfg" -options "$opts"
+	WITH_CTL=1
+	c compiled tcp-echo $T4:7 -bytes $((8 << 20)) || true
+	c compiled tcp-echo "[$T6]:7" -bytes $((8 << 20)) || true
+	c compiled tcp-down $T4:19 -bytes $((32 << 20)) || true
+	c compiled tcp-up "[$T6]:10" -bytes $((32 << 20)) || true
+	c compiled udp-echo $T4:7 -sizes "1,512,$((mtu - 28)),4000" || true
+	c compiled udp-echo "[$T6]:7" -sizes "1,512,$((mtu - 48)),4000" || true
+	# the resolver addresses the system gets: answered by the core's DNS through the proxy
+	c compiled-dns-tunnel4 dns "$d4:53" -qtype A -n 10 -expect $T4 || true
+	c compiled-dns-tunnel4 dns "$d4:53" -qtype AAAA -n 10 -expect $T6 || true
+	[ -n "$d6" ] && c compiled-dns-tunnel6 dns "[$d6]:53" -qtype AAAA -n 10 -expect $T6 || true
+	# any other resolver an app names is hijacked too (nothing listens on these documentation addresses)
+	c compiled-dns-hijack dns 192.0.2.53:53 -qtype A -n 10 -expect $T4 || true
+	c compiled-dns-hijack dns "[2001:db8:ffff::53]:53" -qtype AAAA -n 10 -expect $T6 || true
+	# local networks bypass the tunnel (excluded route) and still work
+	c compiled-local tcp-echo 10.200.0.2:7 -bytes $((1 << 20)) || true
+	inc curl -s "http://$CTL/sample" | sed 's/^/{"label":"compiled","test":"final-sample","sample":/; s/$/}/' | tee -a "$RES"
+	inc curl -s "http://$CTL/logs" >"$OUT/compiled-core.log" || true
+	local leaks
+	leaks=$(inc nft -j list chain inet npleak out | jq '[.nftables[] | .rule? | select(.) | .expr[] | .counter? | select(.) | .packets] | add // 0')
+	echo "{\"label\":\"compiled\",\"test\":\"dns-leak\",\"ok\":$([ "$leaks" = 0 ] && echo true || echo false),\"values\":{\"port53PacketsOutsideTunnel\":$leaks}}" | tee -a "$RES"
+	# no configuration value in the core's log (bridge redaction)
+	local secrets_found=0 s
+	for s in "$(cat "$CFG/uuid")" "$(cat "$CFG/pub")"; do grep -qF "$s" "$OUT/compiled-core.log" "$OUT/client-flow.log" && secrets_found=$((secrets_found + 1)); done
+	echo "{\"label\":\"compiled\",\"test\":\"log-redaction\",\"ok\":$([ $secrets_found = 0 ] && echo true || echo false),\"values\":{\"coreLogLines\":$(wc -l <"$OUT/compiled-core.log"),\"valuesFound\":$secrets_found}}" | tee -a "$RES"
+	stop_client
+	unset WITH_CTL
+	local failed
+	failed=$(jq -s '[.[] | select(.ok == false)] | length' "$RES")
+	log "compiled done: $RES, failed checks: $failed"
+	[ "$failed" = 0 ]
+}
+
 case "${1:-}" in
 diag) shift; do_diag "$@" ;;
+compiled-link) do_compiled_link ;;
+compiled) shift; do_compiled "$@" ;;
 build) do_build ;;
 setup) setup ;;
 teardown) teardown ;;

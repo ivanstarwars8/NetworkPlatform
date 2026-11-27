@@ -60,6 +60,12 @@ const tunConfigType = "xray.proxy.tun.Config"
 // It does not create an instance and has no effect on a running one.
 func prepareConfig(data []byte, opts *Options) (p *prepared, rerr *Error) {
 	defer func() {
+		// Runs last: the messages of the core quote rejected values.
+		if rerr != nil {
+			rerr = newRedactor(data).redactError(rerr)
+		}
+	}()
+	defer func() {
 		if r := recover(); r != nil {
 			// The core's builders are not written to be panic-free on hostile input.
 			p, rerr = nil, newError(CodeConfigBuild, "config build panicked: %v", r)

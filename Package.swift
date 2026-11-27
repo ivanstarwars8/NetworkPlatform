@@ -1,10 +1,10 @@
 // swift-tools-version:5.9
 import PackageDescription
 
-func lib(_ name: String, deps: [Target.Dependency] = []) -> [Target] {
+func lib(_ name: String, deps: [Target.Dependency] = [], testDeps: [Target.Dependency] = []) -> [Target] {
     [
         .target(name: name, dependencies: deps, path: "Packages/\(name)/Sources"),
-        .testTarget(name: "\(name)Tests", dependencies: [.target(name: name)], path: "Packages/\(name)/Tests"),
+        .testTarget(name: "\(name)Tests", dependencies: [.target(name: name)] + testDeps, path: "Packages/\(name)/Tests"),
     ]
 }
 
@@ -12,11 +12,12 @@ func lib(_ name: String, deps: [Target.Dependency] = []) -> [Target] {
 // expression of six arrays exceeds the Swift 5.10 type-checker time limit.
 var allTargets: [Target] = []
 allTargets += lib("DomainModels")
-allTargets += lib("CoreAbstraction")
+// The tests compile Extensions/PacketTunnel/Shared through a symbolic link; Shared/ uses DomainModels.
+allTargets += lib("CoreAbstraction", testDeps: ["DomainModels"])
 allTargets += lib("ConfigurationEngine", deps: ["DomainModels"])
 allTargets += lib("RoutingEngine")
 allTargets += lib("AdaptiveBalancer")
-allTargets += lib("EngineXray", deps: ["CoreAbstraction"])
+allTargets += lib("EngineXray", deps: ["CoreAbstraction"], testDeps: ["DomainModels"])
 allTargets += [.executableTarget(name: "RoutingBench", dependencies: ["RoutingEngine"], path: "Benchmarks/RoutingBench", exclude: ["run-all.sh"])]
 
 let package = Package(

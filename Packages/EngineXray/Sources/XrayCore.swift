@@ -14,11 +14,17 @@ public struct XrayCoreSettings: Sendable {
     public var startTimeout: TimeInterval = 15
     /// The bridge's own stop deadline. Shorter than the host's (`TunnelDeadlines.engineStop`, 5 s).
     public var stopTimeout: TimeInterval = 4
-    /// Used when `CoreStartOptions.memoryLimitBytes` is `nil`. `nil` leaves the Go runtime as it is.
+    /// Memory profile of the bridge (`memory.profile`). The bridge holds the profile's values (memory
+    /// limit, GC percentage, queue sizes, flow cap); the adapter names the profile and never repeats
+    /// them. The fields below override single values of the profile when set.
+    public var memoryProfile: XrayBridgeMemoryProfile?
+    /// Used when `CoreStartOptions.memoryLimitBytes` is `nil`. `nil` leaves the profile's value, or the
+    /// Go runtime as it is when no profile is set.
     public var memoryLimitBytes: UInt64?
-    /// Go GC percentage; `nil` keeps the runtime default.
+    /// Go GC percentage; `nil` keeps the profile's value or the runtime default.
     public var gcPercent: Int?
-    /// Capacity of the bridge's core-to-device queue (`tun.outQueueBytes`); `nil` keeps the bridge default.
+    /// Capacity of the bridge's core-to-device queue (`tun.outQueueBytes`); `nil` keeps the profile's
+    /// value or the bridge default.
     public var outQueueBytes: Int?
     public var pump = PacketPumpConfiguration.standard
     /// How long one `npb_log_read` waits; bounds how long the log thread takes to notice a stop.
@@ -27,6 +33,21 @@ public struct XrayCoreSettings: Sendable {
     public var logBufferBytes: Int = 16 * 1024
 
     public init() {}
+
+    /// The settings of the Packet Tunnel extension: the bridge's `mobile` memory profile, measured for a
+    /// process with a budget of about 50 MiB (`Documentation/Performance/memory-budget.md`).
+    public static var packetTunnel: XrayCoreSettings {
+        var settings = XrayCoreSettings()
+        settings.memoryProfile = .mobile
+        return settings
+    }
+}
+
+/// Memory profiles the bridge defines (`Cores/Bridge/engine/options.go`, `MemoryProfile`).
+public enum XrayBridgeMemoryProfile: String, Sendable {
+    /// Limit 40 MiB, GC 25 %, out queue 512 KiB, 512 flows, log queue 128, no geodata (values live in the
+    /// bridge; listed here only for the reader).
+    case mobile
 }
 
 /// Callbacks of the adapter. Called from the adapter's threads; they must return quickly.
@@ -390,14 +411,15 @@ public final class XrayCore: NetworkCore, @unchecked Sendable {
             tun.outQueueBytes = settings.outQueueBytes
             result.tun = tun
         }
+        // The profile also when validating: under `mobile` the bridge refuses geodata, which a check must
+        // report the same way a start would.
+        var memory = XrayBridgeOptions.Memory(profile: settings.memoryProfile?.rawValue)
         if !validating {
-            let limit = options.memoryLimitBytes ?? settings.memoryLimitBytes
-            if limit != nil || settings.gcPercent != nil {
-                result.memory = XrayBridgeOptions.Memory(
-                    limitBytes: limit.map { Int64(clamping: $0) },
-                    gcPercent: settings.gcPercent
-                )
-            }
+            memory.limitBytes = (options.memoryLimitBytes ?? settings.memoryLimitBytes).map { Int64(clamping: $0) }
+            memory.gcPercent = settings.gcPercent
+        }
+        if memory != XrayBridgeOptions.Memory() {
+            result.memory = memory
         }
         return result
     }

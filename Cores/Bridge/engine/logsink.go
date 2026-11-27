@@ -159,7 +159,8 @@ func (coreLogHandler) Handle(msg xlog.Message) {
 	case *xlog.DNSLog:
 		kind = "dns"
 	}
-	q.push(level, kind, msg.String())
+	// No value of the configuration (keys, ids, server addresses) reaches the host's log.
+	q.push(level, kind, activeRedactor.Load().redactLog(msg.String()))
 }
 
 func (coreLogHandler) Close() error { return nil }
