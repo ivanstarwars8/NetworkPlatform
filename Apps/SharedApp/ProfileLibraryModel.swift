@@ -2,6 +2,8 @@
 // MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46073714202 (workflow apple.yml)
 // (User-facing messages translated to Russian; otherwise as compiled on macOS CI in GitHub Actions run 46055850203.)
 //
+// (Routing and DNS settings added to the compilation; this file not yet recompiled on macOS CI.)
+//
 // The app's side of profiles (main actor): import of pasted share links and subscriptions (a subscription
 // address is downloaded here), the profile file with secrets in the Keychain (`ProfileStore`,
 // `KeychainSecretStore`), and compilation of the selected profile into a `TunnelStartRequest` for the
@@ -30,6 +32,8 @@ final class ProfileLibraryModel: ObservableObject {
 
     /// The engines of this build (flavour), in the catalog's order.
     let availableEngines: [TunnelEngine]
+    /// Routing and DNS settings: every start request is compiled with them.
+    let routing = RoutingSettingsModel()
 
     private var store: ProfileStore?
 
@@ -177,7 +181,7 @@ final class ProfileLibraryModel: ObservableObject {
         }
         let secrets = store.resolvedSecrets(of: profile)
         do {
-            let compiled = try TunnelStartCompiler().compile(profile, for: engine, resolveSecret: { secrets[$0.identifier] })
+            let compiled = try TunnelStartCompiler(policy: routing.compiler).compile(profile, for: engine, resolveSecret: { secrets[$0.identifier] })
             compileNotices = compiled.notices
             lastError = nil
             return TunnelStartRequest(compiled: compiled)

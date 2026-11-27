@@ -22,6 +22,7 @@ struct NetworkPlatformApp: App {
             RootView()
                 .environmentObject(tunnel)
                 .environmentObject(library)
+                .environmentObject(library.routing)
                 .bykScreen()
                 .task { await tunnel.refresh() }
                 #if os(macOS)

@@ -10,8 +10,11 @@ extension AppDestination {
         switch self {
         case .connection: ConnectionScreen()
         case .profiles: ProfilesScreen()
+        case .routeSimulator: RouteSimulatorScreen()
         case .engineDiagnostics: DiagnosticsView()
         case .settings: SettingsScreen()
+        case .routingRules: RulesScreen()
+        case .dns: DNSScreen()
         }
     }
 }

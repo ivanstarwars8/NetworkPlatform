@@ -32,8 +32,8 @@ enum ExperienceLevel: String, CaseIterable, Comparable, Sendable {
     var summary: String {
         switch self {
         case .basic: return "Подключение, профили и скорость."
-        case .advanced: return "Серверы, группы, правила, DNS и статистика."
-        case .pro: return "Инструменты для сетевых инженеров: диагностика движка."
+        case .advanced: return "Правила маршрутов и DNS."
+        case .pro: return "Инструменты для сетевых инженеров: симулятор маршрутов, диагностика движка."
         }
     }
 
@@ -106,8 +106,11 @@ enum AppArea: String, CaseIterable, Sendable {
 enum AppDestination: String, CaseIterable, Identifiable, Sendable {
     case connection
     case profiles
+    case routeSimulator
     case engineDiagnostics
     case settings
+    case routingRules
+    case dns
 
     var id: String { rawValue }
 
@@ -115,7 +118,8 @@ enum AppDestination: String, CaseIterable, Identifiable, Sendable {
     var level: ExperienceLevel {
         switch self {
         case .connection, .profiles, .settings: return .basic
-        case .engineDiagnostics: return .pro
+        case .routingRules, .dns: return .advanced
+        case .routeSimulator, .engineDiagnostics: return .pro
         }
     }
 
@@ -123,8 +127,8 @@ enum AppDestination: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .connection: return .connection
         case .profiles: return .profiles
-        case .engineDiagnostics: return .tools
-        case .settings: return .settings
+        case .routeSimulator, .engineDiagnostics: return .tools
+        case .settings, .routingRules, .dns: return .settings
         }
     }
 
@@ -132,8 +136,11 @@ enum AppDestination: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .connection: return "Подключение"
         case .profiles: return "Профили"
+        case .routeSimulator: return "Маршрут"
         case .engineDiagnostics: return "Диагностика движка"
         case .settings: return "Настройки"
+        case .routingRules: return "Правила"
+        case .dns: return "DNS"
         }
     }
 
@@ -141,15 +148,21 @@ enum AppDestination: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .connection: return "power"
         case .profiles: return "list.bullet.rectangle"
+        case .routeSimulator: return "point.topleft.down.to.point.bottomright.curvepath"
         case .engineDiagnostics: return "stethoscope"
         case .settings: return "gearshape"
+        case .routingRules: return "arrow.triangle.branch"
+        case .dns: return "network"
         }
     }
 
     /// One line under the title in the tools list.
     var summary: String? {
         switch self {
+        case .routeSimulator: return "Куда пойдёт соединение к домену или адресу и какое правило это решило."
         case .engineDiagnostics: return "Состояние движка, память расширения, счётчики трафика."
+        case .routingRules: return "Что идёт через VPN, что напрямую, что блокируется."
+        case .dns: return "Серверы DNS, серверы для отдельных доменов, защита от утечек."
         case .connection, .profiles, .settings: return nil
         }
     }

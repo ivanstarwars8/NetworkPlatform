@@ -69,6 +69,9 @@ struct AreaRootView: View {
         let destinations = area.destinations(at: level)
         if area == .tools {
             ToolsList(destinations: destinations)
+        } else if area == .settings {
+            // iPhone: the other settings screens (Правила, DNS) open from Настройки itself.
+            SettingsScreen(linked: destinations.filter { $0 != .settings })
         } else if let first = destinations.first {
             first.screen
         }

@@ -31,6 +31,13 @@ public struct MihomoCompileOptions: Codable, Hashable, Sendable {
     public var tunnel: TunnelAddressing?
     /// Routing rules (RoutingEngine). `nil`: everything goes to the selected route.
     public var routing: RoutingTable?
+    /// Servers used only for some domains (`nameserver-policy`).
+    public var dnsDomainServers: [DNSDomainServer]
+    /// `false`: the resolver answers IPv4 addresses only (`dns.ipv6: false`).
+    public var dnsIPv6: Bool
+    /// `false` (default, leak protection): every resolver query goes through the selected route
+    /// (`#<route>` on each server). `true`: queries follow the rules (`respect-rules`).
+    public var dnsFollowsRules: Bool
 
     public init(
         logLevel: String = "warning",
@@ -39,7 +46,10 @@ public struct MihomoCompileOptions: Codable, Hashable, Sendable {
         fakeIP: Bool = false,
         memoryProfile: MihomoMemoryProfile = .standard,
         tunnel: TunnelAddressing? = nil,
-        routing: RoutingTable? = nil
+        routing: RoutingTable? = nil,
+        dnsDomainServers: [DNSDomainServer] = [],
+        dnsIPv6: Bool = true,
+        dnsFollowsRules: Bool = false
     ) {
         self.logLevel = logLevel
         self.localSOCKSPort = localSOCKSPort
@@ -48,6 +58,28 @@ public struct MihomoCompileOptions: Codable, Hashable, Sendable {
         self.memoryProfile = memoryProfile
         self.tunnel = tunnel
         self.routing = routing
+        self.dnsDomainServers = dnsDomainServers
+        self.dnsIPv6 = dnsIPv6
+        self.dnsFollowsRules = dnsFollowsRules
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case logLevel, localSOCKSPort, dnsServers, fakeIP, memoryProfile, tunnel, routing, dnsDomainServers, dnsIPv6, dnsFollowsRules
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        logLevel = try container.decode(String.self, forKey: .logLevel)
+        localSOCKSPort = try container.decodeIfPresent(UInt16.self, forKey: .localSOCKSPort)
+        dnsServers = try container.decode([String].self, forKey: .dnsServers)
+        fakeIP = try container.decode(Bool.self, forKey: .fakeIP)
+        memoryProfile = try container.decode(MihomoMemoryProfile.self, forKey: .memoryProfile)
+        tunnel = try container.decodeIfPresent(TunnelAddressing.self, forKey: .tunnel)
+        routing = try container.decodeIfPresent(RoutingTable.self, forKey: .routing)
+        // absent in options encoded before the fields existed
+        dnsDomainServers = try container.decodeIfPresent([DNSDomainServer].self, forKey: .dnsDomainServers) ?? []
+        dnsIPv6 = try container.decodeIfPresent(Bool.self, forKey: .dnsIPv6) ?? true
+        dnsFollowsRules = try container.decodeIfPresent(Bool.self, forKey: .dnsFollowsRules) ?? false
     }
 
     /// Options for the Packet Tunnel extension: the tunnel with the shared addresses and the mobile profile
@@ -263,6 +295,9 @@ public struct MihomoConfigCompiler: Sendable {
             guard let lowered = compiler.compile(table, report: &report) else { return blocked() }
             rules += lowered
             chainProxies = compiler.chainProxies
+            if !compiler.ruleProviders.isEmpty {
+                root.set("rule-providers", YAMLNode.mapping(compiler.ruleProviders))
+            }
         } else {
             rules.append("MATCH,\(mainTarget)")
         }
@@ -350,6 +385,8 @@ public struct MihomoConfigCompiler: Sendable {
         var nameservers: [String] = []
         var addressServers: [String] = []
         var failed = false
+        // Leak protection pins every query to the selected route; otherwise queries follow the rules.
+        let routeSuffix = options.dnsFollowsRules ? "" : "#" + mainTarget
         for (index, server) in servers.enumerated() {
             let path = "options.dnsServers[\(index)]"
             guard let converted = MihomoConfigCompiler.mihomoDNSServer(server) else {
@@ -361,16 +398,35 @@ public struct MihomoConfigCompiler: Sendable {
                 failed = true
                 continue
             }
-            nameservers.append(converted.server + "#" + mainTarget)
+            nameservers.append(converted.server + routeSuffix)
             if converted.isAddress { addressServers.append(converted.server) }
+        }
+        var policy: [YAMLPair] = []
+        for (index, entry) in options.dnsDomainServers.enumerated() {
+            let path = "options.dnsDomainServers[\(index)]"
+            guard entry.hasValidDomains, let converted = MihomoConfigCompiler.mihomoDNSServer(entry.server) else {
+                if XrayConfigCompiler.bypassesRouting(dnsServer: entry.server) {
+                    report.add(path, .unsupported, .error, "This DNS server would be queried outside the tunnel (system resolver or a '+local' scheme)")
+                } else {
+                    report.add(path, .invalid, .error, "A per-domain DNS server needs a server Mihomo can write and plain host-name suffixes")
+                }
+                failed = true
+                continue
+            }
+            for domain in entry.domains where !policy.contains(where: { $0.key == "+." + domain }) {
+                policy.append(YAMLPair("+." + domain, .string(converted.server + routeSuffix)))
+            }
         }
         guard !failed else { return nil }
         let bootstrap = addressServers.isEmpty
             ? MihomoConfigCompiler.fallbackResolverAddresses : addressServers
         var dns = YAMLMappingBuilder()
         dns.set("enable", true)
-        dns.set("ipv6", options.tunnel.map { $0.ipv6Address != nil } ?? true)
+        dns.set("ipv6", options.dnsIPv6 && (options.tunnel.map { $0.ipv6Address != nil } ?? true))
         dns.set("use-system-hosts", false)
+        if options.dnsFollowsRules {
+            dns.set("respect-rules", true)
+        }
         if options.fakeIP {
             dns.set("enhanced-mode", "fake-ip")
             report.add(
@@ -392,16 +448,22 @@ public struct MihomoConfigCompiler: Sendable {
         // Every query, including those that resolve DoH host names, goes through the selected route.
         dns.set("default-nameserver", strings: bootstrap.map { $0 + "#" + mainTarget })
         dns.set("nameserver", strings: nameservers)
+        if !policy.isEmpty {
+            dns.set("nameserver-policy", YAMLNode.mapping(policy))
+        }
         let namedServers = profile.outbounds.filter {
             names[$0.tag] != nil && !XrayStreamCompiler.isIPLiteral($0.server.host)
         }.count
-        if namedServers > 0 {
-            // Resolving a proxy server's name through the proxy itself would never complete.
+        if namedServers > 0 || options.dnsFollowsRules {
+            // Resolving a proxy server's name through the proxy itself would never complete. `respect-rules`
+            // requires this list too (config.go parseDNS).
             dns.set("proxy-server-nameserver", strings: bootstrap)
-            report.add(
-                "options.dnsServers", .approximated, .info,
-                "\(namedServers) server(s) are named by a domain: their names are resolved directly (proxy-server-nameserver), not through the tunnel"
-            )
+            if namedServers > 0 {
+                report.add(
+                    "options.dnsServers", .approximated, .info,
+                    "\(namedServers) server(s) are named by a domain: their names are resolved directly (proxy-server-nameserver), not through the tunnel"
+                )
+            }
         }
         return dns.node
     }
