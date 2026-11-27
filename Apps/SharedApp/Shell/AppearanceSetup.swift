@@ -1,4 +1,5 @@
-// UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode
+// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
+// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46073714202 (workflow apple.yml)
 //
 // System bars drawn by UIKit (navigation titles, tab labels) take the text face too, scaled with Dynamic Type.
 // SwiftUI has no font modifier for them. When the bundled font is missing the system font stays.

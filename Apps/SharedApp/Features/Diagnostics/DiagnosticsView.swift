@@ -1,4 +1,5 @@
-// UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode
+// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
+// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46073714202 (workflow apple.yml)
 // (Restyled from the version compiled on macOS CI in GitHub Actions run 46055850203; same data and refresh rule.)
 //
 // Диагностика движка (level Профи, area Инструменты): the tunnel state (NEVPNStatus), the extension's engine
