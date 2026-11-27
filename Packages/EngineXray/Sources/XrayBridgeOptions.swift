@@ -8,6 +8,8 @@ import Foundation
 /// itself is never touched.
 struct XrayBridgeOptions: Encodable, Equatable {
     struct Memory: Encodable, Equatable {
+        /// `memory.profile`; the bridge fills the profile's values for the fields left out.
+        var profile: String?
         var limitBytes: Int64?
         var gcPercent: Int?
     }

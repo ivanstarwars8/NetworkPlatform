@@ -1,0 +1,19 @@
+{
+  "engine" : "xray",
+  "engineTags" : {
+    "lab" : "proxy-0000"
+  },
+  "engineVersion" : "26.11.9",
+  "excludedOutbounds" : [
+
+  ],
+  "issues" : [
+    {
+      "detail" : "Mobile memory profile: connections idle for 30 s are closed and per-connection buffers are 4 KiB",
+      "kind" : "migrated",
+      "path" : "options.memoryProfile",
+      "severity" : "info"
+    }
+  ],
+  "verdict" : "exact"
+}

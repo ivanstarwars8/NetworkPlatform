@@ -1,5 +1,5 @@
 // compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS,
-// visionOS, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 45987643793 (workflow apple.yml)
+// visionOS, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46022252282 (workflow apple.yml)
 //
 // Minimal Packet Tunnel host (ADR-0001 §4, ADR-0003 §2–3).
 //
@@ -153,12 +153,10 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         let io = PacketTunnelFlowIO(flow: packetFlow)
         let session = self.session
         let log = self.log
-        var settings = XrayCoreSettings()
-        // Starting point from the bridge's Linux measurements (Cores/Bridge/README.md,
-        // "Память"): 24-32 MiB limit, GC 50 %. Not measured on a device (E-4).
-        settings.memoryLimitBytes = 32 << 20
-        settings.gcPercent = 50
-        let fixedSettings = settings
+        // The bridge's `mobile` memory profile; its values live in the bridge
+        // (Documentation/Performance/memory-budget.md). Measured on Linux only,
+        // not on a device (E-4).
+        let fixedSettings = XrayCoreSettings.packetTunnel
         let events = XrayCoreEvents(
             unexpectedExit: { message in
                 log.error("\(message, privacy: .public)")

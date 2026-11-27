@@ -2,10 +2,11 @@
 //
 // Tests of Extensions/PacketTunnel/Shared. Those files are compiled into
 // this test target through the symbolic link `SharedIPC` next to this file:
-// they import only Foundation, and the package manifest has no `TunnelIPC`
+// they import only Foundation and DomainModels, and the package manifest has no `TunnelIPC`
 // module yet (ADR-0004 §2.3). When that module appears, the link goes away
 // and these tests move with the sources.
 import Foundation
+import DomainModels
 import XCTest
 @testable import CoreAbstraction
 
@@ -384,6 +385,47 @@ final class TunnelNetworkPlanTests: XCTestCase {
             $0.ipv6Address = nil
             $0.ipv6PrefixLength = nil
         }
+        broken { $0.excludedRoutes = [TunnelRoute(address: "10.0.0.0", prefixLength: 33)] }
+        broken { $0.excludedRoutes = [TunnelRoute(address: "fe80::", prefixLength: 129)] }
+        broken { $0.excludedRoutes = [TunnelRoute(address: "", prefixLength: 8)] }
+        broken { $0.excludedRoutes = Array(repeating: TunnelRoute.host("192.0.2.1"), count: 257) }
+    }
+
+    /// The interface the extension applies and the configuration the compiler emits share one source of
+    /// addresses: `TunnelAddressing`.
+    func testPlanFromSharedAddressing() throws {
+        let addressing = TunnelAddressing.standard
+        let excluded = [TunnelRoute.host("192.0.2.1")] + TunnelAddressing.localRoutes
+        let plan = TunnelNetworkPlan(addressing: addressing, excludedRoutes: excluded, remoteAddress: "192.0.2.1")
+        try plan.validate()
+        XCTAssertEqual(plan.ipv4Address, addressing.ipv4Address)
+        XCTAssertEqual(plan.ipv4SubnetMask, "255.255.255.252")
+        XCTAssertEqual(plan.ipv6Address, addressing.ipv6Address)
+        XCTAssertEqual(plan.ipv6PrefixLength, addressing.ipv6PrefixLength)
+        XCTAssertEqual(plan.dnsServers, [addressing.dnsIPv4Address, addressing.dnsIPv6Address].compactMap { $0 })
+        XCTAssertEqual(plan.mtu, addressing.mtu)
+        XCTAssertTrue(plan.routesAllIPv4)
+        XCTAssertTrue(plan.routesAllIPv6)
+        XCTAssertEqual(plan.excludedRoutes, excluded)
+
+        var v4Only = addressing
+        v4Only.ipv6Address = nil
+        v4Only.dnsIPv6Address = nil
+        let plan4 = TunnelNetworkPlan(addressing: v4Only, excludedRoutes: [], remoteAddress: "192.0.2.1")
+        try plan4.validate()
+        XCTAssertNil(plan4.ipv6Address)
+        XCTAssertNil(plan4.ipv6PrefixLength)
+        XCTAssertFalse(plan4.routesAllIPv6)
+        XCTAssertEqual(plan4.dnsServers, [addressing.dnsIPv4Address])
+    }
+
+    func testPlanRoundTripAndOlderPlansWithoutExcludedRoutes() throws {
+        let plan = TunnelNetworkPlan(addressing: .standard, excludedRoutes: TunnelAddressing.localRoutes, remoteAddress: "192.0.2.1")
+        XCTAssertEqual(try JSONDecoder().decode(TunnelNetworkPlan.self, from: JSONEncoder().encode(plan)), plan)
+        let older = Data(#"{"remoteAddress":"192.0.2.1","ipv4Address":"198.18.0.1","ipv4SubnetMask":"255.255.255.252","dnsServers":[],"mtu":1500,"routesAllIPv4":true,"routesAllIPv6":false}"#.utf8)
+        let decoded = try JSONDecoder().decode(TunnelNetworkPlan.self, from: older)
+        XCTAssertEqual(decoded.excludedRoutes, [])
+        try decoded.validate()
     }
 }
 

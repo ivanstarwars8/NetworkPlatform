@@ -347,6 +347,7 @@ func runBridge(args []string) error {
 	maxFlows := fs.Int("maxflows", 0, "tun.maxFlows (0 = profile default / no cap)")
 	freeOS := fs.Int("freeos-ms", 0, "memory.freeOSMemoryIntervalMs")
 	logLevel := fs.String("loglevel", "warning", "core log level")
+	optionsPath := fs.String("options", "", "bridge options JSON (as the Swift adapter sends them); replaces the memory, tun and log flags except -mode")
 	_ = fs.Parse(args)
 
 	config, err := os.ReadFile(*configPath)
@@ -364,6 +365,21 @@ func runBridge(args []string) error {
 		Memory: engine.MemoryOptions{Profile: engine.MemoryProfile(*memProfile), LimitBytes: *memLimit,
 			GCPercent: *gcPercent, FreeOSMemoryIntervalMs: *freeOS},
 		Tun: engine.TunOptions{MTU: *mtu, OutQueueBytes: *outQueue, MaxFlows: *maxFlows},
+	}
+	if *optionsPath != "" {
+		data, err := os.ReadFile(*optionsPath)
+		if err != nil {
+			return err
+		}
+		parsed, perr := engine.ParseOptions(data)
+		if perr != nil {
+			return perr
+		}
+		if parsed.Tun.Mode != engine.TunFlow && *mode == "flow" {
+			return fmt.Errorf("options file sets tun.mode %q, the lab runs flow", parsed.Tun.Mode)
+		}
+		opts = parsed
+		*memProfile = string(parsed.Memory.Profile)
 	}
 	e := engine.New()
 	var p *pump

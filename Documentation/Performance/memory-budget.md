@@ -186,9 +186,17 @@ TCP-соединение и скачивает 1 МиБ, открывает ещ
 
 Тесты: Go — `TestMobileProfileOptions`, `TestMobileProfileRefusesGeodata`, `TestFlowMaxFlows`,
 `TestMobileCompilerKeysReachTheCore`; Swift — `testMobileMemoryProfile`,
-`testCompileOptionsDecodeWithoutMemoryProfile`. Хост расширения (Swift-адаптер Xray) профиль пока не передаёт:
-адаптера, который строит опции моста, в репозитории нет (`TunnelSession.swift` передаёт только
-`memoryLimitBytes: nil`).
+`testCompileOptionsDecodeWithoutMemoryProfile`.
+
+Хост расширения (2026-11-27, поток tunready): адаптер `EngineXray` передаёт мосту только имя профиля —
+`memory: {"profile": "mobile"}` (`XrayCoreSettings.packetTunnel`, `XrayBridgeMemoryProfile.mobile`), и при
+запуске, и при проверке конфига. Значения профиля (40 МиБ, GOGC 25, очередь 512 КиБ, 512 потоков, журнал 128)
+существуют в одном месте — константы `Mobile*` в `Cores/Bridge/engine/options.go`; Swift их не повторяет.
+Прежние 32 МиБ / GOGC 50 из `PacketTunnelProvider.swift` удалены. Компилятор для расширения вызывается с
+`XrayCompileOptions.packetTunnel(...)` — это `memoryProfile = .mobile` плюс TUN-inbound. Проверено:
+`testPacketTunnelSettingsNameTheMobileProfileAndRepeatNoValues` (поддельный мост) и сквозной прогон
+`bridge-tunlab.sh compiled` на Linux с опциями, выгруженными из адаптера (`bridge-options.json`). На
+устройстве не проверено.
 
 ## 6. До и после [M]
 

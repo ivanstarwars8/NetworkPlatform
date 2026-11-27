@@ -138,6 +138,9 @@ targets:
     dependencies:
       - target: PacketTunnel_${platform}
         embed: true
+      # Engine-neutral model (no engine code): Shared/ uses TunnelAddressing for the interface plan.
+      - package: NetworkPlatform
+        product: DomainModels
       - sdk: NetworkExtension.framework
 
   PacketTunnel:
@@ -175,6 +178,8 @@ targets:
     dependencies:
       - package: NetworkPlatform
         product: CoreAbstraction
+      - package: NetworkPlatform
+        product: DomainModels
       # Adapter of the Xray bridge (NetworkCore + packet pump). Pure Swift; the npb_* calls are made by
       # Extensions/PacketTunnel/XrayBridgeBinding.swift, so the package never links Go.
       - package: NetworkPlatform

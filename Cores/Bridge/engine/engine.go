@@ -181,6 +181,8 @@ func (e *Engine) Validate(config []byte, opts Options) (summary ConfigSummary, r
 	if !claimed {
 		return summary, nil
 	}
+	// No engine runs in the process: the trial's own log lines are redacted with this config's values.
+	activeRedactor.Store(newRedactor(config))
 	// A trial instance must never be able to open a system tun device, even though the core only does that on Start.
 	trial := prep.config
 	if prep.summary.HasTun && prep.tun == nil {
@@ -188,7 +190,7 @@ func (e *Engine) Validate(config []byte, opts Options) (summary ConfigSummary, r
 	}
 	instance, nerr := core.New(trial)
 	if nerr != nil {
-		return summary, newError(CodeConfigBuild, "%v", nerr)
+		return summary, newRedactor(config).redactError(newError(CodeConfigBuild, "%v", nerr))
 	}
 	_ = instance.Close()
 	summary.Depth = "instance"
@@ -297,8 +299,12 @@ func (r *run) boot() {
 
 // bringUp creates and starts the core instance. Whatever it creates is recorded in r for tearDown.
 func (r *run) bringUp() (rerr *Error) {
+	red := newRedactor(r.config)
+	// Declared before guard so that it runs after it: a recovered panic is redacted as well.
+	defer func() { rerr = red.redactError(rerr) }()
 	defer guard(&rerr)
 	opts := &r.opts
+	activeRedactor.Store(red)
 
 	if opts.AssetDir != "" {
 		if err := r.setenv(platform.AssetLocation, opts.AssetDir); err != nil {

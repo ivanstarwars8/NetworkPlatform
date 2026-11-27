@@ -25,21 +25,37 @@ public struct XrayCompileOptions: Codable, Hashable, Sendable {
     public var dnsServers: [String]
     /// `.standard` unless the configuration is for a memory-limited process.
     public var memoryProfile: XrayMemoryProfile
+    /// Addresses of the packet tunnel. When set, the output has the `tun` inbound the bridge's packet
+    /// path needs (`tun.mode = "flow"`), DNS hijacking into the core's resolver, and routing that keeps
+    /// the proxy servers and local networks out of the proxy. `nil` emits no tunnel.
+    public var tunnel: TunnelAddressing?
 
     public init(
         logLevel: String = "warning",
         localSOCKSPort: UInt16? = nil,
         dnsServers: [String] = [],
-        memoryProfile: XrayMemoryProfile = .standard
+        memoryProfile: XrayMemoryProfile = .standard,
+        tunnel: TunnelAddressing? = nil
     ) {
         self.logLevel = logLevel
         self.localSOCKSPort = localSOCKSPort
         self.dnsServers = dnsServers
         self.memoryProfile = memoryProfile
+        self.tunnel = tunnel
+    }
+
+    /// Options for the Packet Tunnel extension: the tunnel with the shared addresses and the mobile
+    /// memory profile (the extension runs the bridge with `memory.profile = "mobile"`).
+    public static func packetTunnel(
+        dnsServers: [String] = [],
+        addressing: TunnelAddressing = .standard,
+        logLevel: String = "warning"
+    ) -> XrayCompileOptions {
+        XrayCompileOptions(logLevel: logLevel, dnsServers: dnsServers, memoryProfile: .mobile, tunnel: addressing)
     }
 
     private enum CodingKeys: String, CodingKey {
-        case logLevel, localSOCKSPort, dnsServers, memoryProfile
+        case logLevel, localSOCKSPort, dnsServers, memoryProfile, tunnel
     }
 
     public init(from decoder: Decoder) throws {
@@ -49,6 +65,27 @@ public struct XrayCompileOptions: Codable, Hashable, Sendable {
         dnsServers = try container.decode([String].self, forKey: .dnsServers)
         // absent in options encoded before the field existed
         memoryProfile = try container.decodeIfPresent(XrayMemoryProfile.self, forKey: .memoryProfile) ?? .standard
+        tunnel = try container.decodeIfPresent(TunnelAddressing.self, forKey: .tunnel)
+    }
+}
+
+/// What the tunnel host needs next to a configuration compiled with `XrayCompileOptions.tunnel`.
+/// Built from the same values as the configuration, so the interface and the engine agree.
+public struct XrayTunnelPlan: Codable, Hashable, Sendable {
+    /// The addresses the configuration was compiled for.
+    public var addressing: TunnelAddressing
+    /// Destinations that must bypass the tunnel at the system level: the IP literals of the proxy
+    /// servers, then `TunnelAddressing.localRoutes`. The configuration sends the same destinations
+    /// to the direct outbound.
+    public var excludedRoutes: [TunnelRoute]
+    /// `tunnelRemoteAddress` for the system: the first proxy server given as an IP literal, otherwise
+    /// the tunnel's own IPv4 address (the system shows it; it does not route by it).
+    public var remoteAddress: String
+
+    public init(addressing: TunnelAddressing, excludedRoutes: [TunnelRoute], remoteAddress: String) {
+        self.addressing = addressing
+        self.excludedRoutes = excludedRoutes
+        self.remoteAddress = remoteAddress
     }
 }
 
@@ -56,6 +93,14 @@ public struct XrayCompilation: Sendable {
     /// `nil` when the verdict is `.blocked`.
     public var config: JSONValue?
     public var report: ConversionReport
+    /// Set when the configuration was compiled with a tunnel and is not blocked.
+    public var tunnel: XrayTunnelPlan?
+
+    public init(config: JSONValue?, report: ConversionReport, tunnel: XrayTunnelPlan? = nil) {
+        self.config = config
+        self.report = report
+        self.tunnel = tunnel
+    }
 
     /// Deterministic JSON text (sorted keys). Contains credentials: never log it.
     public func jsonText() throws -> String? {
@@ -76,6 +121,16 @@ public struct XrayConfigCompiler: Sendable {
     public static let directTag = "direct"
     public static let blockTag = "block"
     public static let socksInboundTag = "socks-in"
+    /// Tag of the `tun` inbound. In flow mode the bridge replaces the inbound by its own packet
+    /// inbound with the same tag, MTU and user level (`Cores/Bridge/engine/config.go` `resolveTun`).
+    public static let tunInboundTag = "tun-in"
+    /// Outbound that answers hijacked DNS queries with the core's resolver.
+    public static let dnsOutboundTag = "dns-out"
+    /// Inbound tag of the core resolver's own queries, routed like the user's traffic.
+    public static let dnsInternalTag = "dns-internal"
+    /// Resolvers used inside the tunnel when the options name none (queried through the proxy).
+    /// A project choice.
+    public static let defaultTunnelDNSServers = ["1.1.1.1", "8.8.8.8"]
 
     /// Policy level 0 of `XrayMemoryProfile.mobile` (`infra/conf/policy.go` keys; seconds, `bufferSize` in KiB).
     /// The tunnel inbound runs at level 0. Xray's defaults: connIdle 300, handshake 60, uplinkOnly 1,
@@ -146,17 +201,57 @@ public struct XrayConfigCompiler: Sendable {
             report.add("options.logLevel", .invalid, .warning, "Unknown log level; 'warning' is used")
             root["log"] = .object(["loglevel": .string("warning")])
         }
+        var inbounds: [JSONValue] = []
         if let port = options.localSOCKSPort {
-            root["inbounds"] = .array([.object([
+            inbounds.append(.object([
                 "tag": .string(XrayConfigCompiler.socksInboundTag),
                 "protocol": .string("socks"),
                 "listen": .string("127.0.0.1"),
                 "port": .integer(Int64(port)),
                 "settings": .object(["auth": .string("noauth"), "udp": .bool(true)]),
-            ])])
+            ]))
         }
-        if !options.dnsServers.isEmpty {
-            root["dns"] = .object(["servers": .array(options.dnsServers.map { .string($0) })])
+        var dnsServers = options.dnsServers
+        var tunnelPlan: XrayTunnelPlan?
+        if let addressing = options.tunnel {
+            if dnsServers.isEmpty {
+                dnsServers = XrayConfigCompiler.defaultTunnelDNSServers
+                report.add(
+                    "options.dnsServers", .migrated, .info,
+                    "No DNS servers given; the tunnel resolves through \(dnsServers.count) default public resolvers, queried through the proxy"
+                )
+            }
+            for (index, server) in dnsServers.enumerated() where XrayConfigCompiler.bypassesRouting(dnsServer: server) {
+                report.add(
+                    "options.dnsServers[\(index)]", .unsupported, .error,
+                    "This DNS server would be queried outside the tunnel (system resolver or a '+local' scheme)"
+                )
+            }
+            guard (576...65_535).contains(addressing.mtu) else {
+                report.add("options.tunnel.mtu", .invalid, .error, "Tunnel MTU is outside 576...65535")
+                report.verdict = .blocked
+                return XrayCompilation(config: nil, report: report)
+            }
+            if report.issues.contains(where: { $0.severity == .error && $0.path.hasPrefix("options.dnsServers") }) {
+                report.verdict = .blocked
+                return XrayCompilation(config: nil, report: report)
+            }
+            inbounds.append(.object([
+                "tag": .string(XrayConfigCompiler.tunInboundTag),
+                "protocol": .string("tun"),
+                "settings": .object(["mtu": .integer(Int64(addressing.mtu))]),
+            ]))
+            tunnelPlan = tunnelExclusions(profile, emittedTags: emittedTags, addressing: addressing, report: &report)
+        }
+        if !inbounds.isEmpty {
+            root["inbounds"] = .array(inbounds)
+        }
+        if !dnsServers.isEmpty {
+            var dns: [String: JSONValue] = ["servers": .array(dnsServers.map { .string($0) })]
+            if tunnelPlan != nil {
+                dns["tag"] = .string(XrayConfigCompiler.dnsInternalTag)
+            }
+            root["dns"] = .object(dns)
         }
         if options.memoryProfile == .mobile {
             root["policy"] = .object(["levels": .object([
@@ -169,15 +264,18 @@ public struct XrayConfigCompiler: Sendable {
         }
         compiled.append(.object(["tag": .string(XrayConfigCompiler.directTag), "protocol": .string("freedom")]))
         compiled.append(.object(["tag": .string(XrayConfigCompiler.blockTag), "protocol": .string("blackhole")]))
+        if tunnelPlan != nil {
+            compiled.append(.object(["tag": .string(XrayConfigCompiler.dnsOutboundTag), "protocol": .string("dns")]))
+        }
         root["outbounds"] = .array(compiled)
 
         var routing: [String: JSONValue] = [:]
-        var rule: [String: JSONValue] = ["type": .string("field"), "network": .string("tcp,udp")]
+        var target: [String: JSONValue] = [:]
         switch route {
         case .outbound(let tag):
-            rule["outboundTag"] = .string(tag)
+            target["outboundTag"] = .string(tag)
         case .balancer(let balancer):
-            rule["balancerTag"] = .string(balancer.tag)
+            target["balancerTag"] = .string(balancer.tag)
             var object: [String: JSONValue] = [
                 "tag": .string(balancer.tag),
                 "selector": .array(balancer.members.map { .string($0) }),
@@ -191,11 +289,71 @@ public struct XrayConfigCompiler: Sendable {
                 root[observatory.key] = observatory.value
             }
         }
-        routing["rules"] = .array([.object(rule)])
+        var rules: [JSONValue] = []
+        if let plan = tunnelPlan {
+            // Every DNS query the system or an app sends into the tunnel, to any address, is answered by
+            // the core's resolver; nothing reaches a resolver outside the tunnel.
+            rules.append(.object([
+                "type": .string("field"),
+                "inboundTag": .array([.string(XrayConfigCompiler.tunInboundTag)]),
+                "network": .string("udp"),
+                "port": .string("53"),
+                "outboundTag": .string(XrayConfigCompiler.dnsOutboundTag),
+            ]))
+            // The resolver's own queries go where the user's traffic goes.
+            rules.append(.object(target.merging([
+                "type": .string("field"),
+                "inboundTag": .array([.string(XrayConfigCompiler.dnsInternalTag)]),
+            ]) { current, _ in current }))
+            rules.append(.object([
+                "type": .string("field"),
+                "ip": .array(plan.excludedRoutes.map { .string($0.cidr) }),
+                "outboundTag": .string(XrayConfigCompiler.directTag),
+            ]))
+        }
+        rules.append(.object(target.merging(["type": .string("field"), "network": .string("tcp,udp")]) { current, _ in current }))
+        routing["rules"] = .array(rules)
         root["routing"] = .object(routing)
 
         report.verdict = report.issues.contains { $0.severity != .info } ? .degraded : .exact
-        return XrayCompilation(config: .object(root), report: report)
+        return XrayCompilation(config: .object(root), report: report, tunnel: tunnelPlan)
+    }
+
+    /// Server addresses and local ranges that bypass the tunnel.
+    private func tunnelExclusions(
+        _ profile: Profile,
+        emittedTags: [String: String],
+        addressing: TunnelAddressing,
+        report: inout ConversionReport
+    ) -> XrayTunnelPlan {
+        var servers: [TunnelRoute] = []
+        var named = 0
+        for outbound in profile.outbounds where emittedTags[outbound.tag] != nil {
+            let host = outbound.server.host
+            if XrayStreamCompiler.isIPLiteral(host) {
+                let route = TunnelRoute.host(host)
+                if !servers.contains(route) {
+                    servers.append(route)
+                }
+            } else {
+                named += 1
+            }
+        }
+        if named > 0 {
+            report.add(
+                "options.tunnel", .untested, .info,
+                "\(named) server(s) are named by a domain: their addresses are not known before the tunnel starts and cannot be excluded from it; the system is expected to keep the extension's own connections out of its tunnel"
+            )
+        }
+        let remote = servers.first?.address ?? addressing.ipv4Address
+        return XrayTunnelPlan(addressing: addressing, excludedRoutes: servers + TunnelAddressing.localRoutes, remoteAddress: remote)
+    }
+
+    /// DNS server notations that the core queries without routing, i.e. outside the tunnel
+    /// (`app/dns/nameserver.go`: `localhost` is the system resolver, `+local` schemes dial directly).
+    static func bypassesRouting(dnsServer: String) -> Bool {
+        let lowered = dnsServer.trimmingCharacters(in: .whitespaces).lowercased()
+        return lowered == "localhost" || lowered.contains("+local")
     }
 
     private static func padded(_ index: Int, width: Int) -> String {
@@ -364,7 +522,19 @@ public struct XrayConfigCompiler: Sendable {
     ) -> (json: JSONValue?, issues: [ConversionIssue]) {
         var context = XrayOutboundContext(path: path)
         let json = build(outbound, engineTag: engineTag, context: &context)
-        return (context.failed ? nil : json, context.issues)
+        // Messages may quote what the profile contains; no credential or address leaves in them.
+        var redactor = ConfigValueRedactor(document: json)
+        redactor.add(outbound.server.host)
+        let credentials = outbound.credentials
+        for secret in [credentials.userID, credentials.password, credentials.privateKey, credentials.preSharedKey] {
+            if case .inline(let text)? = secret {
+                redactor.add(text)
+            }
+        }
+        if let username = credentials.username {
+            redactor.add(username)
+        }
+        return (context.failed ? nil : json, redactor.redact(context.issues))
     }
 
     private func resolve(_ value: SecretValue?, _ subpath: String, _ context: inout XrayOutboundContext) -> String? {
