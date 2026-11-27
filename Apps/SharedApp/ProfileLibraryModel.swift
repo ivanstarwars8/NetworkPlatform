@@ -1,4 +1,5 @@
-// UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode
+// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
+// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46079098963 (workflow apple.yml)
 // (Extends the file compiled on macOS CI in GitHub Actions run 46073714202 with subscriptions and server choice.)
 //
 // The app's side of profiles (main actor): import of pasted share links and subscriptions, the profile file

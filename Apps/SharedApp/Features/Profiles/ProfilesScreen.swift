@@ -1,4 +1,5 @@
-// UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode
+// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
+// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46079098963 (workflow apple.yml)
 // (Changed from the file compiled on macOS CI in GitHub Actions run 46073714202.)
 //
 // Профили (level Обычный): the profiles, which one is in use, its choice («Авто» or a server) and subscription
