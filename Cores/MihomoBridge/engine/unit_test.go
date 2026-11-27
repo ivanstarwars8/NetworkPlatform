@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"net/netip"
 	"os"
 	"runtime"
 	"runtime/debug"
@@ -67,10 +68,21 @@ func TestPrepareConfig(t *testing.T) {
 	if p.tun == nil || p.tun.mtu != 1500 || !p.summary.HasTun {
 		t.Fatalf("tun spec %+v", p.tun)
 	}
-	// dns-hijack entries plus <tun address>.next():53 for the IPv4 and IPv6 tun addresses
-	if len(p.tun.dnsHijack) != 4 || p.tun.dnsHijack[0].String() != "0.0.0.0:53" || p.tun.dnsHijack[1].String() != "8.8.8.8:53" {
-		t.Errorf("dns hijack %v", p.tun.dnsHijack)
+	// dns-hijack entries plus <tun address>.next():53 for each tun address. The core keeps the IPv6 tun
+	// address only when the host has a global IPv6 address at parse time (config/utils.go verifyIP6), so the
+	// count depends on the machine: 4 on a host with IPv6, 3 on one without (GitHub runners).
+	if len(p.tun.inet4) != 1 {
+		t.Fatalf("inet4 %v", p.tun.inet4)
 	}
+	if len(p.tun.dnsHijack) != 2+len(p.tun.inet4)+len(p.tun.inet6) || p.tun.dnsHijack[0].String() != "0.0.0.0:53" || p.tun.dnsHijack[1].String() != "8.8.8.8:53" {
+		t.Errorf("dns hijack %v (inet4 %v, inet6 %v)", p.tun.dnsHijack, p.tun.inet4, p.tun.inet6)
+	}
+	for i, a := range append(append([]netip.Prefix(nil), p.tun.inet4...), p.tun.inet6...) {
+		if want := netip.AddrPortFrom(a.Addr().Next(), 53); p.tun.dnsHijack[2+i] != want {
+			t.Errorf("dns hijack [%d] = %v, want %v", 2+i, p.tun.dnsHijack[2+i], want)
+		}
+	}
+	t.Logf("inet6 %v (host IPv6 decides whether the core keeps it)", p.tun.inet6)
 	t.Logf("overridden: %q", p.summary.Overridden)
 	joined := strings.Join(p.summary.Overridden, "\n")
 	for _, want := range []string{"external-controller", "iptables", "find-process-mode", "auto-route"} {
