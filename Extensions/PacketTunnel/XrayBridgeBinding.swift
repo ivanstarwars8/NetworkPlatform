@@ -1,4 +1,5 @@
-// UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode
+// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS,
+// visionOS, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 45987643793 (workflow apple.yml)
 //
 // The binding of `XrayBridgeABI` (Packages/EngineXray) to the C archive of the Go bridge. The only file
 // that calls `npb_*` functions apart from XrayBridgeInfo.swift; the adapter itself never imports the

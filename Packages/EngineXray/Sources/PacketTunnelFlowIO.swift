@@ -1,4 +1,6 @@
-// UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode
+// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS,
+// visionOS, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 45987643793 (workflow apple.yml)
+// and as part of the Swift package on macOS (workflow swift-package.yml, run 45987648310)
 //
 // `TunnelPacketIO` over `NEPacketTunnelFlow`. Only where Network Extension exists; the pure pump logic it
 // feeds is tested on Linux with a fake.
