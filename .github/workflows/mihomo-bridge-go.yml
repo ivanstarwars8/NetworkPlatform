@@ -12,6 +12,8 @@ on:
       - Cores/Bridge/cabi/main.go
       - Cores/Bridge/go.mod
       - Cores/BuildScripts/mihomo-*.sh
+      - Tests/Fixtures/**/*.mihomo.yaml
+      - Tools/validate-fixtures.sh
       - .github/workflows/mihomo-bridge-go.yml
   pull_request:
     paths: *paths
@@ -50,6 +52,16 @@ jobs:
       - name: Stock xray from the core pinned by Cores/Bridge (server side of the integration tests)
         working-directory: Cores/Bridge
         run: go build -mod=readonly -trimpath -o "$RUNNER_TEMP/xray" github.com/xtls/xray-core/main && "$RUNNER_TEMP/xray" version | head -1
+      - name: Mihomo binary at the pinned version (for mihomo -t)
+        run: |
+          cp go.mod "$RUNNER_TEMP/mihomo-main.mod" && cp go.sum "$RUNNER_TEMP/mihomo-main.sum"
+          v=$(go list -m -f '{{.Version}}' github.com/metacubex/mihomo)
+          go build -mod=mod -modfile="$RUNNER_TEMP/mihomo-main.mod" -trimpath \
+            -ldflags="-s -w -X github.com/metacubex/mihomo/constant.Version=$v" -o "$RUNNER_TEMP/mihomo" github.com/metacubex/mihomo
+          "$RUNNER_TEMP/mihomo" -v
+      - name: Compiled fixture corpus through the real binaries (xray run -test, mihomo -t)
+        working-directory: .
+        run: Tools/validate-fixtures.sh "$RUNNER_TEMP/xray" "$RUNNER_TEMP/mihomo"
       - name: test
         env:
           NP_STOCK_XRAY: ${{ runner.temp }}/xray

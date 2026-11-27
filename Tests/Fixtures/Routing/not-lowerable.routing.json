@@ -1,0 +1,30 @@
+{
+  "domainStrategy" : "asIs",
+  "finalAction" : {
+    "group" : {
+      "_0" : "main"
+    }
+  },
+  "ruleSets" : [
+
+  ],
+  "rules" : [
+    {
+      "action" : {
+        "direct" : {
+
+        }
+      },
+      "condition" : {
+        "not" : {
+          "_0" : {
+            "domain" : {
+              "_0" : "x.example"
+            }
+          }
+        }
+      },
+      "isEnabled" : true
+    }
+  ]
+}

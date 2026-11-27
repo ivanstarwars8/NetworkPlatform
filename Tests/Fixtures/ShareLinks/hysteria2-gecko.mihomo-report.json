@@ -1,0 +1,25 @@
+{
+  "engine" : "mihomo",
+  "engineTags" : {
+
+  },
+  "engineVersion" : "1.19.34",
+  "excludedOutbounds" : [
+    "hy2-gecko"
+  ],
+  "issues" : [
+    {
+      "detail" : "Gecko obfuscation needs a packet size range that the model does not carry",
+      "kind" : "unsupported",
+      "path" : "outbounds[0].settings.obfuscation",
+      "severity" : "error"
+    },
+    {
+      "detail" : "The selected outbound or group could not be compiled",
+      "kind" : "unsupported",
+      "path" : "profile.selectedTag",
+      "severity" : "error"
+    }
+  ],
+  "verdict" : "blocked"
+}

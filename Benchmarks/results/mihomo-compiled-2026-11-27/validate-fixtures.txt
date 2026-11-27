@@ -1,0 +1,139 @@
+
+
+
+
+
+
+
+
+
+
+# Xray 26.11.9 (Xray, Penetrates Everything.) Custom (go1.27.4 linux/amd64)
+PASS    ShareLinks/hysteria2-bandwidth-bare
+PASS    ShareLinks/hysteria2-bandwidth
+PASS    ShareLinks/hysteria2-basic
+BLOCKED ShareLinks/hysteria2-gecko — outbounds[0].settings.obfuscation: Gecko obfuscation needs a packet size range that the model does not carry
+PASS    ShareLinks/hysteria2-salamander-hop
+PASS    ShareLinks/hysteria2-userpass-pin-insecure
+BLOCKED ShareLinks/socks4a — outbounds[0].settings.version: The Xray SOCKS outbound speaks SOCKS5 only
+PASS    ShareLinks/socks5-auth
+PASS    ShareLinks/socks5-noauth
+PASS    ShareLinks/ss-2022-aes128
+PASS    ShareLinks/ss-2022-aes256-ipsk
+BLOCKED ShareLinks/ss-2022-bad-key — outbounds[0].credentials.password: Shadowsocks 2022 key must be standard base64 of 32 bytes (identity keys separated by ':')
+PASS    ShareLinks/ss-2022-chacha20
+PASS    ShareLinks/ss-legacy-chacha20
+BLOCKED ShareLinks/ss-plugin-obfs — outbounds[0].settings.plugin: Xray cannot run SIP003 plugins
+PASS    ShareLinks/ss-sip002-aes256gcm
+PASS    ShareLinks/ss-xchacha20
+PASS    ShareLinks/trojan-grpc-pinned
+PASS    ShareLinks/trojan-tcp-tls
+PASS    ShareLinks/trojan-ws-tls
+BLOCKED ShareLinks/tuic-v5 — outbounds[0].settings: Xray 26.11.9 has no TUIC outbound
+PASS    ShareLinks/vless-grpc-reality
+PASS    ShareLinks/vless-httpupgrade-tls
+PASS    ShareLinks/vless-ipv6-tls
+PASS    ShareLinks/vless-kcp-seed
+BLOCKED ShareLinks/vless-plain-public — outbounds[0].stream.security: Xray refuses VLESS without TLS, REALITY or VLESS Encryption to a public address
+PASS    ShareLinks/vless-reality-vision-tcp
+PASS    ShareLinks/vless-tcp-http-private
+PASS    ShareLinks/vless-unknown-params
+PASS    ShareLinks/vless-ws-tls
+PASS    ShareLinks/vless-xhttp-reality-download
+PASS    ShareLinks/vless-xhttp-tls
+PASS    ShareLinks/vmess-json-grpc-tls
+BLOCKED ShareLinks/vmess-json-h2 — outbounds[0].stream.transport: The HTTP/2 transport was removed from Xray; the server must be reconfigured to XHTTP
+PASS    ShareLinks/vmess-json-tcp-legacy-aid
+PASS    ShareLinks/vmess-json-ws-tls
+PASS    ShareLinks/vmess-url-httpupgrade-tls
+PASS    ShareLinks/wireguard-basic
+PASS    ShareLinks/wireguard-reserved-psk
+PASS    Interop/hysteria2-salamander-pinned
+PASS    Interop/socks5-auth
+PASS    Interop/ss-2022-aes128
+PASS    Interop/ss-aes256gcm
+PASS    Interop/trojan-tls-pinned
+PASS    Interop/vless-grpc
+PASS    Interop/vless-httpupgrade
+PASS    Interop/vless-kcp-seed
+PASS    Interop/vless-tcp
+PASS    Interop/vless-tls-vision-pinned
+PASS    Interop/vless-ws
+PASS    Interop/vless-ws-tls-pinned
+PASS    Interop/vless-xhttp-download
+PASS    Interop/vless-xhttp
+PASS    Interop/vmess-tcp
+PASS    Interop/wireguard
+PASS    Profiles/group-leastload-nested
+PASS    Profiles/group-selector
+PASS    Profiles/group-urltest
+PASS    Profiles/http-proxy-tls
+PASS    Profiles/xhttp-typed-download
+# accepted: 53, rejected: 0, blocked by the compiler: 7
+# Mihomo Meta 1.10.0 linux amd64 with go1.27.4 unknown time
+PASS    mihomo ShareLinks/hysteria2-bandwidth-bare
+PASS    mihomo ShareLinks/hysteria2-bandwidth
+PASS    mihomo ShareLinks/hysteria2-basic
+BLOCKED mihomo ShareLinks/hysteria2-gecko — outbounds[0].settings.obfuscation: Gecko obfuscation needs a packet size range that the model does not carry
+PASS    mihomo ShareLinks/hysteria2-salamander-hop
+PASS    mihomo ShareLinks/hysteria2-userpass-pin-insecure
+BLOCKED mihomo ShareLinks/socks4a — outbounds[0].settings.version: The Mihomo SOCKS outbound speaks SOCKS5 only
+PASS    mihomo ShareLinks/socks5-auth
+PASS    mihomo ShareLinks/socks5-noauth
+PASS    mihomo ShareLinks/ss-2022-aes128
+PASS    mihomo ShareLinks/ss-2022-aes256-ipsk
+BLOCKED mihomo ShareLinks/ss-2022-bad-key — outbounds[0].credentials.password: Shadowsocks 2022 key must be standard base64 of 32 bytes (identity keys separated by ':')
+PASS    mihomo ShareLinks/ss-2022-chacha20
+PASS    mihomo ShareLinks/ss-legacy-chacha20
+PASS    mihomo ShareLinks/ss-plugin-obfs
+PASS    mihomo ShareLinks/ss-sip002-aes256gcm
+PASS    mihomo ShareLinks/ss-xchacha20
+PASS    mihomo ShareLinks/trojan-grpc-pinned
+PASS    mihomo ShareLinks/trojan-tcp-tls
+PASS    mihomo ShareLinks/trojan-ws-tls
+PASS    mihomo ShareLinks/tuic-v5
+PASS    mihomo ShareLinks/vless-grpc-reality
+PASS    mihomo ShareLinks/vless-httpupgrade-tls
+PASS    mihomo ShareLinks/vless-ipv6-tls
+BLOCKED mihomo ShareLinks/vless-kcp-seed — outbounds[0].stream.transport: Mihomo has no mKCP transport for vless as compiled from the model
+PASS    mihomo ShareLinks/vless-plain-public
+PASS    mihomo ShareLinks/vless-reality-vision-tcp
+PASS    mihomo ShareLinks/vless-tcp-http-private
+PASS    mihomo ShareLinks/vless-unknown-params
+PASS    mihomo ShareLinks/vless-ws-tls
+PASS    mihomo ShareLinks/vless-xhttp-reality-download
+PASS    mihomo ShareLinks/vless-xhttp-tls
+PASS    mihomo ShareLinks/vmess-json-grpc-tls
+PASS    mihomo ShareLinks/vmess-json-h2
+PASS    mihomo ShareLinks/vmess-json-tcp-legacy-aid
+PASS    mihomo ShareLinks/vmess-json-ws-tls
+PASS    mihomo ShareLinks/vmess-url-httpupgrade-tls
+PASS    mihomo ShareLinks/wireguard-basic
+PASS    mihomo ShareLinks/wireguard-reserved-psk
+PASS    mihomo Interop/hysteria2-salamander-pinned
+PASS    mihomo Interop/socks5-auth
+PASS    mihomo Interop/ss-2022-aes128
+PASS    mihomo Interop/ss-aes256gcm
+PASS    mihomo Interop/trojan-tls-pinned
+PASS    mihomo Interop/vless-grpc
+PASS    mihomo Interop/vless-httpupgrade
+BLOCKED mihomo Interop/vless-kcp-seed — outbounds[0].stream.transport: Mihomo has no mKCP transport for vless as compiled from the model
+PASS    mihomo Interop/vless-tcp
+PASS    mihomo Interop/vless-tls-vision-pinned
+PASS    mihomo Interop/vless-ws
+PASS    mihomo Interop/vless-ws-tls-pinned
+PASS    mihomo Interop/vless-xhttp-download
+PASS    mihomo Interop/vless-xhttp
+PASS    mihomo Interop/vmess-tcp
+PASS    mihomo Interop/wireguard
+PASS    mihomo Profiles/group-leastload-nested
+PASS    mihomo Profiles/group-selector
+PASS    mihomo Profiles/group-urltest
+PASS    mihomo Profiles/http-proxy-tls
+PASS    mihomo Profiles/xhttp-typed-download
+PASS    mihomo Routing/as-is
+BLOCKED mihomo Routing/inbound-tag — options.routing.rules[0]: Inbound-tag conditions name Xray inbounds; Mihomo has no matching inbound names
+PASS    mihomo Routing/ip-if-non-match
+PASS    mihomo Routing/ip-on-demand
+BLOCKED mihomo Routing/not-lowerable — options.routing.rules[0]: Rule has no engine form (negation): NOT has no engine equivalent; use ipNotIn for addresses
+# mihomo accepted: 58, rejected: 0, blocked by the compiler: 7

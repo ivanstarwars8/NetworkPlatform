@@ -304,6 +304,7 @@ func runBridge(args []string) error {
 	freeOS := fs.Int("freeos-ms", 0, "memory.freeOSMemoryIntervalMs")
 	logLevel := fs.String("loglevel", "warning", "core log level")
 	homeDir := fs.String("home", "", "homeDir (default: bridge default)")
+	optionsPath := fs.String("options", "", "bridge options document (JSON) to start from, e.g. the one the extension sends; flags given explicitly override it")
 	_ = fs.Parse(args)
 	if *mode != "flow" {
 		return fmt.Errorf("mode %q: the Mihomo bridge has only the flow mode", *mode)
@@ -330,6 +331,49 @@ func runBridge(args []string) error {
 		Tun: engine.TunOptions{Mode: engine.TunFlow, MTU: *mtu, OutQueueBytes: *outQueue, InQueueBytes: *inQueue,
 			MaxFlows: *maxFlows},
 		TCPIdleTimeoutMs: *tcpIdle, UDPIdleTimeoutMs: *udpIdle,
+	}
+	if *optionsPath != "" {
+		data, err := os.ReadFile(*optionsPath)
+		if err != nil {
+			return err
+		}
+		base, perr := engine.ParseOptions(data)
+		if perr != nil {
+			return perr
+		}
+		if base.Tun.Mode != engine.TunFlow {
+			return fmt.Errorf("options: tun.mode must be %q", engine.TunFlow)
+		}
+		// Only the flags set on the command line replace values of the document.
+		fs.Visit(func(f *flag.Flag) {
+			switch f.Name {
+			case "loglevel":
+				base.LogLevel = opts.LogLevel
+			case "home":
+				base.HomeDir = opts.HomeDir
+			case "profile":
+				base.Memory.Profile = opts.Memory.Profile
+			case "memlimit":
+				base.Memory.LimitBytes = opts.Memory.LimitBytes
+			case "gcpercent":
+				base.Memory.GCPercent = opts.Memory.GCPercent
+			case "freeos-ms":
+				base.Memory.FreeOSMemoryIntervalMs = opts.Memory.FreeOSMemoryIntervalMs
+			case "mtu":
+				base.Tun.MTU = opts.Tun.MTU
+			case "outq":
+				base.Tun.OutQueueBytes = opts.Tun.OutQueueBytes
+			case "inq":
+				base.Tun.InQueueBytes = opts.Tun.InQueueBytes
+			case "maxflows":
+				base.Tun.MaxFlows = opts.Tun.MaxFlows
+			case "tcpidle-ms":
+				base.TCPIdleTimeoutMs = opts.TCPIdleTimeoutMs
+			case "udpidle-ms":
+				base.UDPIdleTimeoutMs = opts.UDPIdleTimeoutMs
+			}
+		})
+		opts = base
 	}
 	e := engine.New()
 	p := &pump{e: e, fd: fd, batchMax: *batch, slot: *slot, readBuf: *readBuf, dropLoop: *dropLoop,

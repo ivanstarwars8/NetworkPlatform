@@ -1,0 +1,47 @@
+{
+  "engine" : "mihomo",
+  "engineTags" : {
+    "a" : "proxy-0000",
+    "ab" : "proxy-0001",
+    "auto" : "group-0000",
+    "t" : "proxy-0002",
+    "tuic" : "proxy-0003"
+  },
+  "engineVersion" : "1.19.34",
+  "excludedOutbounds" : [
+
+  ],
+  "issues" : [
+    {
+      "detail" : "TUIC with Mihomo has no interoperability test (Xray has no TUIC server)",
+      "kind" : "untested",
+      "path" : "outbounds[3].settings",
+      "severity" : "info"
+    },
+    {
+      "detail" : "Mobile memory profile: QUIC receive windows capped, group health checks lazy every 600 s unless the model sets an interval",
+      "kind" : "migrated",
+      "path" : "options.memoryProfile",
+      "severity" : "info"
+    },
+    {
+      "detail" : "No DNS servers given; the tunnel resolves through 2 default public resolvers, queried through the proxy",
+      "kind" : "migrated",
+      "path" : "options.dnsServers",
+      "severity" : "info"
+    },
+    {
+      "detail" : "2 server address(es) are domains: their addresses are not known before the tunnel starts and cannot be excluded from it; the system is expected to keep the extension's own connections out of its tunnel",
+      "kind" : "untested",
+      "path" : "options.tunnel",
+      "severity" : "info"
+    },
+    {
+      "detail" : "2 server(s) are named by a domain: their names are resolved directly (proxy-server-nameserver), not through the tunnel",
+      "kind" : "approximated",
+      "path" : "options.dnsServers",
+      "severity" : "info"
+    }
+  ],
+  "verdict" : "exact"
+}

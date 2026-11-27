@@ -1,0 +1,58 @@
+{
+  "engine" : "mihomo",
+  "engineTags" : {
+    "a" : "proxy-0000",
+    "auto" : "group-0000",
+    "main" : "group-0001",
+    "t" : "proxy-0001"
+  },
+  "engineVersion" : "1.19.34",
+  "excludedOutbounds" : [
+
+  ],
+  "issues" : [
+    {
+      "detail" : "No health check is configured; the core's default URL is used",
+      "kind" : "migrated",
+      "path" : "groups[auto].healthCheck",
+      "severity" : "info"
+    },
+    {
+      "detail" : "Mobile memory profile: QUIC receive windows capped, group health checks lazy every 600 s unless the model sets an interval",
+      "kind" : "migrated",
+      "path" : "options.memoryProfile",
+      "severity" : "info"
+    },
+    {
+      "detail" : "No DNS servers given; the tunnel resolves through 2 default public resolvers, queried through the proxy",
+      "kind" : "migrated",
+      "path" : "options.dnsServers",
+      "severity" : "info"
+    },
+    {
+      "detail" : "1 server address(es) are domains: their addresses are not known before the tunnel starts and cannot be excluded from it; the system is expected to keep the extension's own connections out of its tunnel",
+      "kind" : "untested",
+      "path" : "options.tunnel",
+      "severity" : "info"
+    },
+    {
+      "detail" : "1 server(s) are named by a domain: their names are resolved directly (proxy-server-nameserver), not through the tunnel",
+      "kind" : "approximated",
+      "path" : "options.dnsServers",
+      "severity" : "info"
+    },
+    {
+      "detail" : "Address rules see one destination address: inside the tunnel the connection's own address (also when the domain is known from the resolver), otherwise the first resolved address",
+      "kind" : "approximated",
+      "path" : "options.routing",
+      "severity" : "info"
+    },
+    {
+      "detail" : "Domain rules match connections whose address came from the tunnel's resolver (DNS mapping) or that name a domain; sniffing is off",
+      "kind" : "approximated",
+      "path" : "options.routing",
+      "severity" : "info"
+    }
+  ],
+  "verdict" : "exact"
+}

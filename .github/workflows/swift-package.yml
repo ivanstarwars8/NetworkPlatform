@@ -9,6 +9,7 @@ on:
     paths: &paths
       - Package.swift
       - Packages/**
+      - Tests/Fixtures/**
       - Benchmarks/RoutingBench/**
       - Extensions/PacketTunnel/Shared/**
       - Extensions/PacketTunnel/TunnelSession.swift
