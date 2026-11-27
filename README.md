@@ -4,17 +4,18 @@
 
 Рабочее название. Имя продукта не выбрано; имена движков в нём использоваться не будут (ADR-0006, правило 7).
 
-## Состояние на 2026-11-27 (этап 3b)
+## Состояние на 2026-11-27 (этап 4)
 
 **Phase 1. Рабочего приложения нет.** На раннерах macOS CI код для Apple скомпилирован без подписи; ничего не подписано, не установлено и не запущено на устройствах Apple, туннель не поднимался.
 
 - Мост Xray (`Cores/Bridge`, Go, Xray-core v26.11.9) собран и проверен на Linux: шесть протоколов против штатного xray, трафик через настоящий tun ядра в netns, пропускная способность 90–129 % от штатного xray на стенде Linux. Под детектором гонок падают случаи с VLESS+REALITY+Vision (`TestFlowThroughProxyWithDNS`, на CI также `TestProtocolsOverLoopback/VLESS+REALITY+Vision`) из-за гонки внутри ядра.
 - Компилятор модели → Xray JSON проверен настоящим Xray 26.11.9: 53 конфига приняты, 16 из 16 interop-конфигов передали трафик (Xray ↔ Xray, Linux).
+- Компилятор модели → Mihomo (Clash) YAML: `mihomo -t` v1.19.34 принял 58 конфигов (0 отвергнуто, 7 заблокированы компилятором с причиной); вывод компилятора для VLESS+REALITY+Vision, SS-2022, Trojan и Hysteria2 прошёл через мост Mihomo и tun ядра Linux против штатного xray: TCP, UDP, DNS, IPv6, без утечек DNS. Адаптер Mihomo принимает вывод компилятора (`MihomoCompiledConfiguration`); приложение профиль пока не компилирует.
 - Профиль памяти `mobile` моста Xray: на Linux плато RSS 48–49 МиБ вместо 138–164 при той же скорости (±6 %); ориентир iOS (≤ 45 МиБ при лимите расширения ~50 МиБ) не достигнут, на устройстве не мерилось. Адаптер передаёт мосту этот профиль.
 - Компилятор выпускает TUN-inbound, перехват DNS и исключения маршрутов из общего описания адресов туннеля; вывод компилятора прогнан в мосте на tun ядра Linux: TCP, UDP, DNS, IPv6, без утечек DNS и петель. Значения конфигурации вырезаются из сообщений об ошибках моста и отчётов компилятора.
-- Swift-пакет из шести модулей (`DomainModels`, `CoreAbstraction`, `ConfigurationEngine`, `RoutingEngine`, `AdaptiveBalancer`, `EngineXray`) — 533 тестов, 0 падений на Linux (Swift 5.10.1) и на macOS CI (Xcode 16.4).
-- Приложение и расширение Packet Tunnel (`XrayOnly`) с адаптером `EngineXray` **скомпилированы на macOS CI без подписи** для iOS/iPadOS, симулятора iOS, macOS, tvOS, visionOS; мост — XCFramework из 10 срезов. **Ни разу не запускались**. Для запуска нужны аккаунт Apple Developer с Network Extension и устройство.
-- Движки — Xray-core и Mihomo (ADR-0007, окончательно). Мост Mihomo (`Cores/MihomoBridge`, Mihomo v1.19.34, тот же C ABI) собран и проверен на Linux против штатного xray; профиль памяти `mobile` — на Linux RssAnon 24–26 МиБ за 30 мин, RSS ~57 МиБ (цель ~50 не достигнута); под Apple не собирался, адаптера и компилятора Clash YAML нет.
+- Swift-пакет из девяти модулей (`DomainModels`, `CoreAbstraction`, `ConfigurationEngine`, `RoutingEngine`, `AdaptiveBalancer`, `EngineBridge`, `EngineXray`, `EngineMihomo` и тестовые подделки `EngineBridgeTestSupport`) — 589 тестов, 0 падений на Linux (Swift 5.10.1) и на macOS CI (Xcode 16.4).
+- Сборки: `XrayOnly`, `MihomoOnly` и `Dual` компилируются на CI для всех платформ Apple (без подписи) — iOS/iPadOS, симулятор iOS, macOS, tvOS, visionOS; по одному расширению Packet Tunnel на движок (ADR-0009); оба моста — XCFramework по 10 срезов. **Ни разу не запускались**. Для запуска нужны аккаунт Apple Developer с Network Extension и устройство.
+- Движки — Xray-core и Mihomo (ADR-0007, окончательно). Мост Mihomo (`Cores/MihomoBridge`, Mihomo v1.19.34, тот же C ABI) собран и проверен на Linux против штатного xray; профиль памяти `mobile` — на Linux RssAnon 24–26 МиБ за 30 мин, RSS ~57 МиБ (цель ~50 не достигнута); под Apple собран на CI, на устройстве не запускался.
 
 Подробно, с разделением на «сделано / не проверено / заблокировано»: [`STATUS.md`](STATUS.md).
 
@@ -24,18 +25,18 @@
 
 | Путь | Содержимое | Проверено сборкой |
 |---|---|---|
-| `Package.swift`, `Packages/` | модули `DomainModels`, `CoreAbstraction`, `ConfigurationEngine`, `RoutingEngine`, `AdaptiveBalancer`, `EngineXray` с тестами XCTest | Linux (Swift 5.10.1) и macOS CI (Xcode 16.4): 533 тестов, 0 падений |
+| `Package.swift`, `Packages/` | модули `DomainModels`, `CoreAbstraction`, `ConfigurationEngine`, `RoutingEngine`, `AdaptiveBalancer`, `EngineBridge`, `EngineXray`, `EngineMihomo` с тестами XCTest | Linux (Swift 5.10.1) и macOS CI (Xcode 16.4): 589 тестов, 0 падений |
 | `Cores/Bridge/` | мост Xray на Go с C ABI | Linux — тесты и стенд; Apple — 10 срезов собраны на CI, тест C ABI выполнен на macOS arm64; на iOS/tvOS/visionOS не запускался |
-| `Cores/MihomoBridge/` | мост Mihomo на Go с тем же C ABI | Linux — тесты против штатного xray, C ABI, стенд `npmlab` на tun ядра; под Apple — только компиляция `GOOS=ios/darwin` на Linux |
-| `Extensions/PacketTunnel/` | `NEPacketTunnelProvider`: сетевые настройки, старт и стоп, сообщения приложения, контроль памяти, привязка адаптера `EngineXray` к мосту | скомпилировано на macOS CI без подписи; не запускалось |
+| `Cores/MihomoBridge/` | мост Mihomo на Go с тем же C ABI | Linux — тесты против штатного xray, C ABI, стенд `npmlab` на tun ядра; Apple — 10 срезов собраны на CI, тест C ABI выполнен на macOS arm64; на устройствах не запускался |
+| `Extensions/PacketTunnel/` | `NEPacketTunnelProvider`: сетевые настройки, старт и стоп, сообщения приложения, контроль памяти, привязка адаптеров `EngineXray`/`EngineMihomo` к мостам (расширение на движок) | скомпилировано на macOS CI без подписи; не запускалось |
 | `Apps/` | оболочка приложения на SwiftUI и спецификация XcodeGen для iOS/iPadOS, macOS, tvOS, visionOS | скомпилировано на macOS CI без подписи; не запускалось |
-| `Cores/BuildScripts/` | сборка XCFramework моста; скрипты проверки моста на Linux (C ABI, netns, стенд tun) | Linux — да; XCFramework — на macOS CI |
+| `Cores/BuildScripts/` | сборка и проверка XCFramework обоих мостов; скрипты проверки мостов на Linux (C ABI, netns, стенд tun, правка Apple для Mihomo) | Linux — да; XCFramework — на macOS CI |
 | `Benchmarks/` | замеры моста и маршрутизации, тест паритета с роутером Xray | Linux — да |
-| `Tests/Fixtures/`, `Tools/` | корпус ссылок и конфигов, проверка настоящим Xray, обёртки сборки | Linux — да |
+| `Tests/Fixtures/`, `Tools/` | корпус ссылок и конфигов, проверка настоящими Xray и Mihomo, обёртки сборки | Linux — да |
 | `RESEARCH.md`, `Documentation/Research/` | результаты аудита движков, референс-клиентов и платформ | — |
 | `PROTOCOL_MATRIX.md`, `PLATFORM_MATRIX.md`, `COMPETITOR_MATRIX.md`, `LICENSE_AUDIT.md` | матрицы и аудит лицензий | — |
 | `TECHNICAL_RISKS.md` | реестр рисков R-01…R-22 | — |
-| `Documentation/ADR/` | архитектурные решения 0001–0008, ревью ADR | — |
+| `Documentation/ADR/` | архитектурные решения 0001–0009, ревью ADR | — |
 | `Documentation/Architecture/`, `Documentation/Performance/`, `Documentation/Protocols/` | архитектура, замеры, форматы и справочник Xray | — |
 | `Documentation/Security/THREAT_MODEL.md` | модель угроз, первая версия | — |
 
@@ -52,9 +53,9 @@ swift test
 
 Нужен Swift 5.9 или новее (`// swift-tools-version:5.9` в `Package.swift`); проверено на 5.10.1. Внешних зависимостей у пакета нет.
 
-Те же две команды выполняет CI (`.github/workflows/swift-package.yml`) на macOS и в Linux-контейнере; мосты на Linux проверяют `bridge-go.yml` и `mihomo-bridge-go.yml`, сборку для Apple — `apple.yml`. Все четыре зелёные на 2026-11-27, коммит `079355a` (`STATUS.md` §2.0).
+Те же две команды выполняет CI (`.github/workflows/swift-package.yml`) на macOS и в Linux-контейнере; мосты на Linux проверяют `bridge-go.yml` и `mihomo-bridge-go.yml`, сборку для Apple — `apple.yml`. Все четыре зелёные на 2026-11-27, коммит `67016bd` (`STATUS.md` §2.0).
 
-Приложение и расширение этой командой не собираются: `Cores/BuildScripts/bridge-apple-xcframework.sh`, затем `cd Apps && xcodegen generate`, затем `xcodebuild … -configuration Debug-XrayOnly` — см. [`Documentation/Apple/BUILD_ON_MAC.md`](Documentation/Apple/BUILD_ON_MAC.md). Неподписанная сборка проверена на CI; подписанная и установка на устройство — нет.
+Приложение и расширение этой командой не собираются: `Cores/BuildScripts/bridge-apple-xcframework.sh`, затем `cd Apps && xcodegen generate`, затем `xcodebuild` со схемой `NetworkPlatform-<вариант>-<платформа>` и конфигурацией `Debug-<вариант>` (или `Tools/apple-build-flavour.sh`) — см. [`Documentation/Apple/BUILD_ON_MAC.md`](Documentation/Apple/BUILD_ON_MAC.md). Неподписанная сборка проверена на CI; подписанная и установка на устройство — нет.
 
 ## Архитектура в пяти строках
 

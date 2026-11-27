@@ -6,6 +6,28 @@
 
 ## Не выпущено
 
+### Добавлено (этап 4, 2026-11-27)
+
+- `stage4/clash`: компилятор Mihomo — `Profile` + `RoutingTable` → Clash YAML с отчётом о потерях (`MihomoConfigCompiler`, `MihomoProxyCompiler`, `MihomoRuleCompiler`, `EngineID.mihomo`); свой `YAMLEmitter`; корпус `*.mihomo.yaml`/`*.mihomo-report.json` и фикстуры `Tests/Fixtures/Routing`; `Tools/validate-fixtures.sh <xray> <mihomo>` прогоняет `mihomo -t` (и на CI); тест моста `TestCompiledFixturesNeedNoOverride`; `npmlab -options`; стенд `ENGINE=mihomo bridge-tunlab.sh` — сервера Trojan+TLS и Hysteria2, `compiled-link`/`compiled DIR` для 4 протоколов. Linux: `mihomo -t` 58/0/7; REALITY+Vision, SS-2022, Trojan, Hysteria2 через мост и tun ядра — 0 провалов из 16 проверок на протокол.
+- `stage4/mihomoapple`: `NP_BRIDGE_ENGINE=mihomo Cores/BuildScripts/bridge-apple-xcframework.sh` → `NPMihomoBridge.xcframework` (10 срезов); `bridge-apple-verify.sh` (платформы объектов, закрытые символы); модуль `EngineBridge` (C ABI, `BridgeEngineDriver`, насос, журнал; подделки — `EngineBridgeTestSupport`); адаптер `EngineMihomo`; ADR-0009 — расширение на движок (`PacketTunnelXray_<p>`, `PacketTunnelMihomo_<p>`), приложение на вариант, `TunnelEngineCatalog`; `Tools/apple-build-flavour.sh`. macOS CI: 18 сборок `XrayOnly`/`MihomoOnly`/`Dual` × 5 платформ без подписи, тест C ABI Mihomo на macOS arm64 — PASSED.
+- `MihomoCompiledConfiguration` (`EngineMihomo`, зависит от `ConfigurationEngine`): вывод компилятора Mihomo → `CoreConfiguration` (YAML без изменений) + `startOptions` с MTU плана + замечания отчёта как замечания проверки; заблокированная компиляция → `CoreError.invalidConfiguration`, отчёт другого движка → `configurationMismatch`; 4 теста против поддельного моста.
+
+### Изменено (этап 4)
+
+- `ConfigurationEngine` зависит от `RoutingEngine`; `EngineXray` сокращён до кода Xray (общее — в `EngineBridge`); `XrayBridgeBinding.swift` → `BridgeBinding.swift` (одна привязка, условный импорт), `XrayBridgeInfo.swift` → `BridgeInfo.swift`.
+- Идентификаторы бандлов расширений: `.PacketTunnelXray`, `.PacketTunnelMihomo`; фаза «Flavour guard» проверяет соответствие цели и конфигурации, а не отсутствие Mihomo.
+- `mihomo-apple-patch.sh` заменяет системные вызовы `recvmsg_x`/`sendmsg_x` sing-tun на `ENOSYS`; `mihomo-apple-check.sh` сканирует все исходники, компилируемые под Apple (0 вхождений с правкой, 8 без).
+- `Tools/swift-docker.sh` передаёт `NP_UPDATE_FIXTURES`.
+
+### Исправлено (этап 4)
+
+- `Tools/apple-build-flavour.sh`: строки `file` для срезов универсального бинарника («path (for architecture x)») уходили в `grep` как несуществующие пути (шум в журнале, на счёт не влияли); теперь сворачиваются в путь.
+- Тест моста Mihomo на скомпилированных фикстурах зависел от IPv6-адреса tun (у раннеров его нет) и оставлял прокси финализатору, который гонялся с `log.SetLevel` следующего теста под `-race`.
+
+### Проверено (этап 4)
+
+- 2026-11-27, `main` после слияния этапа 4: `swift test -j 1` в `swift:5.10` — 589 тестов, 0 падений. Мост Xray: gofmt/vet чисто, `go test ./...` со штатным xray ok. Мост Mihomo: gofmt/vet чисто, `go test ./...` ok, `mihomo -t` корпуса 58/0/7. CI на `67016bd`: apple (8 заданий, 18 сборок, оба моста), swift-package (589/0 на macOS и Linux), bridge-go, mihomo-bridge-go — зелёные (`STATUS.md` §2.0).
+
 ### Добавлено (этап 3b, 2026-11-27)
 
 - `stage3b/tunready`: `DomainModels/TunnelAddressing.swift` (`TunnelAddressing`, `TunnelRoute`) — единый источник адресов туннеля, резолверов, MTU и локальных диапазонов; компилятор `XrayCompileOptions.tunnel`/`.packetTunnel(...)` выпускает TUN-inbound `tun-in`, перехват UDP/53 в `dns`-outbound, direct для адресов серверов и локальных сетей, `XrayCompilation.tunnel` (`XrayTunnelPlan`); `TunnelNetworkPlan.excludedRoutes` применяется в `TunnelNetworkSettings`. Сквозной прогон вывода компилятора в мосте (flow, netns, tun ядра): TCP/UDP/DNS/IPv6, 0 утечек DNS, 0 петель (`Benchmarks/results/tunready-2026-11-27/`). Linux + компиляция на macOS CI; на устройстве не запускалось.

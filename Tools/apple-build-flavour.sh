@@ -69,10 +69,11 @@ embedded="$(cd "$plugins" 2>/dev/null && ls -d -- *.appex 2>/dev/null | sed 's/\
 echo "embedded extensions: ${embedded:-none}"
 [ "$embedded" = "$extensions" ] || result "FAILED embedded extensions '${embedded}', expected '$extensions'"
 
-# Binaries of a bundle: the executable and, in Debug, the debug dylib (ENABLE_DEBUG_DYLIB) next to it.
+# Binaries of a bundle: the executable and, in Debug, the debug dylib (ENABLE_DEBUG_DYLIB) next to it. `file` prints
+# one extra line per slice of a universal binary ("path (for architecture x): ..."); those are folded into the path.
 bundle_binaries() {
   find "$1" -type f \( -perm -u+x -o -name '*.dylib' \) ! -name '*.plist' -print0 \
-    | xargs -0 file | grep 'Mach-O' | cut -d: -f1
+    | xargs -0 file | grep 'Mach-O' | cut -d: -f1 | sed -E 's/ \(for architecture [^)]*\)$//' | sort -u
 }
 count() { # pattern files...
   local p="$1" n=0 f c; shift
@@ -121,7 +122,7 @@ for ext in $extensions; do
 done
 
 app_bins=()
-while IFS= read -r f; do app_bins+=("$f"); done < <(find "$app" -path "$plugins" -prune -o -type f -print0 | xargs -0 file | grep 'Mach-O' | cut -d: -f1)
+while IFS= read -r f; do app_bins+=("$f"); done < <(find "$app" -path "$plugins" -prune -o -type f -print0 | xargs -0 file | grep 'Mach-O' | cut -d: -f1 | sed -E 's/ \(for architecture [^)]*\)$//' | sort -u)
 app_npb=$(npb_symbols "${app_bins[@]}"); app_go=$(( $(count "$xray_core/" "${app_bins[@]}") + $(count "$mihomo_core/" "${app_bins[@]}") ))
 app_engine=$(( $(count 10EngineXray "${app_bins[@]}") + $(count 12EngineMihomo "${app_bins[@]}") ))
 echo "app binaries (${#app_bins[@]}): npb symbols=$app_npb, Go core paths=$app_go, engine adapters=$app_engine"
