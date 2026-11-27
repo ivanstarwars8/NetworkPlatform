@@ -1,0 +1,258 @@
+# Signed iOS/iPadOS build of the XrayOnly app ("Бык") uploaded to internal TestFlight. Documentation/Apple/TESTFLIGHT.md.
+#
+# Runs only from the owner's repository on workflow_dispatch or on a pushed tag testflight-*; never on pull requests,
+# so secrets are not exposed to forks. Signing material exists only as repository secrets; it is decoded into
+# $RUNNER_TEMP/np-secrets and a temporary keychain, never printed, never uploaded as an artifact, and removed in the
+# always() cleanup step. Build logs stay on the runner (they name the team) and are not uploaded as artifacts.
+#
+# Pipeline: ASC preflight (read-only) -> Xray bridge xcframework (cache shared with apple.yml) -> temporary keychain
+# with the distribution certificate -> App Store profiles for the app and the extension (found or created through
+# the ASC API) -> xcodegen + archive Release-XrayOnly with the Byk.xcconfig overlay -> export IPA (app-store-connect,
+# internal TestFlight only) -> verify signature, entitlements, profiles -> upload (altool) -> wait for VALID ->
+# internal group "oz".
+#
+# Never: review submission, external testers or groups, metadata, ITSAppUsesNonExemptEncryption.
+name: TestFlight
+
+on:
+  workflow_dispatch:
+    inputs:
+      marketing_version:
+        description: CFBundleShortVersionString of this upload
+        required: true
+        default: "0.1.0"
+      upload:
+        description: Upload to App Store Connect (false = build, sign and verify only)
+        type: boolean
+        default: true
+  push:
+    tags: ["testflight-*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: testflight
+  cancel-in-progress: true
+
+env:
+  XCODEGEN_URL: https://github.com/yonaskolb/XcodeGen/releases/download/2.44.1/xcodegen.zip
+  ASC_APP_ID: "6833782634"
+  APP_BUNDLE_ID: com.gbnconnect.app
+  EXT_BUNDLE_ID: com.gbnconnect.app.tun
+  APP_GROUP: group.com.gbnconnect.app
+  BETA_GROUP: oz
+  # Builds 401-403 of this app record belong to another app; ours start above them.
+  BUILD_NUMBER_BASE: "404"
+
+jobs:
+  testflight:
+    name: Byk iOS -> internal TestFlight
+    if: github.repository == 'ivanstarwars8/NetworkPlatform' && github.actor == github.repository_owner && (github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/testflight-'))
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Versions
+        id: v
+        env:
+          INPUT_VERSION: ${{ inputs.marketing_version }}
+          INPUT_UPLOAD: ${{ inputs.upload }}
+        run: |
+          version="${INPUT_VERSION:-0.1.0}"
+          [[ "$version" =~ ^[0-9]+(\.[0-9]+){1,2}$ ]] || { echo "bad marketing version '$version'"; exit 1; }
+          build=$((BUILD_NUMBER_BASE + GITHUB_RUN_NUMBER))
+          upload="${INPUT_UPLOAD:-true}"
+          { echo "version=$version"; echo "build=$build"; echo "upload=$upload"; } >> "$GITHUB_OUTPUT"
+          echo "### Byk $version ($build), upload=$upload" >> "$GITHUB_STEP_SUMMARY"
+          echo "marketing $version build $build upload=$upload"
+
+      - name: Signing material (temporary keychain, ASC key)
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_KEY_BASE64: ${{ secrets.ASC_KEY_BASE64 }}
+          DISTRIBUTION_P12_BASE64: ${{ secrets.DISTRIBUTION_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          s="$RUNNER_TEMP/np-secrets"; mkdir -p "$s/private_keys" "$s/profiles"
+          printf '%s' "$ASC_KEY_BASE64" | base64 --decode > "$s/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+          printf '%s' "$DISTRIBUTION_P12_BASE64" | base64 --decode > "$s/dist.p12"
+          kc_pass="$(openssl rand -hex 24)"; echo "::add-mask::$kc_pass"
+          kc="$s/np-signing.keychain-db"
+          security create-keychain -p "$kc_pass" "$kc"
+          security set-keychain-settings -lut 7200 "$kc"
+          security unlock-keychain -p "$kc_pass" "$kc"
+          curl -fsSL -o "$s/AppleWWDRCAG3.cer" https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer
+          security import "$s/AppleWWDRCAG3.cer" -k "$kc" -T /usr/bin/codesign >/dev/null || true
+          security import "$s/dist.p12" -k "$kc" -P "$P12_PASSWORD" -f pkcs12 -T /usr/bin/codesign -T /usr/bin/security -T /usr/bin/productbuild >/dev/null
+          rm -f "$s/dist.p12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$kc_pass" "$kc" >/dev/null
+          security list-keychains -d user -s "$kc" $(security list-keychains -d user | tr -d '"')
+          n="$(security find-identity -v -p codesigning "$kc" | grep -c 'Apple Distribution' || true)"
+          echo "Apple Distribution identities in the temporary keychain: $n"
+          [ "$n" -ge 1 ] || { echo "error: no valid Apple Distribution identity in DISTRIBUTION_P12_BASE64"; exit 1; }
+          serial="$(security find-certificate -a -c 'Apple Distribution' -p "$kc" | openssl x509 -noout -serial | cut -d= -f2)"
+          { echo "NP_KEYCHAIN=$kc"; echo "NP_CERT_SERIAL=$serial"; echo "API_PRIVATE_KEYS_DIR=$s/private_keys";
+            echo "ASC_KEY_PATH=$s/private_keys/AuthKey_${ASC_KEY_ID}.p8"; } >> "$GITHUB_ENV"
+
+      - name: App Store Connect preflight (read-only)
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: python3 -I Tools/asc.py preflight --app "$ASC_APP_ID" --bundle-id "$APP_BUNDLE_ID" --version "${{ steps.v.outputs.version }}" --build "${{ steps.v.outputs.build }}"
+
+      - name: App Store provisioning profiles
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          s="$RUNNER_TEMP/np-secrets"
+          python3 -I Tools/asc.py profiles --cert-serial "$NP_CERT_SERIAL" --bundle-id "$APP_BUNDLE_ID" --bundle-id "$EXT_BUNDLE_ID" --out "$s/profiles" | tee "$s/profiles.txt"
+          for d in "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
+            mkdir -p "$d"
+            for f in "$s"/profiles/*.mobileprovision; do
+              uuid="$(security cms -D -i "$f" | plutil -extract UUID raw -)"
+              cp "$f" "$d/$uuid.mobileprovision"; echo "$uuid.mobileprovision" >> "$s/installed-profiles.txt"
+            done
+          done
+          for b in "$APP_BUNDLE_ID" "$EXT_BUNDLE_ID"; do
+            p="$(security cms -D -i "$s/profiles/$b.mobileprovision")"
+            echo "== $b profile entitlements"
+            plutil -extract Entitlements xml1 -o - - <<<"$p" | grep -E '<key>|<string>|<true/>|<false/>' | sed 's/^[[:space:]]*/  /'
+          done
+          echo "NP_APP_PROFILE=$(awk -v b="$APP_BUNDLE_ID" '$1=="PROFILE" && $2==b {sub(/^PROFILE [^ ]+ /,""); print}' "$s/profiles.txt")" >> "$GITHUB_ENV"
+          echo "NP_EXT_PROFILE=$(awk -v b="$EXT_BUNDLE_ID" '$1=="PROFILE" && $2==b {sub(/^PROFILE [^ ]+ /,""); print}' "$s/profiles.txt")" >> "$GITHUB_ENV"
+
+      # Same cache key as apple.yml, so a bridge built there is reused.
+      - name: Cache key of the bridge sources
+        id: key
+        run: echo "hash=${{ hashFiles('Cores/Bridge/**', 'Cores/BuildScripts/bridge-apple-xcframework.sh', 'Cores/BuildScripts/mihomo-apple-patch.sh') }}" >> "$GITHUB_OUTPUT"
+      - name: Restore xcframework
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: Cores/Bridge/build/apple
+          key: npxraybridge-${{ steps.key.outputs.hash }}
+      - uses: actions/setup-go@v5
+        if: steps.cache.outputs.cache-hit != 'true'
+        with:
+          go-version-file: Cores/Bridge/go.mod
+          cache-dependency-path: Cores/Bridge/go.sum
+      - name: Build the Xray bridge xcframework
+        if: steps.cache.outputs.cache-hit != 'true'
+        env:
+          NP_BRIDGE_ENGINE: xray
+        run: Cores/BuildScripts/bridge-apple-xcframework.sh
+      - name: Verify the bridge
+        env:
+          NP_BRIDGE_ENGINE: xray
+        run: Cores/BuildScripts/bridge-apple-verify.sh
+
+      - name: XcodeGen
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/xcodegen.zip" "$XCODEGEN_URL"
+          unzip -q "$RUNNER_TEMP/xcodegen.zip" -d "$RUNNER_TEMP"
+          cd Apps && "$RUNNER_TEMP/xcodegen/bin/xcodegen" generate
+          xcodebuild -version
+
+      - name: Archive Release-XrayOnly (Byk identity, manual signing)
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          mkdir -p Logs
+          set +e
+          xcodebuild -project Apps/NetworkPlatform.xcodeproj -scheme NetworkPlatform-XrayOnly-iOS \
+            -configuration Release-XrayOnly -destination generic/platform=iOS \
+            -derivedDataPath "$RUNNER_TEMP/dd" -archivePath "$RUNNER_TEMP/Byk.xcarchive" \
+            -xcconfig "$PWD/Apps/Configurations/Byk.xcconfig" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="Apple Distribution" \
+            OTHER_CODE_SIGN_FLAGS="--keychain $NP_KEYCHAIN" \
+            NP_APP_PROFILE_SPECIFIER="$NP_APP_PROFILE" NP_XRAY_EXTENSION_PROFILE_SPECIFIER="$NP_EXT_PROFILE" \
+            MARKETING_VERSION="${{ steps.v.outputs.version }}" CURRENT_PROJECT_VERSION="${{ steps.v.outputs.build }}" \
+            archive > Logs/archive.log 2>&1
+          rc=$?
+          set -e
+          grep -E '(error|warning):|\*\* ARCHIVE' Logs/archive.log | sort -u | head -80 || true
+          [ "$rc" -eq 0 ] && grep -q '\*\* ARCHIVE SUCCEEDED \*\*' Logs/archive.log || { tail -n 40 Logs/archive.log; exit 1; }
+
+      - name: Export IPA (app-store-connect, internal TestFlight only)
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          opts="$RUNNER_TEMP/ExportOptions.plist"
+          python3 -I - "$opts" <<'EOF'
+          import os, plistlib, sys
+          plistlib.dump({
+              "method": "app-store-connect",   # the former "app-store"
+              "destination": "export",
+              "signingStyle": "manual",
+              "teamID": os.environ["APPLE_TEAM_ID"],
+              "signingCertificate": "Apple Distribution",
+              "provisioningProfiles": {os.environ["APP_BUNDLE_ID"]: os.environ["NP_APP_PROFILE"],
+                                       os.environ["EXT_BUNDLE_ID"]: os.environ["NP_EXT_PROFILE"]},
+              "manageAppVersionAndBuildNumber": False,
+              "uploadSymbols": True,
+              "testFlightInternalTestingOnly": True,
+          }, open(sys.argv[1], "wb"))
+          EOF
+          set +e
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/Byk.xcarchive" -exportOptionsPlist "$opts" \
+            -exportPath "$RUNNER_TEMP/export" > Logs/export.log 2>&1
+          rc=$?
+          set -e
+          grep -E '(error|warning):|\*\* EXPORT' Logs/export.log | sort -u | head -40 || true
+          [ "$rc" -eq 0 ] || { tail -n 40 Logs/export.log; exit 1; }
+          ls -la "$RUNNER_TEMP/export"
+          echo "NP_IPA=$(ls "$RUNNER_TEMP"/export/*.ipa)" >> "$GITHUB_ENV"
+
+      - name: Verify signature, entitlements and profiles
+        run: Tools/verify-ipa.sh "$NP_IPA" "$APP_BUNDLE_ID" "$EXT_BUNDLE_ID" "$APP_GROUP" "${{ steps.v.outputs.build }}" "${{ steps.v.outputs.version }}"
+
+      - name: Validate and upload to App Store Connect
+        if: steps.v.outputs.upload == 'true'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          # altool looks for AuthKey_<id>.p8 in API_PRIVATE_KEYS_DIR and in ~/.appstoreconnect/private_keys.
+          mkdir -p "$HOME/.appstoreconnect/private_keys" && (umask 077; cp "$ASC_KEY_PATH" "$HOME/.appstoreconnect/private_keys/")
+          xcrun altool --validate-app -f "$NP_IPA" -t ios --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID" 2>&1 | tee Logs/validate.log
+          xcrun altool --upload-app -f "$NP_IPA" -t ios --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID" 2>&1 | tee Logs/upload.log
+          grep -qiE 'UPLOAD SUCCEEDED|No errors uploading' Logs/upload.log
+
+      - name: Wait for processing (VALID)
+        id: processed
+        if: steps.v.outputs.upload == 'true'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: python3 -I Tools/asc.py wait-build --app "$ASC_APP_ID" --version "${{ steps.v.outputs.version }}" --build "${{ steps.v.outputs.build }}" --timeout 3600
+
+      - name: Internal group
+        if: steps.v.outputs.upload == 'true'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          python3 -I Tools/asc.py beta-group --app "$ASC_APP_ID" --build-id "${{ steps.processed.outputs.build_id }}" --group "$BETA_GROUP"
+          echo "- uploaded and VALID; export compliance is not answered (Missing Compliance until the owner answers)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove signing material
+        if: always()
+        run: |
+          s="$RUNNER_TEMP/np-secrets"
+          [ -n "${NP_KEYCHAIN:-}" ] && security delete-keychain "$NP_KEYCHAIN" 2>/dev/null || true
+          if [ -f "$s/installed-profiles.txt" ]; then
+            while read -r f; do
+              rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/$f" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles/$f"
+            done < "$s/installed-profiles.txt"
+          fi
+          [ -n "${ASC_KEY_PATH:-}" ] && rm -f "$HOME/.appstoreconnect/private_keys/$(basename "$ASC_KEY_PATH")"
+          rm -rf "$s" "$RUNNER_TEMP/ExportOptions.plist" "$RUNNER_TEMP/export" "$RUNNER_TEMP/Byk.xcarchive"
