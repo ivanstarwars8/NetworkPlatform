@@ -4,7 +4,7 @@
 
 Что проверено. Шаги 1–4 и 6 (без подписи) выполняет CI на раннере macOS: `.github/workflows/apple.yml` и `swift-package.yml`, ссылки на прогоны — в `STATUS.md`. Подписанная сборка, установка на устройство и запуск туннеля **не выполнялись ни разу**: у проекта нет учётной записи разработчика и устройства. Шаг 5 и всё после него помечены [U].
 
-Подписанная сборка не даёт работающего туннеля. Адаптера движка в расширении нет, поэтому любой старт заканчивается отказом `core_not_registered`. Что можно проверить сейчас, сказано в `DEVICE_TEST_PLAN.md` §1.
+Подписанная сборка не даёт работающего туннеля: адаптеры движков зарегистрированы (`XrayCore` в `PacketTunnelXray`, `MihomoCore` в `PacketTunnelMihomo`), но приложение ещё не компилирует профиль в запрос запуска, поэтому старт без сохранённого снимка заканчивается отказом `no_configuration`. Что можно проверить сейчас, сказано в `DEVICE_TEST_PLAN.md` §1.
 
 ## 1. Инструменты
 
@@ -30,7 +30,7 @@ xcodegen --version
 git clone <URL репозитория> NetworkPlatform
 cd NetworkPlatform
 swift build --build-tests
-swift test --skip-build              # на CI: 477 тестов, 0 падений
+swift test --skip-build              # на CI — см. STATUS.md (число тестов меняется)
 ```
 
 ## 3. Мост Xray для Apple (XCFramework)
@@ -50,7 +50,15 @@ NP_REQUIRED_SLICES="ios-arm64 macos-arm64" \
 
 Имена срезов: `ios-arm64`, `ios-simulator-arm64`, `ios-simulator-x86_64`, `macos-arm64`, `macos-x86_64`, `tvos-arm64`, `tvos-simulator-arm64`, `tvos-simulator-x86_64`, `xros-arm64`, `xros-simulator-arm64`.
 
-Проверка моста на самом Mac. Это тот же тест C ABI, что CI выполняет на arm64:
+Мост Mihomo (нужен для `MihomoOnly` и `Dual`; GPL-3.0) — тот же скрипт с переменной движка, те же срезы и аргументы. Скрипт сам готовит копии ядра и sing-tun с правкой Apple (`mihomo-apple-patch.sh`, флаг `-modfile`):
+
+```sh
+NP_BRIDGE_ENGINE=mihomo Cores/BuildScripts/bridge-apple-xcframework.sh   # Cores/MihomoBridge/build/apple/NPMihomoBridge.xcframework
+NP_BRIDGE_ENGINE=mihomo Cores/BuildScripts/bridge-apple-verify.sh        # платформы объектов, нет proc_pidinfo/recvmsg_x/sendmsg_x
+Cores/BuildScripts/bridge-apple-verify.sh                                # то же для моста Xray
+```
+
+Проверка моста на самом Mac. Это тот же тест C ABI, что CI выполняет на arm64 (для Mihomo — `Cores/MihomoBridge/build/apple/slices/macos-arm64/libnpmihomo.a` и `Cores/MihomoBridge/cabi/ctest/abi_test.c`):
 
 ```sh
 d=Cores/Bridge/build/apple/slices/macos-arm64
@@ -67,11 +75,13 @@ xcodegen generate                    # создаёт Apps/NetworkPlatform.xcode
 open NetworkPlatform.xcodeproj
 ```
 
-Схемы: `NetworkPlatform-iOS` (iPhone и iPad, одна цель), `NetworkPlatform-macOS`, `NetworkPlatform-tvOS`, `NetworkPlatform-visionOS`.
+Цели (ADR-0009): расширения по движку — `PacketTunnelXray_<p>`, `PacketTunnelMihomo_<p>`; приложения по варианту — `AppXrayOnly_<p>`, `AppMihomoOnly_<p>`, `AppDual_<p>` (`<p>` — iOS, macOS, tvOS, visionOS; iOS — iPhone и iPad одной целью).
 
-Конфигурации — это вариант сборки × Debug/Release: `Debug-XrayOnly`, `Release-XrayOnly`, `Debug-MihomoOnly`, `Release-MihomoOnly`, `Debug-Dual`, `Release-Dual`.
+Схемы: `NetworkPlatform-<вариант>-<платформа>`, например `NetworkPlatform-XrayOnly-iOS`, `NetworkPlatform-MihomoOnly-macOS`, `NetworkPlatform-Dual-visionOS`.
 
-Собирается **только `XrayOnly`**. `MihomoOnly` и `Dual` объявлены, но фаза «Flavour guard» расширения останавливает их сообщением `flavour … is declared but not buildable yet`. Моста Mihomo и второго расширения нет (ADR-0007).
+Конфигурации — это вариант сборки × Debug/Release: `Debug-XrayOnly`, `Release-XrayOnly`, `Debug-MihomoOnly`, `Release-MihomoOnly`, `Debug-Dual`, `Release-Dual`. Схема и конфигурация должны совпадать по варианту: фаза «Flavour guard» останавливает, например, `AppDual` в `Debug-XrayOnly` или расширение Mihomo в варианте без Mihomo.
+
+`XrayOnly` требует только `NPXrayBridge.xcframework`, `MihomoOnly` — только `NPMihomoBridge.xcframework`, `Dual` — оба.
 
 После каждого изменения `project.yml` или после добавления файлов повторять `xcodegen generate`.
 
@@ -91,7 +101,7 @@ DEVELOPMENT_TEAM = <TEAMID из developer.apple.com → Membership>
 | Что | Значение |
 |---|---|
 | App ID приложения | `$(NP_BUNDLE_ID_PREFIX)`, capabilities: Network Extensions, App Groups |
-| App ID расширения | `$(NP_BUNDLE_ID_PREFIX).PacketTunnel`, те же capabilities |
+| App ID расширений | `$(NP_BUNDLE_ID_PREFIX).PacketTunnelXray` и/или `$(NP_BUNDLE_ID_PREFIX).PacketTunnelMihomo` (по варианту), те же capabilities |
 | App Group для iOS, tvOS, visionOS | `group.$(NP_BUNDLE_ID_PREFIX)` |
 | App Group для macOS | `<TEAMID>.$(NP_BUNDLE_ID_PREFIX)` (`$(TeamIdentifierPrefix)` в `project.yml`) |
 
@@ -108,17 +118,23 @@ xcrun devicectl list devices         # UDID устройства
 Без подписи. Это ровно то, что делает CI, и так проверяется, что всё компилируется:
 
 ```sh
-xcodebuild -project Apps/NetworkPlatform.xcodeproj -scheme NetworkPlatform-iOS \
+xcodebuild -project Apps/NetworkPlatform.xcodeproj -scheme NetworkPlatform-XrayOnly-iOS \
   -configuration Debug-XrayOnly -destination 'generic/platform=iOS' \
   -derivedDataPath build/dd CODE_SIGNING_ALLOWED=NO build
 ```
 
 Для других платформ заменить схему и `-destination`: `generic/platform=iOS Simulator`, `generic/platform=macOS`, `generic/platform=tvOS`, `generic/platform=visionOS`.
 
+Сборка с теми же проверками продукта, что на CI (встроены ровно расширения варианта; в каждом расширении своё ядро и свой адаптер и нет чужих; в приложении нет Go):
+
+```sh
+Tools/apple-build-flavour.sh iOS MihomoOnly Debug build/dd    # платформы: iOS, iOS-Simulator, macOS, tvOS, visionOS
+```
+
 Подписанная сборка для устройства [U]:
 
 ```sh
-xcodebuild -project Apps/NetworkPlatform.xcodeproj -scheme NetworkPlatform-iOS \
+xcodebuild -project Apps/NetworkPlatform.xcodeproj -scheme NetworkPlatform-XrayOnly-iOS \
   -configuration Debug-XrayOnly -destination "id=<UDID>" \
   -derivedDataPath build/dd -allowProvisioningUpdates build
 xcrun devicectl device install app --device <UDID> \
@@ -127,30 +143,31 @@ xcrun devicectl device install app --device <UDID> \
 
 Без `Local.xcconfig` те же значения передаются в командной строке: `DEVELOPMENT_TEAM=<TEAMID> NP_BUNDLE_ID_PREFIX=com.<…>.networkplatform`.
 
-То же из Xcode: схема `NetworkPlatform-iOS`, Product → Scheme → Edit Scheme → Run → Build Configuration `Debug-XrayOnly`, выбрать устройство, Run.
+То же из Xcode: схема `NetworkPlatform-XrayOnly-iOS`, Product → Scheme → Edit Scheme → Run → Build Configuration `Debug-XrayOnly`, выбрать устройство, Run.
 
 Проверка подписи после сборки [U]:
 
 ```sh
 app=build/dd/Build/Products/Debug-XrayOnly-iphoneos/NetworkPlatform.app
-codesign -dv --verbose=2 "$app/PlugIns/PacketTunnel.appex"
-codesign -d --entitlements :- "$app/PlugIns/PacketTunnel.appex"   # packet-tunnel-provider, group.<id>
+codesign -dv --verbose=2 "$app/PlugIns/PacketTunnelXray.appex"
+codesign -d --entitlements :- "$app/PlugIns/PacketTunnelXray.appex"   # packet-tunnel-provider, group.<id>
 ```
 
-macOS [U]. Схема `NetworkPlatform-macOS`, `-destination 'platform=macOS'`. Приложение запускать из `/Applications`: расширения Network Extension система загружает из приложения в стандартном месте [U]. Вариант с системным расширением (Developer ID) в проекте не описан (ADR-0005 §3).
+macOS [U]. Схема `NetworkPlatform-<вариант>-macOS`, `-destination 'platform=macOS'`. Приложение запускать из `/Applications`: расширения Network Extension система загружает из приложения в стандартном месте [U]. Вариант с системным расширением (Developer ID) в проекте не описан (ADR-0005 §3).
 
 ## 7. Что смотреть после установки
 
-Журнал расширения: Console.app, устройство, фильтр `subsystem:<NP_BUNDLE_ID_PREFIX>.PacketTunnel`. При нажатии Connect ожидаются две строки:
+Журнал расширения: Console.app, устройство, фильтр `subsystem:<NP_BUNDLE_ID_PREFIX>.PacketTunnelXray` (или `.PacketTunnelMihomo`). При нажатии Connect ожидаются строки:
 
-- `xray bridge linked, abi 1, {"code":0,"data":{"abi":1,"core":"26.11.9","go":"go1.27.4"}}`
-- `start failed: …` — ожидаемый отказ, движка нет.
+- `xray bridge linked, abi 1, {"code":0,"data":{"abi":1,"core":"26.11.9","go":"go1.27.4"}}` (в Mihomo — `mihomo bridge linked, abi 1, {…"engine":"mihomo","core":"v1.19.34"…}`);
+- `engine registered: xray …` (или `mihomo …`);
+- `start failed: …` — ожидаемый отказ без запроса запуска и без снимка.
 
 Дальше — `DEVICE_TEST_PLAN.md`.
 
 ## 8. Известное
 
-- В Debug Xcode 16 кладёт код расширения в `PacketTunnel.debug.dylib` рядом с маленьким исполняемым файлом (`ENABLE_DEBUG_DYLIB`). Символы `npb_*` моста лежат там же. В Release — в самом `PacketTunnel`. В Release компоновщик выбрасывает функции моста, которые Swift не вызывает.
+- В Debug Xcode 16 кладёт код расширения в `PacketTunnelXray.debug.dylib` (`PacketTunnelMihomo.debug.dylib`) рядом с маленьким исполняемым файлом (`ENABLE_DEBUG_DYLIB`). Символы `npb_*` моста лежат там же. В Release — в самом исполняемом файле расширения. В Release компоновщик выбрасывает функции моста, которые Swift не вызывает.
 - Размер: расширение в Release около 32 МБ (arm64, iOS, CI). Почти весь объём — Go-рантайм и Xray-core.
 - Срезы tvOS и visionOS собраны штатным портом Go `GOOS=ios`; платформу задаёт `clang -target`. Собраны и слинкованы, но Go-рантайм на этих системах **не запускался**.
 - `SWIFT_STRICT_CONCURRENCY=complete`: на CI 0 предупреждений в исходниках `Apps/` и `Extensions/`.

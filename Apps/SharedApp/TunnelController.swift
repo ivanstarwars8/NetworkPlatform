@@ -1,6 +1,5 @@
-// UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode
-// (the single-extension form was compiled on macOS CI in GitHub Actions run 45966628451, never run; the
-// choice of the extension by engine is new).
+// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
+// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46045764184 (workflow apple.yml)
 //
 // Control-plane side of the tunnel (ADR-0003 §3.1): owns the
 // `NETunnelProviderManager`, mirrors `NEVPNStatus` (the source of truth about

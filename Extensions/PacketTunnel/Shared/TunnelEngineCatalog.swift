@@ -1,5 +1,5 @@
 // Logic verified on Linux only (Swift 5.10.1, swift test, CoreAbstraction tests through the SharedIPC link).
-// In the app and the extensions: UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode.
+// In the app and the extensions: compiled on macOS CI, never run (GitHub Actions run 46045764184, workflow apple.yml).
 //
 // Which engines a build contains and which Packet Tunnel extension runs each of them (ADR-0001 §3 rules 1, 3
 // and 5; ADR-0009). One extension per engine; the app selects it through

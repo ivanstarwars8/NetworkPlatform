@@ -1,6 +1,5 @@
-// UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode
-// (the Xray part of this file, then XrayBridgeBinding.swift, was compiled on macOS CI in GitHub Actions run
-// 45987643793, never run; the Mihomo import is new).
+// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
+// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46045764184 (workflow apple.yml)
 //
 // The binding of `BridgeABI` (Packages/EngineBridge) to the C archive of this extension's Go bridge. Both
 // bridges export the same `npb_*` functions with the same signatures (Cores/MihomoBridge/cabi/shape_test.go),

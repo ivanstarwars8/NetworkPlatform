@@ -4,9 +4,10 @@ Go-модуль `networkplatform/mihomobridge`: ядро Mihomo за тем же
 Решения — ADR-0001 §4/§4.1, ADR-0007. Лицензия ядра — GPL-3.0: всё, что линкует этот модуль, — GPL
 (сборки `MihomoOnly`/`Dual`), `XrayOnly` его не содержит.
 
-Состояние: собран и проверен на Linux/amd64 (сервер разработки). **Под Apple не собирался и не запускался**;
-на Linux проверено только, что пакеты компилируются для `GOOS=ios`/`darwin` с правкой ядра и что
-`proc_pidinfo` исчезает из Mach-O (`mihomo-apple-check.sh`).
+Состояние: собран и проверен на Linux/amd64 (сервер разработки). Под Apple: на раннере macOS CI собран
+`NPMihomoBridge.xcframework` (10 срезов, как у моста Xray), проверены платформы объектов и отсутствие
+`proc_pidinfo`/`recvmsg_x`/`sendmsg_x` (`bridge-apple-verify.sh`), тест C ABI выполнен на macOS arm64; расширение
+`PacketTunnelMihomo` скомпилировано без подписи (ссылки на прогоны — в `STATUS.md`). **На устройстве не запускался.**
 
 ## Закреплённые версии
 
@@ -110,10 +111,15 @@ keep-alive) и загруженные geodata. `Reload` = stop + start с отк
 `replace` на эту копию ядра (`go.mod` моста не меняется). `go build -overlay` не подошёл: Go отказывается
 накладывать файлы из `GOMODCACHE` («Files beneath GOMODCACHE must not be replaced»). Скрипт падает, если в
 новой версии ядра этого вызова нет. Любая сборка под `GOOS=darwin`/`ios` обязана передавать этот флаг;
-сборка XCFramework Mihomo ещё не написана. `component/process/process_darwin.go` (sysctl `pcblist_n`)
-остаётся в бинарнике, но недостижим при `find-process-mode: off`. `recvmsg_x`/`sendmsg_x` остаются в коде
-sing-tun (`internal/rawfile_darwin`), но в путь моста не попадают: системный utun не открывается, а
-`recvmsgx`/`sendmsgx` принудительно выключены.
+`NP_BRIDGE_ENGINE=mihomo Cores/BuildScripts/bridge-apple-xcframework.sh` передаёт его всегда. `component/process/process_darwin.go` (sysctl `pcblist_n`)
+остаётся в бинарнике, но недостижим при `find-process-mode: off`. `recvmsg_x`/`sendmsg_x` вызываются в sing-tun
+(`internal/rawfile_darwin`) системным вызовом по номеру (`unix.RawSyscall6(SYS_RECVMSG_X…)`), и эти функции
+линкуются в darwin-бинарник (проверено `go tool nm`), хотя в путь моста не попадают (системный utun не
+открывается, `recvmsgx`/`sendmsgx` выключены). Поэтому правка Apple заменяет оба вызова в копии sing-tun результатом
+`ENOSYS` (правку делает скрипт `sed`-ом, исходников sing-tun в репозитории нет), а `mihomo-apple-check.sh`
+проверяет все компилируемые для Apple файлы нестандартных пакетов: 0 ссылок с правкой, 8 без неё (darwin/arm64).
+Номер системного вызова не виден в таблице символов, поэтому проверка `nm` на macOS (`bridge-apple-verify.sh`) это
+не заменяет.
 
 ## Проверка
 
@@ -168,7 +174,7 @@ NP_STOCK_XRAY=/path/to/xray NP_SOAK=10m go test -run TestSoakRSS -v ./engine
 
 ## Известные ограничения
 
-- Под Apple не собирался; XCFramework-скрипта для Mihomo нет; tvOS/visionOS — как у моста Xray, не проверено.
+- Под Apple собран и слинкован (CI), но не запускался ни на одном устройстве; срезы tvOS/visionOS — порт `GOOS=ios` с `clang -target`, как у моста Xray, Go-рантайм на этих системах не запускался.
 - `tun.mode: "fd"` не реализован.
 - Статистика без разбивки по inbound/outbound; закрытые соединения учитываются только в `total`.
 - Ошибки `ApplyConfig` ядро только пишет в журнал; мост проверяет открытие `socks-port`/`mixed-port`/`port`,

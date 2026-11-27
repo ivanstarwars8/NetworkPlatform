@@ -1,5 +1,5 @@
-// UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode
-// (the Xray part, then XrayBridgeInfo.swift, was compiled on macOS CI in GitHub Actions run 45966628451).
+// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
+// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46045764184 (workflow apple.yml)
 //
 // Reads the linked bridge's ABI and version at start, for the log. It proves that the C archive is linked
 // into the extension and callable from Swift. One file for both extensions, like BridgeBinding.swift.
