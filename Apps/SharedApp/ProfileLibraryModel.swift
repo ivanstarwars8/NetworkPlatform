@@ -62,6 +62,8 @@ final class ProfileLibraryModel: ObservableObject {
                 choices = try EngineChoiceStore(directory: directory)
             } catch let error as EngineChoiceStoreError {
                 lastError = "Выбор движков не прочитался (\(error.message)); для всех профилей действует «Авто»."
+            } catch {
+                lastError = "Выбор движков не прочитался (\(type(of: error))); для всех профилей действует «Авто»."
             }
         } catch let error as ProfileStoreError {
             lastError = "Профили не открылись: \(error.message)."

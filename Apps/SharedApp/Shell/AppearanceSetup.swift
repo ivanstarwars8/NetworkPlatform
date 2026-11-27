@@ -11,7 +11,7 @@ import UIKit
 #endif
 
 enum AppearanceSetup {
-    static func apply() {
+    @MainActor static func apply() {
         #if os(iOS)
         guard BykFonts.available.contains(.text) else { return }
         func font(_ size: CGFloat, _ weight: UIFont.Weight, _ style: UIFont.TextStyle) -> UIFont? {

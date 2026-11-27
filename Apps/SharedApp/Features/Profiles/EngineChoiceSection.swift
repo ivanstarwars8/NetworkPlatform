@@ -1,4 +1,5 @@
-// UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode
+// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
+// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46082491332 (workflow apple.yml)
 //
 // Движок профиля (in the profile's detail): Авто / Xray / Mihomo when the build has both engines, why the engine
 // in effect was chosen, what it leaves out (never silently), how each engine supports the profile, and the last

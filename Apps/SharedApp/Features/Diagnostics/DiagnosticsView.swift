@@ -1,4 +1,5 @@
-// UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode
+// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
+// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46082491332 (workflow apple.yml)
 // (Rebuilt from the version compiled on macOS CI in GitHub Actions run 46073714202.)
 //
 // Диагностика движка (level Профи, area Инструменты): which engine runs and why, its versions, the Go runtime's
