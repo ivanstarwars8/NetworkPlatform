@@ -1,0 +1,32 @@
+File: nplab
+Build ID: c5002584bb2ce7aa6406ea848bbdfe1a1aa5f3eb
+Type: inuse_space
+Time: 2026-11-27 07:28:36 UTC
+Showing nodes accounting for 50.34MB, 92.64% of 54.34MB total
+Showing top 25 nodes out of 142
+      flat  flat%   sum%        cum   cum%
+    9.57MB 17.62% 17.62%     9.57MB 17.62%  github.com/xtls/xray-core/common/bytespool.createAllocFunc.func1
+    7.51MB 13.82% 31.44%     7.51MB 13.82%  bytes.growSlice
+    7.05MB 12.98% 44.43%     7.05MB 12.98%  crypto/internal/fips140/mlkem.NewDecapsulationKey768 (inline)
+       3MB  5.53% 49.95%        3MB  5.53%  runtime.mallocgc
+       3MB  5.52% 55.48%     3.50MB  6.45%  github.com/refraction-networking/utls.UClient
+    2.04MB  3.75% 59.23%     2.04MB  3.75%  networkplatform/bridge/engine.newPacketQueue
+       2MB  3.68% 62.91%     3.50MB  6.44%  github.com/refraction-networking/utls.utlsIdToSpec
+    1.50MB  2.77% 65.67%    11.56MB 21.27%  github.com/refraction-networking/utls.(*UConn).ApplyPreset
+    1.50MB  2.76% 68.44%     1.50MB  2.76%  crypto/x509.parseCertificate
+    1.50MB  2.76% 71.20%     1.50MB  2.76%  github.com/refraction-networking/utls.(*Conn).unmarshalHandshakeMessage
+    1.50MB  2.76% 73.96%     1.50MB  2.76%  github.com/refraction-networking/utls.(*PubClientHelloMsg).getPrivatePtr
+    1.50MB  2.76% 76.73%     1.50MB  2.76%  reflect.unsafe_New
+       1MB  1.84% 78.57%        1MB  1.84%  crypto/internal/fips140/aes/gcm.New (inline)
+       1MB  1.84% 80.41%        1MB  1.84%  github.com/refraction-networking/utls.chrome155TrustAnchorIDs
+       1MB  1.84% 82.25%        1MB  1.84%  reflect.unsafe_NewArray
+       1MB  1.84% 84.09%        1MB  1.84%  context.withCancel
+    0.64MB  1.17% 85.26%     0.64MB  1.17%  main.(*pump).tx
+    0.51MB  0.94% 86.20%     0.51MB  0.94%  github.com/xtls/reality.init
+    0.50MB  0.92% 87.12%     0.50MB  0.92%  github.com/refraction-networking/utls.(*clientHelloMsg).getPublicPtr
+    0.50MB  0.92% 88.04%    35.58MB 65.48%  github.com/xtls/xray-core/transport/internet/reality.UClient
+    0.50MB  0.92% 88.96%     0.50MB  0.92%  time.goFunc
+    0.50MB  0.92% 89.88%     0.50MB  0.92%  context.(*cancelCtx).propagateCancel
+    0.50MB  0.92% 90.80%        3MB  5.53%  github.com/refraction-networking/utls.(*weakCertCache).newCert
+    0.50MB  0.92% 91.72%     0.50MB  0.92%  github.com/refraction-networking/utls.BoringGREASEECH (inline)
+    0.50MB  0.92% 92.64%     0.50MB  0.92%  internal/sync.newIndirectNode[go.shape.interface {},go.shape.interface {}] (inline)

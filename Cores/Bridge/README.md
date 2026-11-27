@@ -21,6 +21,7 @@ Go-модуль `networkplatform/bridge`: один экземпляр Xray-core 
 | `engine/` | вся логика: жизненный цикл, подготовка конфигурации, журнал, статистика, память, пакетный интерфейс. Обычный Go-пакет, тестируется на Linux |
 | `cabi/main.go` | экспорт `npb_*` для `-buildmode=c-archive`; тонкая обёртка над `engine` |
 | `cabi/ctest/abi_test.c` | проверка ABI из C и замер стоимости перехода |
+| `cmd/nplab` | лабораторный инструмент (только Linux, в приложение не входит): мост на настоящем tun ядра с насосом вместо `NEPacketTunnelFlow`, цели, генератор трафика и замеры для `Cores/BuildScripts/bridge-tunlab.sh` |
 
 ## C ABI (версия 1)
 
@@ -91,7 +92,11 @@ NP_STOCK_XRAY=/path/to/xray go test -race ./engine  # сервер — отде�
 go test ./engine -run '^$' -fuzz '^FuzzPrepareConfig$' -fuzztime 60s   # также FuzzParseOptions, FuzzTunWrite
 ../BuildScripts/bridge-linux-cabi-test.sh           # C-архив + тест ABI из C
 ../BuildScripts/bridge-linux-netns-test.sh          # режим fd против ядра Linux, нужен root
+../BuildScripts/bridge-tunlab.sh build && ../BuildScripts/bridge-tunlab.sh e2e   # tun ядра в netns, нужен root
 ```
+
+Стенд `bridge-tunlab.sh` (сквозной путь через tun ядра Linux, сравнение со штатным xray, замеры, долгий
+прогон) и его результаты: `Documentation/Performance/bridge-benchmarks.md`.
 
 Штатный `xray` для `NP_STOCK_XRAY` собирается из того же закреплённого модуля:
 `go build -o xray github.com/xtls/xray-core/main`.
@@ -111,5 +116,9 @@ go test ./engine -run '^$' -fuzz '^FuzzPrepareConfig$' -fuzztime 60s   # так�
 - `core.New`, вернувший ошибку, не отдаёт частично созданный экземпляр — закрыть его нечем.
 - `Validate` с конструированием экземпляра меняет процесс-глобальное состояние ядра (системный диалер,
   обработчик журнала), поэтому при работающем движке выполняется только сборка конфигурации.
+- Ограничения ядра, найденные стендом на tun ядра (у штатного xray те же): UDP-датаграмма больше ~7500 байт
+  через VLESS+REALITY+Vision теряется; TCP half-close через прокси не передаётся (через ~1 с соединение
+  закрывается политикой `downlinkOnly`); UDP-сессии стека живут `connIdle` (300 с по умолчанию) после
+  последнего пакета; загрузка на стенде упирается в ~200 Мбит/с. Подробности — `bridge-benchmarks.md` §2, §6.
 - Активной проверки доступности сервера («health» в смысле пробы) нет: `npb_health` сообщает состояние
   моста и ядра, а не сети.

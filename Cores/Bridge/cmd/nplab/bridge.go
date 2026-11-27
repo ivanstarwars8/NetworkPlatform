@@ -50,8 +50,8 @@ type pumpCounters struct {
 	OutFragments uint64 `json:"outFragments"`
 	OutWriteErrs uint64 `json:"outWriteErrs"`
 	// time spent in the engine calls and in the kernel tun syscalls, nanoseconds
-	InEngineNs  uint64 `json:"inEngineNs"`  // npb_tun_write
-	OutEngineNs uint64 `json:"outEngineNs"` // npb_tun_read when it returned packets (no waiting)
+	InEngineNs   uint64 `json:"inEngineNs"`   // npb_tun_write
+	OutEngineNs  uint64 `json:"outEngineNs"`  // npb_tun_read when it returned packets (no waiting)
 	OutSyscallNs uint64 `json:"outSyscallNs"` // write() to the kernel tun
 }
 
@@ -70,7 +70,7 @@ type pump struct {
 
 	inPackets, inBytes, inBatches, inMax, inFrag, inDF, inTrunc, inErr, loop atomic.Uint64
 	outPackets, outBytes, outBatches, outMax, outFrag, outErr                atomic.Uint64
-	inEngineNs, outEngineNs, outSyscallNs                                   atomic.Uint64
+	inEngineNs, outEngineNs, outSyscallNs                                    atomic.Uint64
 }
 
 func storeMax(a *atomic.Uint64, v uint64) {

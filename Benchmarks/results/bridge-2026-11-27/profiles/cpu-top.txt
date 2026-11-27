@@ -1,0 +1,49 @@
+File: nplab
+Build ID: c5002584bb2ce7aa6406ea848bbdfe1a1aa5f3eb
+Type: cpu
+Time: 2026-11-27 06:53:45 UTC
+Duration: 20s, Total samples = 7.83s (39.15%)
+Showing nodes accounting for 7.22s, 92.21% of 7.83s total
+Dropped 139 nodes (cum <= 0.04s)
+Showing top 40 nodes out of 111
+      flat  flat%   sum%        cum   cum%
+     5.41s 69.09% 69.09%      5.41s 69.09%  internal/runtime/syscall/linux.Syscall6
+     0.37s  4.73% 73.82%      0.37s  4.73%  runtime.memmove
+     0.30s  3.83% 77.65%      0.30s  3.83%  crypto/internal/fips140/aes/gcm.gcmAesDec
+     0.20s  2.55% 80.20%      0.20s  2.55%  crypto/internal/fips140/aes/gcm.gcmAesEnc
+     0.13s  1.66% 81.86%      0.13s  1.66%  runtime.futex
+     0.10s  1.28% 83.14%      0.18s  2.30%  github.com/xtls/xray-core/proxy/tun.sum
+     0.09s  1.15% 84.29%      0.10s  1.28%  internal/sync.(*Mutex).Unlock (inline)
+     0.07s  0.89% 85.19%      0.07s  0.89%  encoding/binary.bigEndian.Uint64 (inline)
+     0.05s  0.64% 85.82%      0.17s  2.17%  networkplatform/bridge/engine.(*packetQueue).get (inline)
+     0.05s  0.64% 86.46%      0.11s  1.40%  networkplatform/bridge/engine.(*packetQueue).put (inline)
+     0.04s  0.51% 86.97%      0.05s  0.64%  runtime.exitsyscall
+     0.04s  0.51% 87.48%      0.08s  1.02%  runtime.stealWork
+     0.03s  0.38% 87.87%      3.36s 42.91%  main.(*pump).tx
+     0.03s  0.38% 88.25%      5.40s 68.97%  syscall.RawSyscall6
+     0.02s  0.26% 88.51%      0.90s 11.49%  github.com/refraction-networking/utls.(*Conn).writeRecordLocked
+     0.02s  0.26% 88.76%      0.36s  4.60%  github.com/refraction-networking/utls.(*halfConn).decrypt
+     0.02s  0.26% 89.02%      0.18s  2.30%  github.com/xtls/xray-core/proxy/tun.(*stack).handleTCP
+     0.02s  0.26% 89.27%      0.22s  2.81%  github.com/xtls/xray-core/proxy/tun.(*stack).input
+     0.02s  0.26% 89.53%      0.14s  1.79%  github.com/xtls/xray-core/proxy/tun.(*tcpConn).input
+     0.02s  0.26% 89.78%      1.68s 21.46%  main.(*pump).rx
+     0.02s  0.26% 90.04%      0.17s  2.17%  networkplatform/bridge/engine.(*packetQueue).push
+     0.02s  0.26% 90.29%      0.22s  2.81%  networkplatform/bridge/engine.(*packetQueue).read
+     0.02s  0.26% 90.55%      0.04s  0.51%  runtime.mallocgcSmallNoScanSC7
+     0.01s  0.13% 90.68%      0.05s  0.64%  _.goready.func1
+     0.01s  0.13% 90.80%      0.22s  2.81%  crypto/internal/fips140/aes/gcm.(*GCM).Seal
+     0.01s  0.13% 90.93%      0.50s  6.39%  github.com/xtls/xray-core/proxy/tun.(*TCPWriter).WriteMultiBuffer
+     0.01s  0.13% 91.06%      0.49s  6.26%  github.com/xtls/xray-core/proxy/tun.(*tcpConn).WriteMultiBuffer
+     0.01s  0.13% 91.19%      0.04s  0.51%  github.com/xtls/xray-core/proxy/tun.(*tcpConn).acknowledge
+     0.01s  0.13% 91.32%      0.04s  0.51%  github.com/xtls/xray-core/proxy/tun.(*tcpConn).header
+     0.01s  0.13% 91.44%      0.05s  0.64%  github.com/xtls/xray-core/proxy/tun.(*tcpConn).receive
+     0.01s  0.13% 91.57%      0.33s  4.21%  github.com/xtls/xray-core/proxy/tun.(*tcpConn).write
+     0.01s  0.13% 91.70%      3.08s 39.34%  golang.org/x/sys/unix.write
+     0.01s  0.13% 91.83%      0.59s  7.54%  internal/poll.(*FD).Write
+     0.01s  0.13% 91.95%      0.61s  7.79%  net.(*conn).Write
+     0.01s  0.13% 92.08%      0.07s  0.89%  runtime.entersyscall
+     0.01s  0.13% 92.21%      0.08s  1.02%  runtime.notewakeup
+         0     0% 92.21%      0.14s  1.79%  bytes.(*Reader).Read
+         0     0% 92.21%      0.33s  4.21%  crypto/internal/fips140/aes/gcm.(*GCM).Open
+         0     0% 92.21%      0.21s  2.68%  crypto/internal/fips140/aes/gcm.(*GCM).sealAfterIndicator
+         0     0% 92.21%      0.33s  4.21%  crypto/internal/fips140/aes/gcm.open
