@@ -172,6 +172,18 @@ xcodebuild -create-xcframework \
 
 Разбор ссылок в мост не переносится: импорт делает Swift (R-12).
 
+## 6а. Мост Mihomo (ADR-0007)
+
+Модуль `Cores/MihomoBridge` (Mihomo v1.19.34, тот же C ABI). Скрипты, отработавшие на Linux (сервер разработки):
+
+| Скрипт | Что делает |
+|---|---|
+| `mihomo-linux-cabi-test.sh` | C-архив моста Mihomo для Linux и `cabi/ctest/abi_test.c` |
+| `mihomo-apple-patch.sh` | готовит копию ядра без `proc_pidinfo` (`component/memory`) и печатает флаг `-modfile=…`, обязательный для сборок Apple |
+| `mihomo-apple-check.sh` | без SDK: компилирует `./engine` для `ios/arm64`, `darwin/arm64`, `darwin/amd64` с правкой и проверяет, что `proc_pidinfo` есть в Mach-O без правки и отсутствует с ней |
+
+Скрипта XCFramework для Mihomo нет: он должен повторить `bridge-apple-xcframework.sh` с флагом `-modfile` из `mihomo-apple-patch.sh` и не запускался.
+
 ## 6. sing-box (libbox) — позже, Phase 5
 
 Собирается только цепочкой upstream, без собственных изобретений (R-07). Что известно по исходникам [V: `Documentation/Research/singbox.md` §1–2]:
