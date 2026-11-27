@@ -16,7 +16,9 @@
 // without a request, which works only when the extension has a snapshot.
 
 import Foundation
-import NetworkExtension
+// NetworkExtension has no Sendable annotations: `loadAllFromPreferences()`
+// returns non-Sendable managers to the main actor, where they stay.
+@preconcurrency import NetworkExtension
 
 @MainActor
 final class TunnelController: ObservableObject {

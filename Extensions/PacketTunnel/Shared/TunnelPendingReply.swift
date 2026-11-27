@@ -46,6 +46,17 @@ final class TunnelPendingReply: @unchecked Sendable {
         return result != nil
     }
 
+    /// Records the single permitted wait; `false` when one already happened.
+    /// Synchronous on purpose: `NSLock` must not be held across, or taken
+    /// directly in, an asynchronous context.
+    private func markWaited() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        let alreadyWaited = waited
+        waited = true
+        return !alreadyWaited
+    }
+
     /// Waits for the outcome for at most `timeout` seconds.
     ///
     /// Throws `TunnelIPCError` with `.timedOut` when the deadline passes and
@@ -53,11 +64,7 @@ final class TunnelPendingReply: @unchecked Sendable {
     /// reply that arrives later is dropped. May be called once; a second call
     /// throws `.malformedRequest`.
     func wait(timeout: TimeInterval) async throws -> Data? {
-        lock.lock()
-        let alreadyWaited = waited
-        waited = true
-        lock.unlock()
-        guard !alreadyWaited else {
+        guard markWaited() else {
             throw TunnelIPCError(.malformedRequest, "a pending reply can be awaited once")
         }
 

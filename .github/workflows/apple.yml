@@ -85,6 +85,7 @@ jobs:
       matrix:
         include:
           - { platform: iOS, scheme: NetworkPlatform-iOS, destination: "generic/platform=iOS", products: Debug-XrayOnly-iphoneos }
+          - { platform: iOS Release, scheme: NetworkPlatform-iOS, destination: "generic/platform=iOS", products: Release-XrayOnly-iphoneos, config: Release-XrayOnly }
           - { platform: iOS Simulator, scheme: NetworkPlatform-iOS, destination: "generic/platform=iOS Simulator", products: Debug-XrayOnly-iphonesimulator }
           - { platform: macOS, scheme: NetworkPlatform-macOS, destination: "generic/platform=macOS", products: Debug-XrayOnly }
           - { platform: tvOS, scheme: NetworkPlatform-tvOS, destination: "generic/platform=tvOS", products: Debug-XrayOnly-appletvos }
@@ -107,7 +108,7 @@ jobs:
         run: |
           set -o pipefail
           xcodebuild -project Apps/NetworkPlatform.xcodeproj -scheme "${{ matrix.scheme }}" \
-            -configuration Debug-XrayOnly -destination "${{ matrix.destination }}" \
+            -configuration "${{ matrix.config || 'Debug-XrayOnly' }}" -destination "${{ matrix.destination }}" \
             -derivedDataPath "$RUNNER_TEMP/dd" CODE_SIGNING_ALLOWED=NO build 2>&1 | tee "$RUNNER_TEMP/xcodebuild.log" \
             | grep -E '(error|warning):|\*\* BUILD' || true
           grep -q '\*\* BUILD SUCCEEDED \*\*' "$RUNNER_TEMP/xcodebuild.log"
@@ -120,7 +121,13 @@ jobs:
           else appex="$app/PlugIns/PacketTunnel.appex"; bin="$appex/PacketTunnel"; fi
           test -d "$appex" && echo "embedded: $appex"
           file "$bin"
-          nm -gU "$bin" | grep -E ' _npb_(abi_version|version|start|tun_read)$'
+          # Debug builds put the code into PacketTunnel.debug.dylib next to a small launcher (ENABLE_DEBUG_DYLIB).
+          : > "$RUNNER_TEMP/syms"
+          find "$appex" -type f \( -name PacketTunnel -o -name '*.dylib' \) | while read -r f; do
+            nm -m "$f" 2>/dev/null | grep -E '_npb_(abi_version|version|start|tun_read)$' | sed "s|^|$(basename "$f"): |" >> "$RUNNER_TEMP/syms" || true
+          done
+          cat "$RUNNER_TEMP/syms"
+          test -s "$RUNNER_TEMP/syms"
           vtool -show-build "$bin" | grep -E 'platform|minos'
           du -sh "$app" "$bin"
           { echo "### ${{ matrix.platform }} XrayOnly"; echo '```'; file "$bin"; vtool -show-build "$bin" | grep -E 'platform|minos'; du -sh "$app" "$bin"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
