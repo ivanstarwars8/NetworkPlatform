@@ -8,6 +8,16 @@ func lib(_ name: String, deps: [Target.Dependency] = []) -> [Target] {
     ]
 }
 
+// The target list is built statement by statement: a single chained `+`
+// expression of six arrays exceeds the Swift 5.10 type-checker time limit.
+var allTargets: [Target] = []
+allTargets += lib("DomainModels")
+allTargets += lib("CoreAbstraction")
+allTargets += lib("ConfigurationEngine", deps: ["DomainModels"])
+allTargets += lib("RoutingEngine")
+allTargets += lib("AdaptiveBalancer")
+allTargets += [.executableTarget(name: "RoutingBench", dependencies: ["RoutingEngine"], path: "Benchmarks/RoutingBench", exclude: ["run-all.sh"])]
+
 let package = Package(
     name: "NetworkPlatform",
     platforms: [.iOS(.v17), .macOS(.v14), .tvOS(.v17), .visionOS(.v1)],
@@ -18,10 +28,5 @@ let package = Package(
         .library(name: "RoutingEngine", targets: ["RoutingEngine"]),
         .library(name: "AdaptiveBalancer", targets: ["AdaptiveBalancer"]),
     ],
-    targets: lib("DomainModels")
-        + lib("CoreAbstraction")
-        + lib("ConfigurationEngine", deps: ["DomainModels"])
-        + lib("RoutingEngine")
-        + lib("AdaptiveBalancer")
-        + [.executableTarget(name: "RoutingBench", dependencies: ["RoutingEngine"], path: "Benchmarks/RoutingBench")]
+    targets: allTargets
 )

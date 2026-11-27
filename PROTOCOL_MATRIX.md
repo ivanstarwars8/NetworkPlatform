@@ -1,6 +1,6 @@
 # PROTOCOL_MATRIX — протоколы и транспорты по движкам
 
-Дата проверки: **2026-11-24**.
+Дата проверки: **2026-11-24**; раздел 0 (наш статус по уровням) — **2026-11-27**.
 
 Источники: sing-box `6c65b2e` (ветка `testing`, 1.15.0-alpha.13), Xray-core `e17392a` (26.11.9). Пути указаны относительно корня соответствующего клона в `/root/.cache/np-research/`.
 
@@ -16,9 +16,54 @@
 
 - «VERIFIED-in-source» означает «код есть в репозитории». Это не значит, что протокол собирается под Apple, работает в песочнице расширения или совместим с серверами.
 - Аудит sing-box сделан по альфа-ветке. Для стабильной 1.14.x состав не сверялся.
-- Столбец **«Наш статус»** у всех строк одинаков: **не заявлено (нет interop-теста)**. Платформа не заявляет поддержку ни одного протокола, пока для него нет теста совместимости с эталонным сервером, пройденного на устройстве.
+- Столбец **«Наш статус»** в разделах 1–5 у всех строк одинаков: **не заявлено (нет interop-теста)** — это продуктовое заявление, и оно не меняется, пока нет проверки на устройстве (раздел 7). Достигнутый уровень проверки нашего кода — в разделе 0.
+- Второй движок по ADR-0007 — Mihomo; столбца Mihomo в таблицах пока нет, его состав протоколов — в `Documentation/Research/mihomo-leaf.md`. Столбец sing-box оставлен как справка.
 
 Столбец «Apple-сборка sing-box» показывает, попадает ли протокол в upstream-сборку libbox по тегам из `cmd/internal/build_libbox/main.go`. У Xray-core тегов сборки для протоколов нет: libXray импортирует `main/distro/all`.
+
+## 0. Наш статус по уровням проверки (Xray, 2026-11-27)
+
+Уровни (каждый следующий включает предыдущие, если не сказано иное):
+
+- **Implemented** — код есть в репозитории.
+- **Compiled** — собран.
+- **Unit tested** — проверен модульными тестами нашего кода.
+- **Integration tested** — результат нашего кода принят настоящим движком закреплённой версии (`xray run -test`) или прошёл через наш мост без внешнего эталона.
+- **Interoperability tested** — настоящий трафик между клиентом с нашим кодом и эталонным сервером закреплённой версии.
+- **Verified on Apple device** — то же на устройстве Apple.
+
+Основания: поток protocols (компилятор Swift → Xray JSON; `xray run -test`; `run-interop.sh` — клиент и сервер Xray v26.11.9 с настоящим трафиком, Linux), поток bridge (наш Go-мост с конфигом, написанным в тесте, против штатного xray v26.11.9 через loopback и через tun ядра Linux в netns). Все прогоны — на Linux. **Verified on Apple device — нет ни для одной строки.** Mihomo и sing-box: уровней нет (не интегрированы).
+
+| Протокол / транспорт | Компилятор конфигурации (Swift) | Мост (Go, Linux) | Итоговый уровень |
+|---|---|---|---|
+| VLESS tcp / ws / grpc / httpupgrade / xhttp (+`downloadSettings`) / kcp, TLS + vision | Interoperability tested | VLESS+TCP, VLESS+XHTTP: Interoperability tested (loopback, TCP + UDP) | Interoperability tested |
+| VLESS REALITY (tcp vision, grpc, xhttp) | Integration tested (трафиком не проверено) | REALITY+Vision: Interoperability tested (loopback; tun ядра: TCP/UDP, IPv4/IPv6, DNS, MTU, 30-мин. прогон); UDP > ~7500 Б теряется, half-close не передаётся (ограничение ядра); под `-race` — гонка в ядре | Interoperability tested (мост); компилятор — Integration tested |
+| VMess tcp | Interoperability tested | Interoperability tested (loopback) | Interoperability tested |
+| VMess ws / grpc / httpupgrade | Integration tested | — | Integration tested |
+| Trojan TLS tcp | Interoperability tested | Interoperability tested (loopback; ядро помечает Trojan без flow устаревшим) | Interoperability tested |
+| Trojan ws / grpc | Integration tested | — | Integration tested |
+| Shadowsocks AEAD, 2022-blake3-aes-128-gcm | Interoperability tested | SS-2022: Interoperability tested (loopback; TCP через tun ядра, замеры) | Interoperability tested |
+| Shadowsocks 2022 aes-256 + identity keys, chacha20 | Integration tested | — | Integration tested |
+| SOCKS5 | Interoperability tested | — | Interoperability tested |
+| HTTP proxy | Integration tested | — | Integration tested |
+| WireGuard (пользовательский стек, `noKernelTun`) | Interoperability tested | — | Interoperability tested |
+| Hysteria2 (outbound `hysteria` v2, salamander, закреплённый сертификат) | Interoperability tested | — | Interoperability tested |
+| Hysteria2 port hopping, bandwidth | Integration tested | — | Integration tested |
+| Группы selector / urlTest / leastLoad | Integration tested | — | Integration tested |
+| TUIC, SOCKS4/4a, плагины SIP003, транспорты h2/quic, Hysteria2 gecko | только импорт; компилятор выдаёт явное «не поддерживается» — Unit tested | — | Unit tested |
+| XDRIVE, MASQUE, finalmask-маски кроме salamander/udphop, VLESS Encryption, Mux | нет | — | не реализовано |
+
+Примечания к Xray 26.11.9 (по исходникам, `Documentation/Protocols/xray-modern.md`, `share-link-formats.md`):
+
+- `allowInsecure` удалён: с v26.7.11 это ошибка сборки конфига (в ссылках взамен — параметры `pcs`/`vcn`, см. `share-link-formats.md`).
+- `kcp` `header`/`seed` не читаются → UDP-маска `mkcp-legacy`.
+- `freedom` по умолчанию блокирует частные адреса назначения (`finalRules`); в HEAD — `firewall`.
+- Mux: формат зависит от SHA ядра — в теге `mux` на уровне outbound, в HEAD `settings.multiplex` (только VLESS/VMess). Компилятор привязан к тегу.
+- VLESS/Trojan без TLS/REALITY (и без VLESS Encryption) на публичный адрес отвергаются при сборке конфига.
+- Hysteria — только версия 2, TLS обязателен; Hysteria2 = outbound `hysteria` + finalmask (`salamander`, `udphop`, `quicParams`); `quicParams` с `brutal` в XHTTP/3 вызывает panic в дилере.
+- XHTTP `extra` заменяет весь объект настроек, кроме host/path/mode: верхнеуровневые `downloadSettings`/`xmux` молча теряются, если `extra` тоже выдаётся.
+- Есть: XDRIVE (с v26.9.30, только VLESS + encryption + Mux), MASQUE (с v26.9.30), UDP-маски `xdns`, `xicmp`, `realm`, `xmc`, `sudoku`, `udphop`, `filter`; TCP-маска `proxy-protocol` — только в HEAD.
+- Нет в Xray (по реестру `infra/conf/xray.go`): TUIC, SSH, AnyTLS, ShadowTLS, Snell, Naive, Tor, AmneziaWG.
 
 ## 1. Протоколы прокси (outbound)
 

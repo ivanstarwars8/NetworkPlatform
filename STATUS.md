@@ -1,8 +1,8 @@
 # STATUS
 
-Дата: **2026-11-24**. Этап: Phase 0 завершена по документам, Phase 1 начата.
+Дата: **2026-11-27**. Этап: Phase 1 — слияние пяти потоков этапа 2 (мост Xray, компилятор конфигурации, маршрутизация, адаптивный выбор, аудит управляющего слоя) и исследований движков.
 
-Одной строкой: написаны документы, четыре модуля логики на Swift и черновик расширения с приложением. **Swift-пакет собран и его тесты пройдены на Linux (Swift 5.10.1, 251 тест, 0 падений)**; на платформах Apple пакет не собирался; расширение и приложение **не собирались вообще, на устройство ничего не установлено**.
+Одной строкой: **мост Xray (Go) работает на Linux** — трафик через настоящий tun ядра, шесть протоколов против штатного xray; **компилятор модели → Xray JSON** проверен настоящим Xray 26.11.9; **Swift-пакет из пяти модулей — 477 тестов, 0 падений на Linux**. На платформах Apple **не собиралось ничего**: ни пакет, ни мост, ни расширение, ни приложение; туннель на устройстве не поднимался.
 
 Статусы:
 
@@ -10,171 +10,116 @@
 - **не проверено** — написано, но не собиралось и не запускалось;
 - **заблокировано** — нельзя сделать без ресурса, которого нет.
 
-## 1. Сделано
+Решение владельца после ветвления потоков: **второй движок — Mihomo, а не sing-box** (`Documentation/ADR/0007-second-engine-mihomo.md`, принято как направление 2026-11-27, подтверждение — после сравнительных замеров). sing-box остаётся изученной альтернативой и не интегрируется. Сборки: `XrayOnly` (без GPL), `MihomoOnly`, `Dual`. Моста Mihomo и компилятора в Clash YAML пока нет.
 
-Документы. Проверка для них — чтение исходников с закреплёнными SHA (`Documentation/Research/SOURCES.txt`); сборкой не подтверждено ничего.
+## 1. Что реализовано
 
-| Что | Где |
-|---|---|
-| Аудит sing-box, libbox, sing-box-for-apple | `Documentation/Research/singbox.md` |
-| Аудит Xray-core, libXray, OneXray | `Documentation/Research/xray.md` |
-| Аудит Karing, hiddify | `Documentation/Research/reference-apps.md` |
-| Сводка, расхождения между аудитами, список непроверенного | `RESEARCH.md` |
-| Матрицы протоколов, платформ, конкурентов | `PROTOCOL_MATRIX.md`, `PLATFORM_MATRIX.md`, `COMPETITOR_MATRIX.md` |
-| Аудит лицензий | `LICENSE_AUDIT.md` |
-| Реестр рисков R-01…R-22 | `TECHNICAL_RISKS.md` |
-| Решения | `Documentation/ADR/0001…0006` |
-| Модель угроз, первая версия | `Documentation/Security/THREAT_MODEL.md` |
-| Описание намеченной сборки моста | `Cores/BuildScripts/README.md` |
-
-## 2. Не проверено
-
-### 2.1. Swift-пакет — собран и протестирован на Linux, на Apple не проверен
-
-**Прогон 2026-11-24.** Docker-образ `swift:5.10` (вариант `-slim` не годится: в нём только рантайм, компилятора нет). `swift --version`: `Swift version 5.10.1 (swift-5.10.1-RELEASE)`, `Target: x86_64-unknown-linux-gnu`. Контейнер: `--memory=1300m --memory-swap=1300m --cpus=1.5`, без сети. Отладочная сборка, `-j 1`. OOM не было, сборка по одной цели не понадобилась.
-
-| Команда | Результат | Лог (`Logs/`, вне git) |
+| Часть | Где | Состояние |
 |---|---|---|
-| `swift build -j 1` | 1-й прогон: 1 ошибка компиляции (см. ниже); после исправления — успех, 0 предупреждений | `build-01.log`, `build-02.log` |
-| `swift build --build-tests -j 1` | успех, 0 предупреждений | `buildtests-01.log` |
-| `swift test -j 1` (всё сразу, последовательно) | **251 тест, 0 падений, 0 пропущенных**, 16,8 с | `test-02-all.log` |
-| `swift test -j 1 --filter '^<Модуль>Tests\.'` по модулям | те же числа, что в таблице ниже | `test-01-*.log` |
+| Мост Xray: Go-модуль, Xray-core v26.11.9 (`676eaf66f8f0`), Go 1.27.4; автомат состояний, C ABI v1 (14 функций `npb_*`), перезагрузка через stop/start с откатом, статистика в процессе, кольцо журнала, параметры памяти, пакетный ввод-вывод | `Cores/Bridge/` | Linux: собран и проверен (§2.2) |
+| Решение по utun: основной путь — `NEPacketTunnelFlow` пачками (`tun.mode="flow"`), режим fd — по выбору | `Documentation/Architecture/tun-integration.md`, ADR-0001 §4.1 | проверено на Linux; на Apple — нет |
+| Стенд на tun ядра Linux (`nplab`, `bridge-tunlab.sh`), сводка замеров | `Cores/Bridge/cmd/nplab`, `Cores/BuildScripts/`, `Benchmarks/BridgeBench`, `Benchmarks/results/bridge-2026-11-27/` | прогнан потоком bridge |
+| Компилятор модели → Xray JSON с `ConversionReport` | `Packages/ConfigurationEngine/Sources/Xray*.swift`, `ConversionReport.swift` | сделано (Linux + Xray 26.11.9) |
+| Форматы ссылок сверены с источниками; исправления импорта и экспорта | `Documentation/Protocols/share-link-formats.md`, `LinkParsers.swift`, `ShareLinkExporter.swift` | сделано |
+| Корпус фикстур (39 ссылок, 16 interop, 5 профилей), проверка настоящим Xray | `Tests/Fixtures/`, `Tools/validate-fixtures.sh` | сделано |
+| `RoutingEngine`: семантика выровнена с роутером Xray, понижение правил, индексы «якорей» и обязательного литерала регулярки | `Packages/RoutingEngine/`, `Documentation/Architecture/routing-parity.md` | сделано (Linux); управляющий слой, не путь данных |
+| `RoutingBench` (release, 1k–1M правил) | `Benchmarks/RoutingBench/`, `Documentation/Performance/routing-benchmarks.md` | сделано (Linux) |
+| `AdaptiveBalancer`: оценка качества, 7 стратегий, три уровня сервер/транспорт/движок, гистерезис, автомат защиты, цена смены движка, Wi-Fi/сотовая, испытательный срок и откат, объяснение решений | `Packages/AdaptiveBalancer/`, `Documentation/Architecture/adaptive-selection.md` | сделано (Linux); ни к чему не подключён |
+| `CoreAbstraction`: тайм-ауты, отмена, `shutdown()`, системные события (сон/пробуждение/память), `CoreDeadline` | `Packages/CoreAbstraction/` | сделано (Linux) |
+| `TunnelSession` (порядок старта, откат, стоп во время старта), типизированные ошибки IPC, ответ с дедлайном, передача конфигурации файлом в App Group (протокол IPC v2) | `Extensions/PacketTunnel/TunnelSession.swift`, `Extensions/PacketTunnel/Shared/` | логика проверена на Linux через символические ссылки в тестах `CoreAbstraction`; под Apple не компилировалось |
+| Расширение, приложение, `project.yml` переписаны вокруг сессии (дедлайны, сон/пробуждение, давление памяти, App Group по платформам) | `Extensions/PacketTunnel/`, `Apps/` | **не проверено** (никогда не компилировалось) |
+| Справочник современных транспортов Xray (ключи JSON, минимальные версии, HEAD против v26.11.9, покрытие `DomainModels`) | `Documentation/Protocols/xray-modern.md` | документ, по чтению исходников |
+| Аудиты движков-кандидатов: shoes, mihomo, leaf, v2ray-core, dae, hysteria | `Documentation/Research/{shoes,mihomo-leaf,v2fly-dae-hysteria}.md`, `SOURCES-cores2.txt` | документ, по чтению исходников |
+| Ревью ADR (30 замечаний) | `Documentation/ADR/REVIEW-2026-11-25.md` | документ |
 
-| Модуль | Что в нём | Тестов запущено | Прошло | Упало |
-|---|---|---|---|---|
-| `DomainModels` | профиль, узел, настройки протоколов и транспортов, группы, ссылки на секреты, непереводимый остаток | 20 | 20 | 0 |
-| `CoreAbstraction` | протокол `NetworkCore`, автомат жизненного цикла `CoreLifecycle`, реестр и выбор движка, возможности | 50 | 50 | 0 |
-| `ConfigurationEngine` | импорт и экспорт ссылок (`vless`, `vmess`, `trojan`, `ss`, `hysteria2`, `tuic`, `socks`, `wireguard`), разбор подписки, отчёт импорта | 87 | 87 | 0 |
-| `RoutingEngine` | модель правил, индексы, сопоставление, симулятор маршрутов, поиск конфликтов | 94 | 94 | 0 |
+Документы Phase 0 (аудиты, матрицы, ADR-0001…0006, модель угроз) — без изменений, кроме ADR-0001 §4.1/E-5 (решение по utun).
 
-Единственное исправление в исходниках: `Packages/CoreAbstraction/Sources/CoreLifecycle.swift`, `stateUpdates()` — в `onTermination` вложенный `Task` ссылался на слабый `self` внешнего замыкания (`error: reference to captured var 'self' in concurrently-executing code`); добавлен собственный список захвата `Task { [weak self] in … }`. Поведение не изменилось. Ни один тест не правился, не удалялся и не пропускался.
+## 2. Что реально запускалось
 
-Перф-тесты `RouterPerformanceTests` (отладочная сборка, 1,5 vCPU нагруженного боевого сервера — числа ориентировочные, не эталон):
+### 2.1. Swift-пакет — интеграционный прогон 2026-11-27
 
-| Показатель | Отдельный прогон модуля | Полный прогон |
-|---|---|---|
-| компиляция 100 000 суффиксных правил | 1,18 с | 1,47 с |
-| узлов доменного trie | 107 009 | 107 009 |
-| 20 000 запросов по индексу | 0,109 с | 0,388 с |
-| один запрос по индексу (среднее по 200 повторам выборки) | 3,55 мкс | 3,56 мкс |
-| один запрос линейным эталоном | 70,4 мс | 159,8 мс |
-| отношение линейный/индексный (порог теста — 20×) | ≈ 19 800× | ≈ 44 900× |
-| 20 000 запросов: 1 000 правил / 100 000 правил | 0,071 с / 0,137 с | 0,274 с / 0,277 с |
+`Tools/swift-docker.sh swift test -j 1` (Docker `swift:5.10`, Swift 5.10.1, Linux x86_64, отладочная сборка, 1300 МБ, 1,5 CPU), после слияния всех веток, весь пакет одним прогоном: **477 тестов, 0 падений, 0 пропусков, 322,5 с**. Лог: `Logs/integrate-swift-test-01.log` (вне git).
 
-Что этим прогоном **не проверено**:
+| Модуль | Тестов | Упало | Было на 2026-11-24 |
+|---|---|---|---|
+| `DomainModels` | 20 | 0 | 20 |
+| `CoreAbstraction` (вкл. тесты `Extensions/PacketTunnel/Shared` и `TunnelSession.swift` через ссылки) | 143 | 0 | 50 |
+| `ConfigurationEngine` | 125 | 0 | 87 |
+| `RoutingEngine` | 110 | 0 | 94 |
+| `AdaptiveBalancer` | 79 | 0 | — |
 
-- сборка и тесты пакета на macOS/iOS/tvOS/visionOS (Foundation на Darwin отличается от swift-corelibs-foundation: `JSONDecoder`, `NSLock`, порядок ключей и т. п.);
-- release-сборка (`-c release`), режим языка Swift 6 и `-strict-concurrency=complete`;
-- Swift 5.9 — версия, названная в `Package.swift` (`swift-tools-version:5.9`) и в `.github/workflows/ci.yml` (`swift:5.9`); прогон был на 5.10.1;
-- параллельный запуск тестов (`--parallel`);
-- соответствие импортёров реальным ссылкам из живых подписок и поведению движков: тесты проверяют код против собственных фикстур, а форматы `vmess` base64-JSON, legacy `ss`, `tuic://`, `wireguard://` по-прежнему записаны по памяти (UNVERIFIED);
-- производительность в release и на целевых устройствах.
+Исправление при слиянии: корневой `Package.swift` не проходил проверку типов в `swift:5.10` («unable to type-check this expression in reasonable time» на цепочке `lib(...) + lib(...)`; все потоки работали через временные манифесты). Список целей теперь собирается по одному оператору `+=`; у `RoutingBench` исключён `run-all.sh` (предупреждение о необработанном файле). Тесты не менялись.
 
-19 Swift-файлов `RoutingEngine` и `CoreAbstraction` всё ещё начинаются с комментария `UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode`. Для них он теперь неточен (собраны и запущены на Linux, но не на macOS). Пометки не тронуты: нужно решение — снять или заменить формулировкой «проверено на Linux, не на Apple».
+Потоки дополнительно прогоняли (их логи в своих рабочих копиях): `AdaptiveBalancer` — свойства по 2500 шагов, 50/24/20 сидов; `CoreAbstraction` — 28 повторных прогонов без падений, сборка со `-strict-concurrency=complete` без предупреждений в исходниках.
 
-Чего в пакете нет: компиляторов модели в конфиг движка, адаптеров движков, хранения, Keychain.
+### 2.2. Мост Xray — сервер разработки (linux/amd64, Go 1.27.4)
 
-Известные несоответствия:
+Интеграционный прогон 2026-11-27 на слитом `main` (лог `Logs/integrate-go-01.log`):
 
-- `Package.swift` объявляет `platforms` iOS 16 / macOS 13; ADR-0005 требует 17 / 14. Манифест не исправлен.
-- ADR-0001 §5 описывает интерфейс движка эскизом `TunnelEngine`; в коде он называется `NetworkCore` и отличается составом методов. ADR не обновлён.
-- `CLAUDE.md` («Ограничения этого хоста») утверждает, что здесь ничего нельзя собрать; пакет собирается в контейнере с ограничением памяти. Файл не правился.
+- `go vet ./...` — чисто; `gofmt` — чисто.
+- `go test ./...` — **ok** (`engine`, 43 с).
+- `go test -race ./...` со штатным xray той же версии как сервером — **FAIL**: только `TestFlowThroughProxyWithDNS`, гонка внутри Vision ядра (`proxy/proxy.go` 255/384, `proxy/vless/outbound.go`), как и в отчёте потока. Тот же тест под `-race` через Trojan+TLS (`NP_TEST_FLOW_PROXY=Trojan+TLS`) — **ok**.
 
-### 2.2. Файлы с пометкой UNVERIFIED
+Прогоны потока bridge (не повторялись при слиянии; логи в рабочей копии потока):
 
-Написаны на Linux, **ни разу не компилировались и не запускались**. Каждый начинается с комментария `UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode`.
+- 200 циклов start/stop: горутины 5→5, куча +448 Б/цикл.
+- Шесть протоколов через SOCKS-inbound моста против штатного xray 26.11.9: VLESS+TCP, VLESS+REALITY+Vision, VLESS+XHTTP, Trojan+TLS, Shadowsocks-2022, VMess — TCP 512 КиБ + 8 UDP-датаграмм, все прошли. Счётчики inbound точны; outbound VLESS+TCP и VMess не учитывают UDP-полезную нагрузку (отклонение ядра).
+- DNS через туннель (путь flow → `dns` outbound) — прошёл.
+- Fuzz 30–60 с на цель (`FuzzPrepareConfig`, `FuzzParseOptions`, `FuzzTunWrite`) — без падений.
+- C-архив + тест из C (`bridge-linux-cabi-test.sh`): переход 258–337 нс/пакет при пачке 1, 32–52 нс при 64.
+- Режим fd против tun ядра Linux в netns: 8 МиБ TCP по IPv4 и IPv6.
+- Стенд tun (`bridge-tunlab.sh`, два netns, VLESS+REALITY+Vision): TCP 16 МиБ v4/v6 при MTU 1280/1400/1500 (SHA-256 совпали), 64 МиБ в обе стороны, UDP 1–7500 Б с фрагментацией, DF, DNS 20/20, петли нет (с отрицательным контролем), ограниченные очереди.
+- Замеры (7 прогонов, медиана): режим flow — 90–129 % пропускной способности штатного xray с той же конфигурацией; добавленная задержка ~+350–450 мкс p50, мост против штатного — в пределах шума; CPU на ГиБ не выше; RSS +3–4 МиБ. Профили оптимизации моста не оправдали.
+- 30 минут (flow, REALITY, TCP+UDP со сменой соединений): 7,25 ГБ, 6918 соединений, 0 ошибок; плато памяти через ~10 мин (куча 52–53 МиБ).
 
-| Файл | Назначение |
+### 2.3. Компилятор и Xray 26.11.9 — поток protocols
+
+Xray v26.11.9 собран из тега на сервере разработки. `Tools/validate-fixtures.sh` (`xray run -test`): 53 из 53 скомпилированных конфигов приняты, 7 фикстур заблокированы компилятором с причиной (hysteria2-gecko, socks4a, ss-2022-bad-key, ss-plugin-obfs, tuic-v5, vless-plain-public, vmess-json-h2). `negative-mutations.py`: 27 мутаций отвергнуты бинарником, 3 контрольные приняты. `run-interop.sh` (под `unshare -n`): **16 из 16** конфигов клиент↔сервер Xray с настоящим трафиком (токен + 1 МиБ побайтно). При слиянии не повторялось.
+
+### 2.4. RoutingEngine — поток routing
+
+Дифференциальный тест против настоящего `app/router` Xray (Go): 14 таблиц, 578 правил, 3782 запроса — 3779 совпали, 3 известных различия (K1–K3), 0 неожиданных. Release-замер, медиана 3 прогонов: 1M смешанных правил — запрос 7,6 мкс (p99 32 мкс), 436 МБ (пик 476 МБ), перестройка 11–17 с; до индексов — 35,96 мс. При слиянии не повторялось.
+
+## 3. Известные проблемы
+
+- **Гонка в ядре Xray (Vision)** под `-race`: `TestFlowThroughProxyWithDNS` падает воспроизводимо; кадров моста в доступах нет. Не исправлять в ядре без решения — ядро — неизменённая зависимость.
+- **Ограничения ядра** (одинаковы во flow, fd и у штатного xray): UDP через VLESS+REALITY+Vision больше ~7500 Б теряется; TCP half-close не передаётся; отдача упирается в ~200 Мбит/с при 800–1000 вверх (причина не найдена).
+- **Память и iOS:** ядро держит неактивные UDP-сессии ~2×`connIdle` (~73 КиБ на сессию; на прогоне — ~1059 сессий, куча 52 МиБ). С `connIdle` 30 с плато ~10 МиБ. Лимит расширения iOS — порядка 50 МиБ; компилятору нужно задавать меньший `connIdle` — открытый вопрос.
+- **Xray HEAD против тега:** HEAD `e17392a` и v26.11.9 имеют одинаковый номер версии, но разный формат Mux (`mux` против `settings.multiplex`) и freedom (`finalRules` против `firewall`). Компилятор обязан привязываться к закреплённому SHA ядра (сейчас тег). `allowInsecure` в Xray ≥ v26.7.11 — ошибка сборки конфига.
+- **Противоречия ADR, требующие правки:** ADR-0003 §2 и правило `CLAUDE.md` «пакеты не проходят через Swift» неточны для Xray (Swift передаёт пачки пакетов, не разбирая их); передача конфигурации файлом в App Group противоречит ADR-0003 §3.1/§3.3 и ADR-0005 «system extension first» — нужен новый ADR. Подстановка TUN-inbound в профиль «как есть» противоречит «никто не переписывает конфиг» (ревью, 2.1).
+- **ADR-0006 и README** говорят, что репозиторий не опубликован; `origin` — публичный GitHub, файла `LICENSE` нет (ревью, 6.1). Нужно решение владельца.
+- `Shared/` и `TunnelSession.swift` компилируются в тесты `CoreAbstraction` через символические ссылки; правильно — модули `TunnelIPC`/`TunnelHost` (ADR-0004 §2.3).
+- Формат снимка изменился (`last-start-request.bin`); старые JSON-снимки игнорируются.
+- `RoutingEngine`: нет инкрементального обновления (только полная перестройка); geosite/geoip в модели нет; компилятор правил в Xray существует только как прототип в тесте паритета.
+- Компилятор принимает только `XrayCompileOptions` (уровень журнала, локальный SOCKS-inbound, DNS); в модели нет маршрутизации и DNS; нет Mux, sockopt, XDRIVE, MASQUE (`xray-modern.md` §18).
+- `AdaptiveBalancer`: нет зондировщика, исполнителя и хранения last-known-good; числа по умолчанию рассуждены, не измерены; кто владеет выбором внутри движка (этот слой или `leastLoad`/`urltest` движка) — нужен ADR.
+- Interop означает только Xray ↔ Xray 26.11.9; сторонние серверы, sing-box и Mihomo не проверялись.
+- Общий Go-кэш на сервере разработки 5,2 ГБ (выше ориентира 4 ГБ), общий для всех рабочих мест.
+- CI (`.github/workflows/ci.yml`) не запускался.
+
+## 4. Что требует Mac или устройства
+
+| Ресурс | Что блокирует |
 |---|---|
-| `Extensions/PacketTunnel/PacketTunnelProvider.swift` | `NEPacketTunnelProvider`: старт, стоп, сторож движка, ответы на сообщения приложения |
-| `Extensions/PacketTunnel/TunnelNetworkSettings.swift` | сборка `NEPacketTunnelNetworkSettings` из плана |
-| `Extensions/PacketTunnel/ConfigurationSnapshotStore.swift` | снимок последнего запроса запуска в контейнере расширения |
-| `Extensions/PacketTunnel/MemoryPressureMonitor.swift` | события давления памяти и `phys_footprint` |
-| `Extensions/PacketTunnel/Shared/TunnelMessages.swift` | запрос запуска и конверт сообщений; общий с приложением |
-| `Extensions/PacketTunnel/Info.plist` | точка расширения `com.apple.networkextension.packet-tunnel` |
-| `Extensions/PacketTunnel/PacketTunnel-iOS.entitlements` | Network Extension, App Group |
-| `Extensions/PacketTunnel/PacketTunnel-macOS.entitlements` | то же и песочница, вариант app extension |
-| `Apps/SharedApp/NetworkPlatformApp.swift` | точка входа SwiftUI |
-| `Apps/SharedApp/ContentView.swift` | экран: состояние, установка, подключение |
-| `Apps/SharedApp/TunnelController.swift` | `NETunnelProviderManager`, статус, запрос к расширению |
-| `Apps/SharedApp/App-iOS.entitlements`, `Apps/SharedApp/App-macOS.entitlements` | entitlements приложения |
-| `Apps/project.yml` | спецификация XcodeGen: приложение и расширение для iOS и macOS |
-
-Также не запускался `.github/workflows/ci.yml`: репозиторий не опубликован.
-
-Что этот код **не делает**, даже если соберётся:
-
-- **Туннель не поднимется.** В репозитории нет ни одного адаптера движка; реестр движков в расширении пуст, и запуск завершается ошибкой `core_not_registered` либо `no_configuration`. Это намеренное поведение: туннель без движка подниматься не должен.
-- utun fd не ищется (R-08): движку нечего было бы читать.
-- Приложение не компилирует конфигурацию и не отправляет запрос запуска.
-- Нет тайм-аута на зависший старт или стоп и аварийного завершения процесса (ADR-0001 §4).
-- Нет реакции на смену сети, сон и пробуждение; нет On-Demand.
-- Нет экрана раскрытия данных, которого требует Guideline 5.4.
-- Нет целей tvOS и visionOS, нет варианта macOS с system extension.
-- Событие давления памяти только записывается: у `NetworkCore` нет способа попросить движок освободить память.
-
-Отступления от ADR, сделанные сознательно:
-
-- Типы сообщений лежат в `Extensions/PacketTunnel/Shared/`, а не в модуле пакета `TunnelIPC` (ADR-0004 §2.3): модуль пакета должен появляться с тестами, а этот код ещё не собирался. Перенести после первой сборки.
-- Entitlements содержат App Group как минимальный набор из `PLATFORM_MATRIX.md` §7, но код группой не пользуется: по ADR-0003 связь идёт через `sendProviderMessage`, снимок лежит в контейнере расширения. Если группа так и не понадобится — убрать.
-- Каталог `Cores/` создан по спецификации владельца; ADR-0004 §2.5 называет его `Engines/`. Нужно решение.
-
-Непроверенные допущения в этих файлах (все — про поведение инструментов, которое негде было проверить):
-
-- XcodeGen принимает локальный пакет по пути `..` и источники вне каталога спецификации.
-- Комментарии XML в `.entitlements` и `Info.plist` не мешают подписи.
-- `GENERATE_INFOPLIST_FILE` достаточно для приложения на обеих платформах.
-- Асинхронные переопределения `startTunnel(options:)`, `stopTunnel(with:)`, `handleAppMessage(_:)` доступны в SDK в том виде, в каком написаны.
-
-### 2.3. Замечания по чтению `Extensions/` и `Apps/` (не проверено компиляцией)
-
-Файлы прочитаны 2026-11-24 и сверены с публичным API `Packages/CoreAbstraction` (который теперь собран). Это заметки ревью, а не результат сборки; всё про API Apple — по памяти **[U]**.
-
-Сверка с `CoreAbstraction` — расхождений не найдено: `CoreRegistry.makeCore(_:)`, `CoreIdentifier(_:)`, `CoreLifecycle(core:)`, `start(_:options:)`, `stop()`, `statistics()`, `stateUpdates()`, `state`, `lastError`, `CoreConfiguration(coreID:format:payload:)`, `CoreStartOptions(tunnelFileDescriptor:mtu:memoryLimitBytes:)`, `CoreStatistics.traffic.uplinkBytes/downlinkBytes`, `CoreError.code`, `.description`, `.unexpectedExit(message:)`, `CoreError.normalise(_:during:)` существуют, публичны и имеют те сигнатуры, которые использует `PacketTunnelProvider.swift`. `stateUpdates()` сразу отдаёт текущее состояние, поэтому сторож, подключённый после `start`, не пропустит уже случившийся отказ.
-
-Возможные проблемы:
-
-1. `TunnelController.queryEngine()` — `withCheckedThrowingContinuation` вокруг `sendProviderMessage` без тайм-аута: если расширение не вызовет обработчик ответа, задача зависнет навсегда, а continuation утечёт.
-2. `TunnelController.adopt(_:)` — замыкание наблюдателя захватывает `connection` (`NEVPNConnection`, не `Sendable`) внутрь `Task { @MainActor in … }`; `PacketTunnelProvider.makeWatchdog` захватывает слабый `self` провайдера в `Task`. В режиме Swift 5 это в худшем случае предупреждения, в режиме Swift 6 / strict concurrency — вероятные ошибки. В `project.yml` стоит `SWIFT_VERSION: "5.0"`.
-3. `TunnelStartRequest.startOptions()` кладёт весь конфиг движка (до 8 МиБ по пределу проекта, в JSON как base64) в `startVPNTunnel(options:)`. Допустимый размер options не документирован и не измерен; ограничение `TunnelIPC.maximumMessageBytes` (64 КиБ) на этот путь не действует.
-4. App Group на macOS: идентификатор `group.$(NP_BUNDLE_ID_PREFIX)` общий для iOS и macOS. На macOS исторически требовался префикс Team ID; принимает ли подпись `group.`-идентификатор для расширения в песочнице — проверять на Mac. Кодом группа не используется.
-5. `PacketTunnelProvider.start` — если `lifecycle.start` бросит после `setTunnelNetworkSettings`, настройки интерфейса уже применены; рассчитано на то, что ошибка из `startTunnel` снимает туннель. Явного отката нет.
-6. `MemoryPressureMonitor` — `[weak newSource]` для значения типа-протокола `DispatchSourceMemoryPressure` и арифметика `task_vm_info_data_t`/`TASK_VM_INFO` выглядят стандартно, но требуют Darwin; `import Darwin` явно не указан (ожидается через Foundation).
-7. `Apps/project.yml` — цели приложения не объявляют `sdk: NetworkExtension.framework` (расчёт на автолинковку) и получают расширение только через `dependencies: - target:`; встраивание `.appex` полагается на поведение XcodeGen по умолчанию. `INFOPLIST_FILE` задан настройкой сборки, а не ключом `info:`.
-8. Сигнатуры `override func startTunnel(options: [String: NSObject]?) async throws`, `stopTunnel(with:) async`, `handleAppMessage(_:) async -> Data?` и `NETunnelProviderManager.loadAllFromPreferences() async throws` совпадают с тем, что помнится о SDK, но не сверены с заголовками.
-
-Явных ошибок в именах API SwiftUI, Foundation и NetworkExtension при чтении не найдено.
-
-## 3. Заблокировано
-
-| Чего нет | Что блокирует |
-|---|---|
-| **macOS и Xcode** | любая сборка приложения, расширения и XCFramework; эксперименты E-1…E-9 (ADR-0001 §7); снятие пометки UNVERIFIED |
-| **Подпись Apple Developer** (платный аккаунт, возможность Network Extension, App Group) | установка туннеля на устройство и на Mac; TestFlight. Для публикации в App Store нужен аккаунт-организация (Guideline 5.4, R-02) |
-| **Физические устройства** (iPhone, Apple TV, Vision Pro) | проверка туннеля, памяти расширения, utun fd, On-Demand; все критерии производительности |
-| **Лицензия не выбрана** (ADR-0006) | публикация репозитория, приём сторонних изменений, файл `LICENSE` |
-
-Дополнительно на хосте разработки нет Go и Swift, и ставить их туда нельзя: это небольшой боевой сервер (`CLAUDE.md`). Swift-пакет можно собирать в Docker-образе `swift:5.10` с ограничением памяти (§2.1); образ (3,5 ГБ) оставлен на хосте, свободно 5,7 ГБ. Тестового сервера для interop-тестов тоже нет.
-
-## 4. Вопросы владельцу
-
-1. Лицензия и связанные вопросы — ADR-0006 §6 (первые четыре блокируют публикацию).
-2. Mac-сборщик, аккаунт разработчика, устройства — без них Phase 1 не продвигается дальше написания кода.
-3. `Cores/` или `Engines/` как каталог движков.
+| **macOS + Xcode** | сборка пакета под Apple (Foundation на Darwin), `xcodegen generate`, компиляция `Extensions/` и `Apps/` (18 файлов с пометкой `UNVERIFIED`), C-архив моста под iOS/macOS/tvOS, XCFramework, ветки Darwin/CryptoKit в `ConfigurationHandoff`, сигнатуры асинхронных переопределений (`startTunnel`, `stopTunnel`, `sleep()`), раскрытие `$(TeamIdentifierPrefix)` в Info.plist, доступ к App Group из песочницы macOS |
+| **Подпись Apple Developer** (Network Extension, App Group) | установка туннеля на устройство и на Mac; TestFlight |
+| **Физические устройства** | переход Swift↔Go на arm64 и его цена, размеры пачек `readPackets`/`writePackets`, режим fd на Darwin, исключение сокетов движка из туннеля, `phys_footprint` расширения против лимита, `setTunnelNetworkSettings(nil)` при откате, реальные пределы старта/стопа, допустимость `exit()` после зависшего движка, все критерии производительности |
+| **Лицензия** (ADR-0006, теперь и GPL-3.0 Mihomo по ADR-0007) | файл `LICENSE`, приём сторонних изменений, сборки `MihomoOnly`/`Dual` |
 
 ## 5. Что дальше
 
-В порядке, в котором снимаются блокировки:
-
-1. ~~Прогнать `swift build` и `swift test`~~ — сделано на Linux (§2.1). Осталось повторить на macOS и в release, решить судьбу пометок UNVERIFIED в файлах пакета.
-2. Привести `platforms` в `Package.swift` к ADR-0005.
-3. На Mac: `xcodegen generate`, собрать приложение и расширение, исправить то, что не собралось, снять пометки UNVERIFIED с проверенных файлов.
-4. Мост Xray и XCFramework по `Cores/BuildScripts/README.md` (E-1).
-5. Поиск utun fd и первый туннель на iPhone.
+1. Новый ADR по передаче конфигурации и правка ADR-0003 §2 / правила «пакеты не проходят через Swift».
+2. Модули `TunnelIPC`/`TunnelHost` вместо символических ссылок.
+3. Адаптер `EngineXray` на Swift поверх C ABI моста; компилятор задаёт `connIdle` и TUN-inbound.
+4. На Mac: пакет, расширение, приложение, C-архив моста, первый туннель на iPhone (E-1…E-9).
+5. Мост Mihomo и компилятор модели → Clash YAML (ADR-0007); сравнительные замеры Xray/Mihomo/sing-box.
+6. Подключить `AdaptiveBalancer` к зондировщику и исполнителю.
 
 ## 6. Журнал
 
 | Дата | Событие |
 |---|---|
-| 2026-11-24 | Phase 0: аудиты, матрицы, ADR-0001…0006. Написаны четыре модуля пакета, черновик расширения и приложения, документы репозитория. Сборок и запусков не было. |
-| 2026-11-24 | Первый прогон пакета: Docker `swift:5.10` (Swift 5.10.1, Linux x86_64), `swift build -j 1` и `swift test -j 1` под лимитом 1300 МБ. Одна ошибка компиляции исправлена (`CoreLifecycle.stateUpdates`). 251 тест, 0 падений, 0 пропусков. Расширение и приложение только прочитаны (§2.3). |
+| 2026-11-24 | Phase 0: аудиты, матрицы, ADR-0001…0006, четыре модуля пакета, черновик расширения и приложения. Первый прогон пакета: 251 тест, 0 падений. |
+| 2026-11-25…27 | Этап 2, пять параллельных потоков: мост Xray (bridge), справочник Xray (xraymodern), компилятор и форматы ссылок (protocols), маршрутизация (routing), адаптивный выбор (multicore), аудит управляющего слоя (swiftaudit); исследование движков (research/cores). |
+| 2026-11-27 | ADR-0007: второй движок — Mihomo. |
+| 2026-11-27 | Слияние всех веток в `main`. Исправлен корневой `Package.swift`. Swift: 477 тестов, 0 падений. Go-мост: vet/gofmt чисто, unit — ok, `-race` — один известный провал из-за гонки Vision в ядре. |

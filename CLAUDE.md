@@ -4,9 +4,9 @@
 
 ## Что это
 
-Открытая сетевая платформа (прокси/VPN-клиент) для iOS, iPadOS, macOS, tvOS, visionOS. sing-box и Xray-core — сменные движки за собственным управляющим слоем на Swift.
+Открытая сетевая платформа (прокси/VPN-клиент) для iOS, iPadOS, macOS, tvOS, visionOS. Xray-core и Mihomo — сменные движки за собственным управляющим слоем на Swift (второй движок — Mihomo по ADR-0007; sing-box изучен и не интегрируется).
 
-Состояние: Phase 0 завершена, Phase 1 начата. Туннель не поднимался, движки не собраны, код для Xcode не компилировался. Точное состояние — в `STATUS.md`.
+Состояние: Phase 1. Мост Xray (`Cores/Bridge`) собран и проверен на Linux; Swift-пакет проходит тесты на Linux; под Apple не собиралось ничего, туннель на устройстве не поднимался, код для Xcode не компилировался. Точное состояние — в `STATUS.md`.
 
 Мастер-спецификация владельца в репозиторий не добавлена. Её разделы 31–33 пересказаны ниже; остальное отражено в ADR и `ROADMAP.md`.
 
@@ -19,24 +19,39 @@ Packages/<Name>/Tests         тесты модуля (XCTest)
 Extensions/PacketTunnel/      NEPacketTunnelProvider; Shared/ — типы, общие с приложением
 Apps/SharedApp/               оболочка приложения на SwiftUI
 Apps/project.yml              спецификация XcodeGen (iOS, macOS)
-Cores/BuildScripts/           описание сборки движков; исполняемых скриптов нет
-Documentation/ADR/            решения 0001–0006
+Cores/Bridge/                 мост Xray: Go-модуль (engine/, cabi/ — C ABI v1, cmd/nplab — стенд Linux)
+Cores/BuildScripts/           скрипты проверки моста на Linux (C ABI, netns, стенд tun)
+Benchmarks/                   RoutingBench, RoutingParity (Go), BridgeBench, results/
+Tests/Fixtures/               корпус ссылок, interop-конфигов и профилей; проверка настоящим Xray
+Tools/                        swift-docker.sh, remote-go.sh, validate-fixtures.sh
+Documentation/ADR/            решения 0001–0007, REVIEW-2026-11-25.md
+Documentation/Architecture/   tun, жизненный цикл, паритет маршрутизации, адаптивный выбор
+Documentation/Performance/    методика и результаты замеров
+Documentation/Protocols/      форматы ссылок, справочник современных транспортов Xray
 Documentation/Research/       первичные аудиты; SOURCES.txt — SHA изученных репозиториев
 Documentation/Security/       модель угроз
 .github/workflows/ci.yml      swift build + swift test
 ```
 
-Модули пакета сейчас: `DomainModels`, `CoreAbstraction`, `ConfigurationEngine` (зависит от `DomainModels`), `RoutingEngine`. Карта будущих модулей — ADR-0004 §2.3; это карта намерений, а не список к созданию.
+Модули пакета сейчас: `DomainModels`, `CoreAbstraction`, `ConfigurationEngine` (зависит от `DomainModels`), `RoutingEngine`, `AdaptiveBalancer`; исполняемая цель `RoutingBench`. `Extensions/PacketTunnel/Shared` и `TunnelSession.swift` подключены к тестам `CoreAbstraction` символическими ссылками — временно, до модулей `TunnelIPC`/`TunnelHost`. Карта будущих модулей — ADR-0004 §2.3; это карта намерений, а не список к созданию.
 
 Расхождение, о котором надо знать: ADR-0004 §2.5 называет каталог движков `Engines/`, в репозитории создан `Cores/`. До решения не создавать второй каталог.
 
 ## Команды
 
 ```sh
-swift build
-swift test
-swift test --filter RoutingEngineTests     # один модуль
+Tools/swift-docker.sh swift build -j 1
+Tools/swift-docker.sh swift test -j 1                              # весь пакет, ~6 мин в контейнере
+Tools/swift-docker.sh swift test -j 1 --filter RoutingEngineTests   # один модуль
+NP_REMOTE=<сервер> NP_KEY=<рабочее место> Tools/remote-go.sh 'cd Cores/Bridge && go vet ./... && go test ./...'
 ```
+
+Заметки о сборке:
+
+- `Package.swift`: список целей собирается по одному оператору `+=`. Одна цепочка `lib(...) + lib(...)` из шести слагаемых не проходит проверку типов Swift 5.10 за отведённое время — не возвращать.
+- Не-Swift-файлы внутри каталога цели исключать в манифесте (`exclude:`), иначе SwiftPM предупреждает.
+- Go-мост собирается только на сервере разработки через `Tools/remote-go.sh` (синхронизирует рабочую копию, общий lock, свои Go-кэши); Go-версия берётся из `go.mod` (`GOTOOLCHAIN=auto`). Тесты с сетью — только на 127.0.0.1 или в отдельном netns; созданные процессы и namespace удалять.
+- `go test -race ./engine` со штатным xray (`NP_STOCK_XRAY`) сейчас падает в `TestFlowThroughProxyWithDNS` из-за гонки Vision внутри ядра; через `NP_TEST_FLOW_PROXY=Trojan+TLS` тест проходит. Это известный провал, не скрывать его.
 
 Приложение и расширение: `cd Apps && xcodegen generate`, затем Xcode. Только на Mac; путь не проверен.
 
@@ -51,7 +66,7 @@ swift test --filter RoutingEngineTests     # один модуль
 - Не клонировать репозитории крупнее примерно 50 МБ.
 - Клоны референсов лежат в `/root/.cache/np-research/` и используются только для чтения.
 
-Следствие: Swift-пакет собирается и тестируется здесь только в контейнере `swift:5.10` с лимитами (`docker run --rm --network none --memory=1300m --memory-swap=1300m --cpus=1.5 -v $PWD:/work -w /work swift:5.10 swift test -j 1`). Всё, что требует Xcode (`Apps/`, `Extensions/`), и Go-движки здесь собрать нельзя — этот код непроверенный, пока его не собрали на Mac. Для Go-моста есть отдельный сервер разработки 104 (Go установлен).
+Следствие: Swift-пакет собирается и тестируется здесь только в контейнере `swift:5.10` с лимитами (`docker run --rm --network none --memory=1300m --memory-swap=1300m --cpus=1.5 -v $PWD:/work -w /work swift:5.10 swift test -j 1`). Всё, что требует Xcode (`Apps/`, `Extensions/`), и Go-движки здесь собрать нельзя — этот код непроверенный, пока его не собрали на Mac. Для Go-моста есть отдельный сервер разработки (Go установлен); его адрес в репозиторий не записывается.
 
 ## Правила работы (спецификация, §31)
 
@@ -91,7 +106,7 @@ swift test --filter RoutingEngineTests     # один модуль
 - **Один движок на процесс расширения. Приложение не линкует Go** (ADR-0001). Модули, которые линкует приложение, не зависят от адаптеров движков.
 - **Типы движков не поднимаются выше адаптера**: никаких `Libbox*`, имён полей JSON движка, конверта `Invoke` в общих модулях (ADR-0001 §5).
 - **Конфиг движка — результат компиляции модели**; каждая компиляция и каждый импорт возвращают отчёт; потери не бывают молчаливыми (ADR-0002).
-- **Пакеты не проходят через Swift.** Приложение и расширение общаются через `sendProviderMessage`; сетевые сокеты для этого не используются (ADR-0003).
+- **Swift не разбирает пакеты.** Для Xray расширение передаёт пакеты пачками между `NEPacketTunnelFlow` и мостом, не разбирая их (ADR-0001 §4.1; формулировка ADR-0003 §2 «пакеты не проходят через Swift» устарела и ждёт правки). Приложение и расширение общаются через `sendProviderMessage`; сетевые сокеты для этого не используются (ADR-0003). Запрос запуска передаётся файлом в App Group — нужен ADR.
 - **Секреты** — в Keychain; расширение их оттуда не читает, а получает в составе конфига. Конфиг, ключи и адреса серверов не пишутся в журнал (ADR-0003 §4).
 - **Модуль появляется вместе с кодом и тестом.** Пустых модулей, каталогов и файлов-заполнителей нет. Манифест перечисляет только существующие модули (ADR-0004).
 - **XCFramework и собранные бинарники в git не хранятся** (ADR-0004 §2.4).
@@ -102,7 +117,8 @@ swift test --filter RoutingEngineTests     # один модуль
 - Код из sing-box, sing-box-for-apple, OneXray, Karing не копировать — ни фрагментами, ни «близко к тексту». Идеи и форматы реализовывать заново.
 - Код hiddify-app и hiddify-core не копировать и не линковать.
 - Заимствовать можно из libXray и WireGuardKit (оба MIT), с записью в `THIRD_PARTY_NOTICES.md`.
-- Код, обращающийся к libbox, — только в будущем модуле `EngineSingBox`.
+- Код, обращающийся к libbox, — только в будущем модуле `EngineSingBox` (sing-box не интегрируется, ADR-0007).
+- Mihomo — GPL-3.0: сборки с ним считаются GPL целиком, `XrayOnly` остаётся без GPL (ADR-0007).
 - Файл `LICENSE` не добавлять.
 - Имена «sing-box», «Xray», «Hiddify», «Karing» не использовать в названии продукта, идентификаторах бандлов и текстах для стора.
 - Новая зависимость — только с проверенной лицензией.
@@ -129,5 +145,8 @@ swift test --filter RoutingEngineTests     # один модуль
 | Лицензии | `LICENSE_AUDIT.md`, ADR-0006 |
 | Риски | `TECHNICAL_RISKS.md` |
 | Что надо доказать на Mac | ADR-0001 §7 (E-1…E-9), ADR-0003 §7 |
-| Сборка движков | `Cores/BuildScripts/README.md` |
+| Сборка движков, мост Xray | `Cores/BuildScripts/README.md`, `Cores/Bridge/README.md` |
+| Путь пакетов, utun | `Documentation/Architecture/tun-integration.md` |
+| Ключи JSON и версии Xray | `Documentation/Protocols/xray-modern.md` |
+| Второй движок | ADR-0007, `Documentation/Research/mihomo-leaf.md` |
 | Угрозы | `Documentation/Security/THREAT_MODEL.md` |
