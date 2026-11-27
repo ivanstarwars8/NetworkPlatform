@@ -100,9 +100,10 @@ def call(method, path, params=None, body=None):
             sys.exit(f"ASC API {method} {path} -> {e}")
 
 
-def get_all(path, params=None):
+def get_all(path, params=None, limit=200):
+    """GET with pagination. Some related-resource endpoints refuse `limit`; pass limit=None for them."""
     out, included = [], []
-    doc = call("GET", path, dict(params or {}, limit=200))
+    doc = call("GET", path, dict(params or {}, **({"limit": limit} if limit else {})))
     while True:
         out += doc.get("data", [])
         included += doc.get("included", [])
@@ -169,16 +170,16 @@ def cmd_profiles(a):
         bid = next((b for b in ids if b["attributes"]["identifier"] == bundle), None)
         if not bid:
             sys.exit(f"error: bundle id {bundle} is not registered for iOS in this team")
-        caps, _ = get_all(f"/v1/bundleIds/{bid['id']}/bundleIdCapabilities")
+        caps, _ = get_all(f"/v1/bundleIds/{bid['id']}/bundleIdCapabilities", limit=None)
         print(f"{bundle}: capabilities {sorted(c['attributes'].get('capabilityType') for c in caps)}")
         base_name = f"NetworkPlatform CI AppStore {bundle}"
-        profs, _ = get_all(f"/v1/bundleIds/{bid['id']}/profiles", {"fields[profiles]": "name,profileType,profileState,uuid,expirationDate"})
+        profs, _ = get_all(f"/v1/bundleIds/{bid['id']}/profiles", {"fields[profiles]": "name,profileType,profileState,uuid,expirationDate"}, limit=None)
         chosen = None
         for p in profs:
             at = p["attributes"]
             if not at["name"].startswith(base_name) or at["profileType"] != "IOS_APP_STORE" or at["profileState"] != "ACTIVE":
                 continue
-            pc, _ = get_all(f"/v1/profiles/{p['id']}/certificates", {"fields[certificates]": "serialNumber"})
+            pc, _ = get_all(f"/v1/profiles/{p['id']}/certificates", {"fields[certificates]": "serialNumber"}, limit=None)
             if any(c["id"] == cert["id"] for c in pc):
                 chosen = p
                 break

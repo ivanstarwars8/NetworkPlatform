@@ -95,6 +95,7 @@ jobs:
           echo "Apple Distribution identities in the temporary keychain: $n"
           [ "$n" -ge 1 ] || { echo "error: no valid Apple Distribution identity in DISTRIBUTION_P12_BASE64"; exit 1; }
           serial="$(security find-certificate -a -c 'Apple Distribution' -p "$kc" | openssl x509 -noout -serial | cut -d= -f2)"
+          echo "::add-mask::$serial"
           { echo "NP_KEYCHAIN=$kc"; echo "NP_CERT_SERIAL=$serial"; echo "API_PRIVATE_KEYS_DIR=$s/private_keys";
             echo "ASC_KEY_PATH=$s/private_keys/AuthKey_${ASC_KEY_ID}.p8"; } >> "$GITHUB_ENV"
 
