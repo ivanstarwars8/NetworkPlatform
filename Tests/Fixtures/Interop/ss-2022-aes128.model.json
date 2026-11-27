@@ -1,0 +1,43 @@
+{
+  "credentials" : {
+    "password" : {
+      "kind" : "inline",
+      "value" : "CyPSbbFD0c3iKaL9MAqCQw=="
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "i-ss2022",
+  "server" : {
+    "host" : "127.0.0.1",
+    "port" : 47010
+  },
+  "settings" : {
+    "shadowsocks" : {
+      "_0" : {
+        "method" : "2022-blake3-aes-128-gcm"
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "none" : {
+
+      }
+    },
+    "transport" : {
+      "tcp" : {
+        "_0" : {
+
+        }
+      }
+    }
+  },
+  "tag" : "i-ss2022",
+  "unsupported" : [
+
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "credentials" : {
+    "userID" : {
+      "kind" : "inline",
+      "value" : "a037f543-d001-478f-9621-e21da2f8736a"
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "i-vless-kcp",
+  "server" : {
+    "host" : "127.0.0.1",
+    "port" : 47015
+  },
+  "settings" : {
+    "vless" : {
+      "_0" : {
+        "encryption" : "none"
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "none" : {
+
+      }
+    },
+    "transport" : {
+      "kcp" : {
+        "_0" : {
+          "headerType" : "",
+          "mtu" : 1350,
+          "seed" : {
+            "kind" : "inline",
+            "value" : "FY2WsKBsjAkZYhQ+4FHQq4s+"
+          },
+          "tti" : 50
+        }
+      }
+    }
+  },
+  "tag" : "i-vless-kcp",
+  "unsupported" : [
+
+  ]
+}

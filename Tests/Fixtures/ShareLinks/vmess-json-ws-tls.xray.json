@@ -1,0 +1,61 @@
+{
+  "inbounds" : [
+    {
+      "listen" : "127.0.0.1",
+      "port" : 10808,
+      "protocol" : "socks",
+      "settings" : {
+        "auth" : "noauth",
+        "udp" : true
+      },
+      "tag" : "socks-in"
+    }
+  ],
+  "log" : {
+    "loglevel" : "warning"
+  },
+  "outbounds" : [
+    {
+      "protocol" : "vmess",
+      "settings" : {
+        "address" : "vm.example.com",
+        "id" : "1cc9207f-5dda-4274-bb0d-9d105c95c6e8",
+        "port" : 443,
+        "security" : "auto"
+      },
+      "streamSettings" : {
+        "network" : "ws",
+        "security" : "tls",
+        "tlsSettings" : {
+          "alpn" : [
+            "http/1.1"
+          ],
+          "fingerprint" : "chrome",
+          "serverName" : "vm.example.com"
+        },
+        "wsSettings" : {
+          "host" : "vm.example.com",
+          "path" : "/vm"
+        }
+      },
+      "tag" : "proxy-0000"
+    },
+    {
+      "protocol" : "freedom",
+      "tag" : "direct"
+    },
+    {
+      "protocol" : "blackhole",
+      "tag" : "block"
+    }
+  ],
+  "routing" : {
+    "rules" : [
+      {
+        "network" : "tcp,udp",
+        "outboundTag" : "proxy-0000",
+        "type" : "field"
+      }
+    ]
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "inbounds" : [
+    {
+      "listen" : "127.0.0.1",
+      "port" : 10808,
+      "protocol" : "socks",
+      "settings" : {
+        "auth" : "noauth",
+        "udp" : true
+      },
+      "tag" : "socks-in"
+    }
+  ],
+  "log" : {
+    "loglevel" : "warning"
+  },
+  "outbounds" : [
+    {
+      "protocol" : "vless",
+      "settings" : {
+        "address" : "hu.example.com",
+        "encryption" : "none",
+        "id" : "76e67b80-b8d3-407a-a13f-02c1c48186ab",
+        "port" : 2053
+      },
+      "streamSettings" : {
+        "httpupgradeSettings" : {
+          "host" : "hu.example.com",
+          "path" : "/up"
+        },
+        "network" : "httpupgrade",
+        "security" : "tls",
+        "tlsSettings" : {
+          "serverName" : "hu.example.com"
+        }
+      },
+      "tag" : "proxy-0000"
+    },
+    {
+      "protocol" : "freedom",
+      "tag" : "direct"
+    },
+    {
+      "protocol" : "blackhole",
+      "tag" : "block"
+    }
+  ],
+  "routing" : {
+    "rules" : [
+      {
+        "network" : "tcp,udp",
+        "outboundTag" : "proxy-0000",
+        "type" : "field"
+      }
+    ]
+  }
+}

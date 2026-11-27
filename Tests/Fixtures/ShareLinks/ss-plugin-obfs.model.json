@@ -1,0 +1,47 @@
+{
+  "credentials" : {
+    "password" : {
+      "kind" : "inline",
+      "value" : "UD3nWFp4ew79/MjLvzbno+6K"
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "ss-plugin",
+  "server" : {
+    "host" : "192.0.2.44",
+    "port" : 8394
+  },
+  "settings" : {
+    "shadowsocks" : {
+      "_0" : {
+        "method" : "aes-128-gcm",
+        "plugin" : {
+          "name" : "obfs-local",
+          "options" : "obfs=http;obfs-host=www.example.com"
+        }
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "none" : {
+
+      }
+    },
+    "transport" : {
+      "tcp" : {
+        "_0" : {
+
+        }
+      }
+    }
+  },
+  "tag" : "ss-plugin",
+  "unsupported" : [
+
+  ]
+}

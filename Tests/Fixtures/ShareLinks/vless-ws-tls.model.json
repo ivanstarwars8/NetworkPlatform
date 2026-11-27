@@ -1,0 +1,52 @@
+{
+  "credentials" : {
+    "userID" : {
+      "kind" : "inline",
+      "value" : "7d7ea5d0-9ec2-432e-82e7-141bada6fc01"
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "ws-tls",
+  "server" : {
+    "host" : "cdn.example.com",
+    "port" : 443
+  },
+  "settings" : {
+    "vless" : {
+      "_0" : {
+        "encryption" : "none"
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "tls" : {
+        "_0" : {
+          "allowInsecure" : false,
+          "alpn" : [
+            "http/1.1"
+          ],
+          "disableSNI" : false,
+          "fingerprint" : "firefox",
+          "serverName" : "cdn.example.com"
+        }
+      }
+    },
+    "transport" : {
+      "webSocket" : {
+        "_0" : {
+          "host" : "cdn.example.com",
+          "path" : "/ws?ed=2560"
+        }
+      }
+    }
+  },
+  "tag" : "ws-tls",
+  "unsupported" : [
+
+  ]
+}

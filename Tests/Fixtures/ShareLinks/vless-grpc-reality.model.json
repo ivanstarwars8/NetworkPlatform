@@ -1,0 +1,49 @@
+{
+  "credentials" : {
+    "userID" : {
+      "kind" : "inline",
+      "value" : "7cbd604a-1e57-419f-8fe1-e39a88ade162"
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "grpc-reality",
+  "server" : {
+    "host" : "192.0.2.11",
+    "port" : 8443
+  },
+  "settings" : {
+    "vless" : {
+      "_0" : {
+        "encryption" : "none"
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "reality" : {
+        "_0" : {
+          "fingerprint" : "safari",
+          "publicKey" : "Z__smirXnH5v85ySxE24UXnJYAS4ElyAynyt59rqQw4",
+          "serverName" : "www.example.net"
+        }
+      }
+    },
+    "transport" : {
+      "grpc" : {
+        "_0" : {
+          "authority" : "",
+          "multiMode" : true,
+          "serviceName" : "grpc.Service"
+        }
+      }
+    }
+  },
+  "tag" : "grpc-reality",
+  "unsupported" : [
+
+  ]
+}

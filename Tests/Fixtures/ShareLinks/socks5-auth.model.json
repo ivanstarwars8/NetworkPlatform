@@ -1,0 +1,44 @@
+{
+  "credentials" : {
+    "password" : {
+      "kind" : "inline",
+      "value" : "FY2WsKBsjAkZYhQ+4FHQq4s+"
+    },
+    "username" : "user1"
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "socks-auth",
+  "server" : {
+    "host" : "192.0.2.50",
+    "port" : 1080
+  },
+  "settings" : {
+    "socks" : {
+      "_0" : {
+        "version" : "5"
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "none" : {
+
+      }
+    },
+    "transport" : {
+      "tcp" : {
+        "_0" : {
+
+        }
+      }
+    }
+  },
+  "tag" : "socks-auth",
+  "unsupported" : [
+
+  ]
+}

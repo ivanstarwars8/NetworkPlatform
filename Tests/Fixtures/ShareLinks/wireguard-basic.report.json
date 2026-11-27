@@ -1,0 +1,29 @@
+{
+  "conversion" : {
+    "engine" : "xray",
+    "engineTags" : {
+      "wg-basic" : "proxy-0000"
+    },
+    "engineVersion" : "26.11.9",
+    "excludedOutbounds" : [
+
+    ],
+    "issues" : [
+
+    ],
+    "verdict" : "exact"
+  },
+  "importReport" : {
+    "format" : "wireguard-url",
+    "scheme" : "wireguard",
+    "unsupported" : [
+
+    ],
+    "warnings" : [
+      {
+        "code" : "nonStandardFormat",
+        "message" : "wireguard:// links follow a community convention without a specification"
+      }
+    ]
+  }
+}

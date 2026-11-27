@@ -1,0 +1,1 @@
+vless://1cc9207f-5dda-4274-bb0d-9d105c95c6e8@192.168.10.5:8080?encryption=none&type=tcp&headerType=http&host=a.example.com%2Cb.example.com&path=%2Fa%2C%2Fb&security=none#lan-http-header

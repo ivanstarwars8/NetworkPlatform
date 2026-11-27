@@ -1,0 +1,1 @@
+vless://7cbd604a-1e57-419f-8fe1-e39a88ade162@192.0.2.11:8443?encryption=none&type=grpc&serviceName=grpc.Service&mode=multi&security=reality&sni=www.example.net&fp=safari&pbk=Z__smirXnH5v85ySxE24UXnJYAS4ElyAynyt59rqQw4&sid=#grpc-reality

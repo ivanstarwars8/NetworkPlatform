@@ -1,0 +1,26 @@
+{
+  "conversion" : {
+    "engine" : "xray",
+    "engineTags" : {
+      "socks-noauth" : "proxy-0000"
+    },
+    "engineVersion" : "26.11.9",
+    "excludedOutbounds" : [
+
+    ],
+    "issues" : [
+
+    ],
+    "verdict" : "exact"
+  },
+  "importReport" : {
+    "format" : "socks-url",
+    "scheme" : "socks5",
+    "unsupported" : [
+
+    ],
+    "warnings" : [
+
+    ]
+  }
+}

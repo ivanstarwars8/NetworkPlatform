@@ -1,0 +1,130 @@
+{
+  "groups" : [
+    {
+      "defaultMemberTag" : "t",
+      "kind" : "selector",
+      "members" : [
+        {
+          "outbound" : {
+            "tag" : "a"
+          }
+        },
+        {
+          "outbound" : {
+            "tag" : "t"
+          }
+        }
+      ],
+      "name" : "pick",
+      "tag" : "pick"
+    }
+  ],
+  "id" : "00000000-0000-4000-8000-000000000104",
+  "name" : "selector",
+  "outbounds" : [
+    {
+      "credentials" : {
+        "userID" : {
+          "kind" : "inline",
+          "value" : "1cc9207f-5dda-4274-bb0d-9d105c95c6e8"
+        }
+      },
+      "extras" : {
+        "storage" : {
+
+        }
+      },
+      "name" : "a",
+      "server" : {
+        "host" : "192.0.2.80",
+        "port" : 443
+      },
+      "settings" : {
+        "vless" : {
+          "_0" : {
+            "encryption" : "none",
+            "flow" : "xtls-rprx-vision"
+          }
+        }
+      },
+      "stream" : {
+        "security" : {
+          "reality" : {
+            "_0" : {
+              "fingerprint" : "chrome",
+              "publicKey" : "VZhM7y7_-UFCl2zNHcAGmpbH_cJyhFV3yXneqhjbwC4",
+              "serverName" : "www.example.org",
+              "shortID" : "65466826"
+            }
+          }
+        },
+        "transport" : {
+          "tcp" : {
+            "_0" : {
+
+            }
+          }
+        }
+      },
+      "tag" : "a",
+      "unsupported" : [
+
+      ]
+    },
+    {
+      "credentials" : {
+        "password" : {
+          "kind" : "inline",
+          "value" : "udihPqDumwBiY6PSt26Nqr9G"
+        }
+      },
+      "extras" : {
+        "storage" : {
+
+        }
+      },
+      "name" : "t",
+      "server" : {
+        "host" : "t.example.com",
+        "port" : 443
+      },
+      "settings" : {
+        "trojan" : {
+
+        }
+      },
+      "stream" : {
+        "security" : {
+          "tls" : {
+            "_0" : {
+              "allowInsecure" : false,
+              "alpn" : [
+
+              ],
+              "disableSNI" : false,
+              "serverName" : "t.example.com"
+            }
+          }
+        },
+        "transport" : {
+          "tcp" : {
+            "_0" : {
+
+            }
+          }
+        }
+      },
+      "tag" : "t",
+      "unsupported" : [
+
+      ]
+    }
+  ],
+  "schemaVersion" : 1,
+  "selectedTag" : "pick",
+  "source" : {
+    "manual" : {
+
+    }
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "credentials" : {
+    "password" : {
+      "kind" : "inline",
+      "value" : "user1:UD3nWFp4ew79/MjLvzbno+6K"
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "hy2-pin",
+  "server" : {
+    "host" : "192.0.2.60",
+    "port" : 8443
+  },
+  "settings" : {
+    "hysteria2" : {
+      "_0" : {
+        "serverPorts" : [
+
+        ]
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "tls" : {
+        "_0" : {
+          "allowInsecure" : true,
+          "alpn" : [
+
+          ],
+          "disableSNI" : false,
+          "pinnedPeerCertificateSHA256" : "685f8e8c7197c0abb9ab999d0893db8244ce9b197fe2ae003c99d28d7f3f9183",
+          "serverName" : "hy3.example.com"
+        }
+      }
+    },
+    "transport" : {
+      "native" : {
+
+      }
+    }
+  },
+  "tag" : "hy2-pin",
+  "unsupported" : [
+
+  ]
+}

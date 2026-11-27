@@ -1,0 +1,40 @@
+{
+  "conversion" : {
+    "engine" : "xray",
+    "engineTags" : {
+      "hy2-pin" : "proxy-0000"
+    },
+    "engineVersion" : "26.11.9",
+    "excludedOutbounds" : [
+
+    ],
+    "issues" : [
+      {
+        "detail" : "Hysteria checks a pin in addition to the certificate chain; Xray accepts a matching leaf pin without checking the chain",
+        "kind" : "approximated",
+        "path" : "outbounds[0].stream.security.pinnedPeerCertificateSHA256",
+        "severity" : "warning"
+      },
+      {
+        "detail" : "Xray removed 'allowInsecure'; the certificate is verified, so the connection fails unless it is valid or pinned",
+        "kind" : "unsupported",
+        "path" : "outbounds[0].stream.security.allowInsecure",
+        "severity" : "warning"
+      }
+    ],
+    "verdict" : "degraded"
+  },
+  "importReport" : {
+    "format" : "hysteria2-url",
+    "scheme" : "hysteria2",
+    "unsupported" : [
+
+    ],
+    "warnings" : [
+      {
+        "code" : "insecureTLS",
+        "message" : "Certificate verification is disabled by the link"
+      }
+    ]
+  }
+}

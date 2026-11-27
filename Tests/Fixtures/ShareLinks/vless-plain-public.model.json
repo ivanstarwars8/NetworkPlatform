@@ -1,0 +1,43 @@
+{
+  "credentials" : {
+    "userID" : {
+      "kind" : "inline",
+      "value" : "7d7ea5d0-9ec2-432e-82e7-141bada6fc01"
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "plain-public",
+  "server" : {
+    "host" : "plain.example.com",
+    "port" : 80
+  },
+  "settings" : {
+    "vless" : {
+      "_0" : {
+        "encryption" : "none"
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "none" : {
+
+      }
+    },
+    "transport" : {
+      "tcp" : {
+        "_0" : {
+
+        }
+      }
+    }
+  },
+  "tag" : "plain-public",
+  "unsupported" : [
+
+  ]
+}

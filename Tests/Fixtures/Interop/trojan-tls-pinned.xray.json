@@ -1,0 +1,53 @@
+{
+  "inbounds" : [
+    {
+      "listen" : "127.0.0.1",
+      "port" : 10808,
+      "protocol" : "socks",
+      "settings" : {
+        "auth" : "noauth",
+        "udp" : true
+      },
+      "tag" : "socks-in"
+    }
+  ],
+  "log" : {
+    "loglevel" : "warning"
+  },
+  "outbounds" : [
+    {
+      "protocol" : "trojan",
+      "settings" : {
+        "address" : "127.0.0.1",
+        "password" : "udihPqDumwBiY6PSt26Nqr9G",
+        "port" : 47008
+      },
+      "streamSettings" : {
+        "network" : "raw",
+        "security" : "tls",
+        "tlsSettings" : {
+          "pinnedPeerCertSha256" : "485767e0c2c1d3b433e90a3ffee423397e56dc526218ef42a3c754d93831ca7f",
+          "serverName" : "interop.test"
+        }
+      },
+      "tag" : "proxy-0000"
+    },
+    {
+      "protocol" : "freedom",
+      "tag" : "direct"
+    },
+    {
+      "protocol" : "blackhole",
+      "tag" : "block"
+    }
+  ],
+  "routing" : {
+    "rules" : [
+      {
+        "network" : "tcp,udp",
+        "outboundTag" : "proxy-0000",
+        "type" : "field"
+      }
+    ]
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "conversion" : {
+    "engine" : "xray",
+    "engineTags" : {
+      "vmess grpc" : "proxy-0000"
+    },
+    "engineVersion" : "26.11.9",
+    "excludedOutbounds" : [
+
+    ],
+    "issues" : [
+
+    ],
+    "verdict" : "exact"
+  },
+  "importReport" : {
+    "format" : "vmess-base64-json",
+    "scheme" : "vmess",
+    "unsupported" : [
+
+    ],
+    "warnings" : [
+
+    ]
+  }
+}

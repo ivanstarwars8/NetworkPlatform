@@ -1,0 +1,424 @@
+{
+  "log": {
+    "loglevel": "warning"
+  },
+  "inbounds": [
+    {
+      "tag": "vless-tcp",
+      "listen": "127.0.0.1",
+      "port": 47001,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "id": "a037f543-d001-478f-9621-e21da2f8736a"
+          }
+        ],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "raw"
+      }
+    },
+    {
+      "tag": "vless-ws",
+      "listen": "127.0.0.1",
+      "port": 47002,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "id": "a037f543-d001-478f-9621-e21da2f8736a"
+          }
+        ],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "ws",
+        "wsSettings": {
+          "path": "/ws"
+        }
+      }
+    },
+    {
+      "tag": "vless-grpc",
+      "listen": "127.0.0.1",
+      "port": 47003,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "id": "a037f543-d001-478f-9621-e21da2f8736a"
+          }
+        ],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "grpc",
+        "grpcSettings": {
+          "serviceName": "svc"
+        }
+      }
+    },
+    {
+      "tag": "vless-hu",
+      "listen": "127.0.0.1",
+      "port": 47004,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "id": "a037f543-d001-478f-9621-e21da2f8736a"
+          }
+        ],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "httpupgrade",
+        "httpupgradeSettings": {
+          "path": "/hu"
+        }
+      }
+    },
+    {
+      "tag": "vless-xhttp",
+      "listen": "127.0.0.1",
+      "port": 47005,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "id": "a037f543-d001-478f-9621-e21da2f8736a"
+          }
+        ],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "xhttp",
+        "xhttpSettings": {
+          "path": "/xh"
+        }
+      }
+    },
+    {
+      "tag": "vless-tls-vision",
+      "listen": "127.0.0.1",
+      "port": 47006,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "id": "a037f543-d001-478f-9621-e21da2f8736a",
+            "flow": "xtls-rprx-vision"
+          }
+        ],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "raw",
+        "security": "tls",
+        "tlsSettings": {
+          "certificates": [
+            {
+              "certificate": [
+                "-----BEGIN CERTIFICATE-----",
+                "MIIBnDCCAUKgAwIBAgIUVi6a7jvJDiQPhm6Thnm66oWUugMwCgYIKoZIzj0EAwIw",
+                "FzEVMBMGA1UEAwwMaW50ZXJvcC50ZXN0MB4XDTI2MTEyNTA5MDUwM1oXDTM2MTEy",
+                "MjA5MDUwM1owFzEVMBMGA1UEAwwMaW50ZXJvcC50ZXN0MFkwEwYHKoZIzj0CAQYI",
+                "KoZIzj0DAQcDQgAEdSZ6gfZ0LUYOU3W5wL6TPFTJwwGiQRWdJAV1bDtGlfwCG5Nz",
+                "CjjKUeLXvisItVNeBR+CXUevOvueEdJzLiZiSaNsMGowHQYDVR0OBBYEFKm9BEdw",
+                "OM0fQgkgiQMYdtGl+ZNiMB8GA1UdIwQYMBaAFKm9BEdwOM0fQgkgiQMYdtGl+ZNi",
+                "MA8GA1UdEwEB/wQFMAMBAf8wFwYDVR0RBBAwDoIMaW50ZXJvcC50ZXN0MAoGCCqG",
+                "SM49BAMCA0gAMEUCIQCgFelhdpOQ51us+/eOMh9y6SqPJLNrV9u9ukUeFyJqtgIg",
+                "Hpd3S3nlVan298H+UC8ZUlu4M/ZOSpWkKeuZbnpTc4A=",
+                "-----END CERTIFICATE-----"
+              ],
+              "key": [
+                "-----BEGIN PRIVATE KEY-----",
+                "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQglwt5DBQ2C3ymAEu6",
+                "gq9aQONIqqw22Xkc7MuaBxdjv2WhRANCAAR1JnqB9nQtRg5TdbnAvpM8VMnDAaJB",
+                "FZ0kBXVsO0aV/AIbk3MKOMpR4te+Kwi1U14FH4JdR686+54R0nMuJmJJ",
+                "-----END PRIVATE KEY-----"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "tag": "vmess-tcp",
+      "listen": "127.0.0.1",
+      "port": 47007,
+      "protocol": "vmess",
+      "settings": {
+        "clients": [
+          {
+            "id": "a037f543-d001-478f-9621-e21da2f8736a"
+          }
+        ]
+      }
+    },
+    {
+      "tag": "trojan-tls",
+      "listen": "127.0.0.1",
+      "port": 47008,
+      "protocol": "trojan",
+      "settings": {
+        "clients": [
+          {
+            "password": "udihPqDumwBiY6PSt26Nqr9G"
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "raw",
+        "security": "tls",
+        "tlsSettings": {
+          "certificates": [
+            {
+              "certificate": [
+                "-----BEGIN CERTIFICATE-----",
+                "MIIBnDCCAUKgAwIBAgIUVi6a7jvJDiQPhm6Thnm66oWUugMwCgYIKoZIzj0EAwIw",
+                "FzEVMBMGA1UEAwwMaW50ZXJvcC50ZXN0MB4XDTI2MTEyNTA5MDUwM1oXDTM2MTEy",
+                "MjA5MDUwM1owFzEVMBMGA1UEAwwMaW50ZXJvcC50ZXN0MFkwEwYHKoZIzj0CAQYI",
+                "KoZIzj0DAQcDQgAEdSZ6gfZ0LUYOU3W5wL6TPFTJwwGiQRWdJAV1bDtGlfwCG5Nz",
+                "CjjKUeLXvisItVNeBR+CXUevOvueEdJzLiZiSaNsMGowHQYDVR0OBBYEFKm9BEdw",
+                "OM0fQgkgiQMYdtGl+ZNiMB8GA1UdIwQYMBaAFKm9BEdwOM0fQgkgiQMYdtGl+ZNi",
+                "MA8GA1UdEwEB/wQFMAMBAf8wFwYDVR0RBBAwDoIMaW50ZXJvcC50ZXN0MAoGCCqG",
+                "SM49BAMCA0gAMEUCIQCgFelhdpOQ51us+/eOMh9y6SqPJLNrV9u9ukUeFyJqtgIg",
+                "Hpd3S3nlVan298H+UC8ZUlu4M/ZOSpWkKeuZbnpTc4A=",
+                "-----END CERTIFICATE-----"
+              ],
+              "key": [
+                "-----BEGIN PRIVATE KEY-----",
+                "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQglwt5DBQ2C3ymAEu6",
+                "gq9aQONIqqw22Xkc7MuaBxdjv2WhRANCAAR1JnqB9nQtRg5TdbnAvpM8VMnDAaJB",
+                "FZ0kBXVsO0aV/AIbk3MKOMpR4te+Kwi1U14FH4JdR686+54R0nMuJmJJ",
+                "-----END PRIVATE KEY-----"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "tag": "ss-aead",
+      "listen": "127.0.0.1",
+      "port": 47009,
+      "protocol": "shadowsocks",
+      "settings": {
+        "method": "aes-256-gcm",
+        "password": "udihPqDumwBiY6PSt26Nqr9G",
+        "network": "tcp,udp"
+      }
+    },
+    {
+      "tag": "ss-2022",
+      "listen": "127.0.0.1",
+      "port": 47010,
+      "protocol": "shadowsocks",
+      "settings": {
+        "method": "2022-blake3-aes-128-gcm",
+        "password": "CyPSbbFD0c3iKaL9MAqCQw==",
+        "network": "tcp,udp"
+      }
+    },
+    {
+      "tag": "socks",
+      "listen": "127.0.0.1",
+      "port": 47011,
+      "protocol": "socks",
+      "settings": {
+        "auth": "password",
+        "accounts": [
+          {
+            "user": "user1",
+            "pass": "udihPqDumwBiY6PSt26Nqr9G"
+          }
+        ],
+        "udp": true
+      }
+    },
+    {
+      "tag": "http",
+      "listen": "127.0.0.1",
+      "port": 47012,
+      "protocol": "http",
+      "settings": {
+        "accounts": [
+          {
+            "user": "user1",
+            "pass": "udihPqDumwBiY6PSt26Nqr9G"
+          }
+        ]
+      }
+    },
+    {
+      "tag": "hysteria2",
+      "listen": "127.0.0.1",
+      "port": 47013,
+      "protocol": "hysteria",
+      "settings": {
+        "version": 2,
+        "users": [
+          {
+            "auth": "udihPqDumwBiY6PSt26Nqr9G"
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "hysteria",
+        "security": "tls",
+        "tlsSettings": {
+          "certificates": [
+            {
+              "certificate": [
+                "-----BEGIN CERTIFICATE-----",
+                "MIIBnDCCAUKgAwIBAgIUVi6a7jvJDiQPhm6Thnm66oWUugMwCgYIKoZIzj0EAwIw",
+                "FzEVMBMGA1UEAwwMaW50ZXJvcC50ZXN0MB4XDTI2MTEyNTA5MDUwM1oXDTM2MTEy",
+                "MjA5MDUwM1owFzEVMBMGA1UEAwwMaW50ZXJvcC50ZXN0MFkwEwYHKoZIzj0CAQYI",
+                "KoZIzj0DAQcDQgAEdSZ6gfZ0LUYOU3W5wL6TPFTJwwGiQRWdJAV1bDtGlfwCG5Nz",
+                "CjjKUeLXvisItVNeBR+CXUevOvueEdJzLiZiSaNsMGowHQYDVR0OBBYEFKm9BEdw",
+                "OM0fQgkgiQMYdtGl+ZNiMB8GA1UdIwQYMBaAFKm9BEdwOM0fQgkgiQMYdtGl+ZNi",
+                "MA8GA1UdEwEB/wQFMAMBAf8wFwYDVR0RBBAwDoIMaW50ZXJvcC50ZXN0MAoGCCqG",
+                "SM49BAMCA0gAMEUCIQCgFelhdpOQ51us+/eOMh9y6SqPJLNrV9u9ukUeFyJqtgIg",
+                "Hpd3S3nlVan298H+UC8ZUlu4M/ZOSpWkKeuZbnpTc4A=",
+                "-----END CERTIFICATE-----"
+              ],
+              "key": [
+                "-----BEGIN PRIVATE KEY-----",
+                "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQglwt5DBQ2C3ymAEu6",
+                "gq9aQONIqqw22Xkc7MuaBxdjv2WhRANCAAR1JnqB9nQtRg5TdbnAvpM8VMnDAaJB",
+                "FZ0kBXVsO0aV/AIbk3MKOMpR4te+Kwi1U14FH4JdR686+54R0nMuJmJJ",
+                "-----END PRIVATE KEY-----"
+              ]
+            }
+          ],
+          "alpn": [
+            "h3"
+          ]
+        },
+        "hysteriaSettings": {
+          "version": 2
+        },
+        "finalmask": {
+          "udp": [
+            {
+              "type": "salamander",
+              "settings": {
+                "password": "UD3nWFp4ew79/MjLvzbno+6K"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "tag": "wireguard",
+      "listen": "127.0.0.1",
+      "port": 47014,
+      "protocol": "wireguard",
+      "settings": {
+        "secretKey": "UGuufNoigqHZJGqUkNJe//kGgqYq70Iwc8jGqtqZVmY=",
+        "mtu": 1280,
+        "peers": [
+          {
+            "publicKey": "hW/Xaxpd8T11L0YCOqmJZ4y+4EkS4IyGtFKll4qzEA8=",
+            "allowedIPs": [
+              "10.7.0.2/32"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "tag": "vless-kcp",
+      "listen": "127.0.0.1",
+      "port": 47015,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "id": "a037f543-d001-478f-9621-e21da2f8736a"
+          }
+        ],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "kcp",
+        "kcpSettings": {
+          "mtu": 1350,
+          "tti": 50
+        },
+        "finalmask": {
+          "udp": [
+            {
+              "type": "mkcp-legacy",
+              "settings": {
+                "value": "FY2WsKBsjAkZYhQ+4FHQq4s+"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "tag": "vless-ws-tls",
+      "listen": "127.0.0.1",
+      "port": 47016,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "id": "a037f543-d001-478f-9621-e21da2f8736a"
+          }
+        ],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "ws",
+        "security": "tls",
+        "tlsSettings": {
+          "certificates": [
+            {
+              "certificate": [
+                "-----BEGIN CERTIFICATE-----",
+                "MIIBnDCCAUKgAwIBAgIUVi6a7jvJDiQPhm6Thnm66oWUugMwCgYIKoZIzj0EAwIw",
+                "FzEVMBMGA1UEAwwMaW50ZXJvcC50ZXN0MB4XDTI2MTEyNTA5MDUwM1oXDTM2MTEy",
+                "MjA5MDUwM1owFzEVMBMGA1UEAwwMaW50ZXJvcC50ZXN0MFkwEwYHKoZIzj0CAQYI",
+                "KoZIzj0DAQcDQgAEdSZ6gfZ0LUYOU3W5wL6TPFTJwwGiQRWdJAV1bDtGlfwCG5Nz",
+                "CjjKUeLXvisItVNeBR+CXUevOvueEdJzLiZiSaNsMGowHQYDVR0OBBYEFKm9BEdw",
+                "OM0fQgkgiQMYdtGl+ZNiMB8GA1UdIwQYMBaAFKm9BEdwOM0fQgkgiQMYdtGl+ZNi",
+                "MA8GA1UdEwEB/wQFMAMBAf8wFwYDVR0RBBAwDoIMaW50ZXJvcC50ZXN0MAoGCCqG",
+                "SM49BAMCA0gAMEUCIQCgFelhdpOQ51us+/eOMh9y6SqPJLNrV9u9ukUeFyJqtgIg",
+                "Hpd3S3nlVan298H+UC8ZUlu4M/ZOSpWkKeuZbnpTc4A=",
+                "-----END CERTIFICATE-----"
+              ],
+              "key": [
+                "-----BEGIN PRIVATE KEY-----",
+                "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQglwt5DBQ2C3ymAEu6",
+                "gq9aQONIqqw22Xkc7MuaBxdjv2WhRANCAAR1JnqB9nQtRg5TdbnAvpM8VMnDAaJB",
+                "FZ0kBXVsO0aV/AIbk3MKOMpR4te+Kwi1U14FH4JdR686+54R0nMuJmJJ",
+                "-----END PRIVATE KEY-----"
+              ]
+            }
+          ]
+        },
+        "wsSettings": {
+          "path": "/wss"
+        }
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "tag": "direct",
+      "protocol": "freedom",
+      "settings": {
+        "finalRules": [
+          { "action": "allow", "ip": ["127.0.0.0/8", "192.0.2.0/24"] }
+        ]
+      }
+    }
+  ]
+}

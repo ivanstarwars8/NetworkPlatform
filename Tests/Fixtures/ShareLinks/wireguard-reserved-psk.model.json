@@ -1,0 +1,57 @@
+{
+  "credentials" : {
+    "preSharedKey" : {
+      "kind" : "inline",
+      "value" : "XMDjmxAN5Vr9A2Xqpq7wTeZSo6b4WptCbs4bcOSmPKE="
+    },
+    "privateKey" : {
+      "kind" : "inline",
+      "value" : "KFzVBHhjWlHJ138ha7PHbojjKyuBi9fEo0TkDOTbFEk="
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "wg-reserved",
+  "server" : {
+    "host" : "wg.example.com",
+    "port" : 2408
+  },
+  "settings" : {
+    "wireGuard" : {
+      "_0" : {
+        "allowedIPs" : [
+
+        ],
+        "localAddresses" : [
+          "172.16.0.2/32"
+        ],
+        "peerPublicKey" : "SrzNM+g/tbifF/Pwo2ZNGzwSriAcdo7RbBrsn+Rz7Qo=",
+        "persistentKeepaliveSeconds" : 25,
+        "reserved" : [
+          12,
+          34,
+          56
+        ]
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "none" : {
+
+      }
+    },
+    "transport" : {
+      "native" : {
+
+      }
+    }
+  },
+  "tag" : "wg-reserved",
+  "unsupported" : [
+
+  ]
+}

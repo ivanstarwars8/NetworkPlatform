@@ -1,0 +1,40 @@
+{
+  "conversion" : {
+    "engine" : "xray",
+    "engineTags" : {
+
+    },
+    "engineVersion" : "26.11.9",
+    "excludedOutbounds" : [
+      "ss2022-bad-key"
+    ],
+    "issues" : [
+      {
+        "detail" : "Shadowsocks 2022 key must be standard base64 of 32 bytes (identity keys separated by ':')",
+        "kind" : "invalid",
+        "path" : "outbounds[0].credentials.password",
+        "severity" : "error"
+      },
+      {
+        "detail" : "The selected outbound could not be compiled",
+        "kind" : "unsupported",
+        "path" : "profile.selectedTag",
+        "severity" : "error"
+      }
+    ],
+    "verdict" : "blocked"
+  },
+  "importReport" : {
+    "format" : "sip002",
+    "scheme" : "ss",
+    "unsupported" : [
+
+    ],
+    "warnings" : [
+      {
+        "code" : "suspiciousValue",
+        "message" : "Shadowsocks 2022 key is not standard base64 of 32 bytes"
+      }
+    ]
+  }
+}

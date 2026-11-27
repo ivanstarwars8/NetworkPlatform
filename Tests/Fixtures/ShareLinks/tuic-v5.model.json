@@ -1,0 +1,53 @@
+{
+  "credentials" : {
+    "password" : {
+      "kind" : "inline",
+      "value" : "udihPqDumwBiY6PSt26Nqr9G"
+    },
+    "userID" : {
+      "kind" : "inline",
+      "value" : "a037f543-d001-478f-9621-e21da2f8736a"
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "tuic",
+  "server" : {
+    "host" : "tu.example.com",
+    "port" : 443
+  },
+  "settings" : {
+    "tuic" : {
+      "_0" : {
+        "congestionControl" : "bbr",
+        "udpRelayMode" : "native"
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "tls" : {
+        "_0" : {
+          "allowInsecure" : false,
+          "alpn" : [
+            "h3"
+          ],
+          "disableSNI" : false,
+          "serverName" : "tu.example.com"
+        }
+      }
+    },
+    "transport" : {
+      "native" : {
+
+      }
+    }
+  },
+  "tag" : "tuic",
+  "unsupported" : [
+
+  ]
+}

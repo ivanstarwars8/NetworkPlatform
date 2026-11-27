@@ -1,0 +1,1 @@
+vmess://07bdfc86-4b12-4705-a9b2-477e3e708615@vu.example.com:443?encryption=aes-128-gcm&type=httpupgrade&host=vu.example.com&path=%2Fhu&security=tls&sni=vu.example.com#vmess-url

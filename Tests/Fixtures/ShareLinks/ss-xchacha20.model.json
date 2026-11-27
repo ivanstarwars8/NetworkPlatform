@@ -1,0 +1,43 @@
+{
+  "credentials" : {
+    "password" : {
+      "kind" : "inline",
+      "value" : "udihPqDumwBiY6PSt26Nqr9G"
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "ss-xchacha",
+  "server" : {
+    "host" : "192.0.2.45",
+    "port" : 8395
+  },
+  "settings" : {
+    "shadowsocks" : {
+      "_0" : {
+        "method" : "xchacha20-ietf-poly1305"
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "none" : {
+
+      }
+    },
+    "transport" : {
+      "tcp" : {
+        "_0" : {
+
+        }
+      }
+    }
+  },
+  "tag" : "ss-xchacha",
+  "unsupported" : [
+
+  ]
+}

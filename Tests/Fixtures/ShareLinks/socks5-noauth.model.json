@@ -1,0 +1,40 @@
+{
+  "credentials" : {
+
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "socks-noauth",
+  "server" : {
+    "host" : "192.0.2.51",
+    "port" : 1081
+  },
+  "settings" : {
+    "socks" : {
+      "_0" : {
+        "version" : "5"
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "none" : {
+
+      }
+    },
+    "transport" : {
+      "tcp" : {
+        "_0" : {
+
+        }
+      }
+    }
+  },
+  "tag" : "socks-noauth",
+  "unsupported" : [
+
+  ]
+}

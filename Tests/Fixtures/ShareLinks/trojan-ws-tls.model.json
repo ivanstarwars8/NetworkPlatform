@@ -1,0 +1,48 @@
+{
+  "credentials" : {
+    "password" : {
+      "kind" : "inline",
+      "value" : "FY2WsKBsjAkZYhQ+4FHQq4s+"
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "trojan-ws",
+  "server" : {
+    "host" : "192.0.2.30",
+    "port" : 443
+  },
+  "settings" : {
+    "trojan" : {
+
+    }
+  },
+  "stream" : {
+    "security" : {
+      "tls" : {
+        "_0" : {
+          "allowInsecure" : false,
+          "alpn" : [
+
+          ],
+          "disableSNI" : false
+        }
+      }
+    },
+    "transport" : {
+      "webSocket" : {
+        "_0" : {
+          "host" : "tw.example.com",
+          "path" : "/trojan"
+        }
+      }
+    }
+  },
+  "tag" : "trojan-ws",
+  "unsupported" : [
+
+  ]
+}

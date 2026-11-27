@@ -1,0 +1,60 @@
+{
+  "inbounds" : [
+    {
+      "listen" : "127.0.0.1",
+      "port" : 10808,
+      "protocol" : "socks",
+      "settings" : {
+        "auth" : "noauth",
+        "udp" : true
+      },
+      "tag" : "socks-in"
+    }
+  ],
+  "log" : {
+    "loglevel" : "warning"
+  },
+  "outbounds" : [
+    {
+      "protocol" : "wireguard",
+      "settings" : {
+        "address" : [
+          "172.16.0.2/32"
+        ],
+        "noKernelTun" : true,
+        "peers" : [
+          {
+            "endpoint" : "wg.example.com:2408",
+            "keepAlive" : 25,
+            "preSharedKey" : "XMDjmxAN5Vr9A2Xqpq7wTeZSo6b4WptCbs4bcOSmPKE=",
+            "publicKey" : "SrzNM+g/tbifF/Pwo2ZNGzwSriAcdo7RbBrsn+Rz7Qo="
+          }
+        ],
+        "reserved" : [
+          12,
+          34,
+          56
+        ],
+        "secretKey" : "KFzVBHhjWlHJ138ha7PHbojjKyuBi9fEo0TkDOTbFEk="
+      },
+      "tag" : "proxy-0000"
+    },
+    {
+      "protocol" : "freedom",
+      "tag" : "direct"
+    },
+    {
+      "protocol" : "blackhole",
+      "tag" : "block"
+    }
+  ],
+  "routing" : {
+    "rules" : [
+      {
+        "network" : "tcp,udp",
+        "outboundTag" : "proxy-0000",
+        "type" : "field"
+      }
+    ]
+  }
+}

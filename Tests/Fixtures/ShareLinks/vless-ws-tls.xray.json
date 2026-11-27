@@ -1,0 +1,61 @@
+{
+  "inbounds" : [
+    {
+      "listen" : "127.0.0.1",
+      "port" : 10808,
+      "protocol" : "socks",
+      "settings" : {
+        "auth" : "noauth",
+        "udp" : true
+      },
+      "tag" : "socks-in"
+    }
+  ],
+  "log" : {
+    "loglevel" : "warning"
+  },
+  "outbounds" : [
+    {
+      "protocol" : "vless",
+      "settings" : {
+        "address" : "cdn.example.com",
+        "encryption" : "none",
+        "id" : "7d7ea5d0-9ec2-432e-82e7-141bada6fc01",
+        "port" : 443
+      },
+      "streamSettings" : {
+        "network" : "ws",
+        "security" : "tls",
+        "tlsSettings" : {
+          "alpn" : [
+            "http/1.1"
+          ],
+          "fingerprint" : "firefox",
+          "serverName" : "cdn.example.com"
+        },
+        "wsSettings" : {
+          "host" : "cdn.example.com",
+          "path" : "/ws?ed=2560"
+        }
+      },
+      "tag" : "proxy-0000"
+    },
+    {
+      "protocol" : "freedom",
+      "tag" : "direct"
+    },
+    {
+      "protocol" : "blackhole",
+      "tag" : "block"
+    }
+  ],
+  "routing" : {
+    "rules" : [
+      {
+        "network" : "tcp,udp",
+        "outboundTag" : "proxy-0000",
+        "type" : "field"
+      }
+    ]
+  }
+}

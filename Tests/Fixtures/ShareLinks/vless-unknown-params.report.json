@@ -1,0 +1,60 @@
+{
+  "conversion" : {
+    "engine" : "xray",
+    "engineTags" : {
+      "unknown-params" : "proxy-0000"
+    },
+    "engineVersion" : "26.11.9",
+    "excludedOutbounds" : [
+
+    ],
+    "issues" : [
+      {
+        "detail" : "Imported parameter 'foo' (unknown) is not part of the configuration",
+        "kind" : "dropped",
+        "path" : "outbounds[0].unsupported[foo]",
+        "severity" : "warning"
+      },
+      {
+        "detail" : "Imported parameter 'serviceName' (notApplicable) is not part of the configuration",
+        "kind" : "dropped",
+        "path" : "outbounds[0].unsupported[serviceName]",
+        "severity" : "warning"
+      },
+      {
+        "detail" : "Xray removed 'allowInsecure'; the certificate is verified, so the connection fails unless it is valid or pinned",
+        "kind" : "unsupported",
+        "path" : "outbounds[0].stream.security.allowInsecure",
+        "severity" : "warning"
+      }
+    ],
+    "verdict" : "degraded"
+  },
+  "importReport" : {
+    "format" : "vless-url",
+    "scheme" : "vless",
+    "unsupported" : [
+      {
+        "disposition" : "recorded",
+        "location" : "query",
+        "name" : "foo",
+        "reason" : "unknown",
+        "value" : "bar"
+      },
+      {
+        "detail" : "Not used with the selected transport or security",
+        "disposition" : "recorded",
+        "location" : "query",
+        "name" : "serviceName",
+        "reason" : "notApplicable",
+        "value" : "unused"
+      }
+    ],
+    "warnings" : [
+      {
+        "code" : "insecureTLS",
+        "message" : "Certificate verification is disabled by the link"
+      }
+    ]
+  }
+}

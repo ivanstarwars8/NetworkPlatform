@@ -1,0 +1,40 @@
+{
+  "credentials" : {
+
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "socks4a",
+  "server" : {
+    "host" : "192.0.2.52",
+    "port" : 1082
+  },
+  "settings" : {
+    "socks" : {
+      "_0" : {
+        "version" : "4a"
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "none" : {
+
+      }
+    },
+    "transport" : {
+      "tcp" : {
+        "_0" : {
+
+        }
+      }
+    }
+  },
+  "tag" : "socks4a",
+  "unsupported" : [
+
+  ]
+}

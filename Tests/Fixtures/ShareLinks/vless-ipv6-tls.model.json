@@ -1,0 +1,51 @@
+{
+  "credentials" : {
+    "userID" : {
+      "kind" : "inline",
+      "value" : "07bdfc86-4b12-4705-a9b2-477e3e708615"
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "Тест v6",
+  "server" : {
+    "host" : "2001:db8::10",
+    "port" : 443
+  },
+  "settings" : {
+    "vless" : {
+      "_0" : {
+        "encryption" : "none"
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "tls" : {
+        "_0" : {
+          "allowInsecure" : false,
+          "alpn" : [
+
+          ],
+          "disableSNI" : false,
+          "pinnedPeerCertificateSHA256" : "685f8e8c7197c0abb9ab999d0893db8244ce9b197fe2ae003c99d28d7f3f9183",
+          "serverName" : "v6.example.com"
+        }
+      }
+    },
+    "transport" : {
+      "tcp" : {
+        "_0" : {
+
+        }
+      }
+    }
+  },
+  "tag" : "Тест v6",
+  "unsupported" : [
+
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "conversion" : {
+    "engine" : "xray",
+    "engineTags" : {
+
+    },
+    "engineVersion" : "26.11.9",
+    "excludedOutbounds" : [
+      "vmess h2"
+    ],
+    "issues" : [
+      {
+        "detail" : "The HTTP/2 transport was removed from Xray; the server must be reconfigured to XHTTP",
+        "kind" : "unsupported",
+        "path" : "outbounds[0].stream.transport",
+        "severity" : "error"
+      },
+      {
+        "detail" : "The selected outbound could not be compiled",
+        "kind" : "unsupported",
+        "path" : "profile.selectedTag",
+        "severity" : "error"
+      }
+    ],
+    "verdict" : "blocked"
+  },
+  "importReport" : {
+    "format" : "vmess-base64-json",
+    "scheme" : "vmess",
+    "unsupported" : [
+
+    ],
+    "warnings" : [
+
+    ]
+  }
+}

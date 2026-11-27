@@ -1,0 +1,50 @@
+{
+  "credentials" : {
+    "userID" : {
+      "kind" : "inline",
+      "value" : "76e67b80-b8d3-407a-a13f-02c1c48186ab"
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "httpupgrade",
+  "server" : {
+    "host" : "hu.example.com",
+    "port" : 2053
+  },
+  "settings" : {
+    "vless" : {
+      "_0" : {
+        "encryption" : "none"
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "tls" : {
+        "_0" : {
+          "allowInsecure" : false,
+          "alpn" : [
+
+          ],
+          "disableSNI" : false
+        }
+      }
+    },
+    "transport" : {
+      "httpUpgrade" : {
+        "_0" : {
+          "host" : "hu.example.com",
+          "path" : "/up"
+        }
+      }
+    }
+  },
+  "tag" : "httpupgrade",
+  "unsupported" : [
+
+  ]
+}

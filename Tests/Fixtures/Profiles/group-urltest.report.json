@@ -1,0 +1,36 @@
+{
+  "conversion" : {
+    "engine" : "xray",
+    "engineTags" : {
+      "a" : "proxy-0000",
+      "ab" : "proxy-0001",
+      "auto" : "group-0000",
+      "t" : "proxy-0002"
+    },
+    "engineVersion" : "26.11.9",
+    "excludedOutbounds" : [
+      "tuic"
+    ],
+    "issues" : [
+      {
+        "detail" : "Xray 26.11.9 has no TUIC outbound",
+        "kind" : "unsupported",
+        "path" : "outbounds[3].settings",
+        "severity" : "error"
+      },
+      {
+        "detail" : "1 member(s) could not be compiled and are left out",
+        "kind" : "dropped",
+        "path" : "groups[auto]",
+        "severity" : "warning"
+      },
+      {
+        "detail" : "The Xray observatory has no probe timeout setting",
+        "kind" : "dropped",
+        "path" : "groups[auto].healthCheck.timeoutMilliseconds",
+        "severity" : "warning"
+      }
+    ],
+    "verdict" : "degraded"
+  }
+}

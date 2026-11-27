@@ -1,0 +1,43 @@
+{
+  "credentials" : {
+    "userID" : {
+      "kind" : "inline",
+      "value" : "a037f543-d001-478f-9621-e21da2f8736a"
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "i-vless-tcp",
+  "server" : {
+    "host" : "127.0.0.1",
+    "port" : 47001
+  },
+  "settings" : {
+    "vless" : {
+      "_0" : {
+        "encryption" : "none"
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "none" : {
+
+      }
+    },
+    "transport" : {
+      "tcp" : {
+        "_0" : {
+
+        }
+      }
+    }
+  },
+  "tag" : "i-vless-tcp",
+  "unsupported" : [
+
+  ]
+}

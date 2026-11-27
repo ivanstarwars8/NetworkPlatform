@@ -1,0 +1,43 @@
+{
+  "credentials" : {
+    "password" : {
+      "kind" : "inline",
+      "value" : "udihPqDumwBiY6PSt26Nqr9G"
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "i-ss",
+  "server" : {
+    "host" : "127.0.0.1",
+    "port" : 47009
+  },
+  "settings" : {
+    "shadowsocks" : {
+      "_0" : {
+        "method" : "aes-256-gcm"
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "none" : {
+
+      }
+    },
+    "transport" : {
+      "tcp" : {
+        "_0" : {
+
+        }
+      }
+    }
+  },
+  "tag" : "i-ss",
+  "unsupported" : [
+
+  ]
+}

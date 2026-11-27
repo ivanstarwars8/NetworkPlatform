@@ -3,13 +3,16 @@ import DomainModels
 
 /// Per-scheme share link parsers.
 ///
-/// Sources of the formats:
-/// - `vless://`, `trojan://`, URL form of `vmess://`, `socks://`, SIP002 user information:
-///   `libXray/share/parse_share.go` (VERIFIED in source).
-/// - `hysteria2://`: `libXray/share/hysteria2.go` (VERIFIED in source).
-/// - `vmess://` base64 JSON (v2rayN convention), legacy `ss://`, `tuic://`, `wireguard://`:
-///   community conventions written from memory, no reference implementation in the
-///   checked sources (UNVERIFIED). The importer adds a warning where this matters.
+/// The grammar of every scheme, with the sources it was checked against, is in
+/// `Documentation/Protocols/share-link-formats.md`. In short:
+/// - `vless://`, `trojan://`, URL form of `vmess://`, `socks://`: XTLS/Xray-core discussion 716
+///   and `libXray/share/parse_share.go` (VERIFIED in source).
+/// - `hysteria2://`: the official URI scheme page and `libXray/share/hysteria2.go` (VERIFIED).
+/// - `ss://`: SIP002 and SIP022 (VERIFIED against the specification pages).
+/// - `vmess://` base64 JSON: the v2rayN wiki page (VERIFIED against the page).
+/// - `tuic://`: daeuniverse/dae discussion 182 (an informal proposal, VERIFIED against the page).
+/// - `wireguard://`: no specification and no reference implementation in the checked
+///   sources (UNVERIFIED). The importer adds a warning.
 enum LinkParsers {
 
     // MARK: - VLESS
@@ -294,6 +297,14 @@ enum LinkParsers {
         "aes-128-gcm", "aes-192-gcm", "aes-256-gcm",
         "chacha20-ietf-poly1305", "chacha20-poly1305", "xchacha20-ietf-poly1305", "xchacha20-poly1305",
         "2022-blake3-aes-128-gcm", "2022-blake3-aes-256-gcm", "2022-blake3-chacha20-poly1305",
+        "2022-blake3-chacha12-poly1305", "2022-blake3-chacha8-poly1305",
+    ]
+
+    /// SIP022: the key is base64 of exactly this many bytes; identity keys (SIP023) are joined with ':'.
+    private static let shadowsocks2022KeyLengths: [String: Int] = [
+        "2022-blake3-aes-128-gcm": 16, "2022-blake3-aes-256-gcm": 32,
+        "2022-blake3-chacha20-poly1305": 32, "2022-blake3-chacha12-poly1305": 32,
+        "2022-blake3-chacha8-poly1305": 32,
     ]
 
     static func shadowsocks(
@@ -397,6 +408,18 @@ enum LinkParsers {
         if !knownShadowsocksMethods.contains(method.lowercased()) {
             report.warn(.suspiciousValue, "Shadowsocks method '\(method)' is not an AEAD or 2022 cipher known to the importer")
         }
+        if let keyLength = shadowsocks2022KeyLengths[method.lowercased()] {
+            let keys = Array(password.utf8).split(separator: 0x3A, omittingEmptySubsequences: false)
+            let valid = keys.allSatisfy {
+                Data(base64Encoded: String(decoding: $0, as: UTF8.self))?.count == keyLength
+            }
+            if !valid {
+                report.warn(.suspiciousValue, "Shadowsocks 2022 key is not standard base64 of \(keyLength) bytes")
+            }
+            if report.format == "sip002", !rest.utf8.prefix(while: { $0 != 0x40 }).contains(0x3A) {
+                report.warn(.nonStandardFormat, "SIP002 forbids base64 user information with the 2022 methods")
+            }
+        }
 
         let name = LinkSupport.name(rawFragment: rawFragment, server: server, report: &report)
         return Outbound(
@@ -463,14 +486,16 @@ enum LinkParsers {
         let obfuscationType = bag.takeNonEmpty("obfs")
         let obfuscationPassword = bag.takeNonEmpty("obfs-password")
         if let type = obfuscationType, type.lowercased() != "none" {
-            guard type.lowercased() == "salamander" else {
+            // The official scheme defines `salamander` and `gecko`.
+            let known = type.lowercased()
+            guard known == "salamander" || known == "gecko" else {
                 // Connecting without the requested obfuscation would change the wire format.
                 throw ImportError.unsupportedValue(parameter: "obfs", value: type)
             }
             guard let obfuscationPassword = obfuscationPassword else {
                 throw ImportError.missingField("obfs-password")
             }
-            settings.obfuscation = Hysteria2Obfuscation(type: "salamander", password: .inline(obfuscationPassword))
+            settings.obfuscation = Hysteria2Obfuscation(type: known, password: .inline(obfuscationPassword))
         } else if let orphan = obfuscationPassword {
             report.record(
                 "obfs-password", value: orphan, location: .query, reason: .notApplicable,
@@ -478,8 +503,17 @@ enum LinkParsers {
             )
         }
 
-        settings.uploadBandwidth = bag.takeFirst(of: ["up", "upmbps"], report: &report)
-        settings.downloadBandwidth = bag.takeFirst(of: ["down", "downmbps"], report: &report)
+        // Not part of the official scheme (which says bandwidth must not be shared);
+        // libXray and mihomo read `up`/`down`. `upmbps`/`downmbps` belong to Hysteria 1
+        // and are left to the unknown-parameter record.
+        settings.uploadBandwidth = bag.takeNonEmpty("up")
+        settings.downloadBandwidth = bag.takeNonEmpty("down")
+        if settings.uploadBandwidth != nil || settings.downloadBandwidth != nil {
+            report.warn(.nonStandardFormat, "Bandwidth in a hysteria2:// link is a client extension, not part of the official scheme")
+        }
+        if settings.hopIntervalSeconds != nil && settings.serverPorts.isEmpty {
+            report.warn(.suspiciousValue, "hop-interval without a port list has no effect")
+        }
 
         let tls = StreamParameters.parseTLS(&bag, pinNames: ["pinSHA256", "pcs"], report: &report)
         bag.finish(knownElsewhere: [], report: &report)

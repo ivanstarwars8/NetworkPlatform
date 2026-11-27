@@ -1,0 +1,22 @@
+{
+  "conversion" : {
+    "engine" : "xray",
+    "engineTags" : {
+      "a" : "proxy-0000",
+      "t" : "proxy-0001"
+    },
+    "engineVersion" : "26.11.9",
+    "excludedOutbounds" : [
+
+    ],
+    "issues" : [
+      {
+        "detail" : "A selector group is compiled to its current member; switching requires a new compilation",
+        "kind" : "approximated",
+        "path" : "groups[pick]",
+        "severity" : "warning"
+      }
+    ],
+    "verdict" : "degraded"
+  }
+}

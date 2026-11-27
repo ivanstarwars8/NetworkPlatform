@@ -1,0 +1,1 @@
+vless://76e67b80-b8d3-407a-a13f-02c1c48186ab@u.example.com:443?encryption=none&type=tcp&security=tls&sni=u.example.com&allowInsecure=1&foo=bar&serviceName=unused#unknown-params

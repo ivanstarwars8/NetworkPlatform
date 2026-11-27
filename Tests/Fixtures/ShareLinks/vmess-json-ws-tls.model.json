@@ -1,0 +1,53 @@
+{
+  "credentials" : {
+    "userID" : {
+      "kind" : "inline",
+      "value" : "1cc9207f-5dda-4274-bb0d-9d105c95c6e8"
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "vmess ws",
+  "server" : {
+    "host" : "vm.example.com",
+    "port" : 443
+  },
+  "settings" : {
+    "vmess" : {
+      "_0" : {
+        "alterID" : 0,
+        "cipher" : "auto"
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "tls" : {
+        "_0" : {
+          "allowInsecure" : false,
+          "alpn" : [
+            "http/1.1"
+          ],
+          "disableSNI" : false,
+          "fingerprint" : "chrome",
+          "serverName" : "vm.example.com"
+        }
+      }
+    },
+    "transport" : {
+      "webSocket" : {
+        "_0" : {
+          "host" : "vm.example.com",
+          "path" : "/vm"
+        }
+      }
+    }
+  },
+  "tag" : "vmess ws",
+  "unsupported" : [
+
+  ]
+}

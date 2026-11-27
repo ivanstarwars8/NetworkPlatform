@@ -1,0 +1,44 @@
+{
+  "credentials" : {
+    "password" : {
+      "kind" : "inline",
+      "value" : "udihPqDumwBiY6PSt26Nqr9G"
+    },
+    "username" : "user1"
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "i-socks",
+  "server" : {
+    "host" : "127.0.0.1",
+    "port" : 47011
+  },
+  "settings" : {
+    "socks" : {
+      "_0" : {
+        "version" : "5"
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "none" : {
+
+      }
+    },
+    "transport" : {
+      "tcp" : {
+        "_0" : {
+
+        }
+      }
+    }
+  },
+  "tag" : "i-socks",
+  "unsupported" : [
+
+  ]
+}

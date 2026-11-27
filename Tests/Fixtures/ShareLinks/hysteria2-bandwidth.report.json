@@ -1,0 +1,33 @@
+{
+  "conversion" : {
+    "engine" : "xray",
+    "engineTags" : {
+      "hy2-bandwidth" : "proxy-0000"
+    },
+    "engineVersion" : "26.11.9",
+    "excludedOutbounds" : [
+
+    ],
+    "issues" : [
+
+    ],
+    "verdict" : "exact"
+  },
+  "importReport" : {
+    "format" : "hysteria2-url",
+    "scheme" : "hysteria2",
+    "unsupported" : [
+
+    ],
+    "warnings" : [
+      {
+        "code" : "defaultApplied",
+        "message" : "Port is missing; 443 assumed"
+      },
+      {
+        "code" : "nonStandardFormat",
+        "message" : "Bandwidth in a hysteria2:// link is a client extension, not part of the official scheme"
+      }
+    ]
+  }
+}

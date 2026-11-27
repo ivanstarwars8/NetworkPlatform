@@ -1,0 +1,58 @@
+{
+  "credentials" : {
+    "password" : {
+      "kind" : "inline",
+      "value" : "udihPqDumwBiY6PSt26Nqr9G"
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "hy2-bare",
+  "server" : {
+    "host" : "hy5.example.com",
+    "port" : 443
+  },
+  "settings" : {
+    "hysteria2" : {
+      "_0" : {
+        "downloadBandwidth" : "200",
+        "serverPorts" : [
+
+        ],
+        "uploadBandwidth" : "50"
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "tls" : {
+        "_0" : {
+          "allowInsecure" : false,
+          "alpn" : [
+
+          ],
+          "disableSNI" : false,
+          "serverName" : "hy5.example.com"
+        }
+      }
+    },
+    "transport" : {
+      "native" : {
+
+      }
+    }
+  },
+  "tag" : "hy2-bare",
+  "unsupported" : [
+    {
+      "disposition" : "recorded",
+      "location" : "query",
+      "name" : "upmbps",
+      "reason" : "unknown",
+      "value" : "50"
+    }
+  ]
+}

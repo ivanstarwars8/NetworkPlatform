@@ -1,0 +1,43 @@
+{
+  "credentials" : {
+    "password" : {
+      "kind" : "inline",
+      "value" : "bP/Z8y+WQmzAxl72irfkZg=="
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "ss2022-bad-key",
+  "server" : {
+    "host" : "192.0.2.43",
+    "port" : 8393
+  },
+  "settings" : {
+    "shadowsocks" : {
+      "_0" : {
+        "method" : "2022-blake3-aes-256-gcm"
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "none" : {
+
+      }
+    },
+    "transport" : {
+      "tcp" : {
+        "_0" : {
+
+        }
+      }
+    }
+  },
+  "tag" : "ss2022-bad-key",
+  "unsupported" : [
+
+  ]
+}

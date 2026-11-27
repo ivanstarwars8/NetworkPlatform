@@ -1,0 +1,62 @@
+{
+  "inbounds" : [
+    {
+      "listen" : "127.0.0.1",
+      "port" : 10808,
+      "protocol" : "socks",
+      "settings" : {
+        "auth" : "noauth",
+        "udp" : true
+      },
+      "tag" : "socks-in"
+    }
+  ],
+  "log" : {
+    "loglevel" : "warning"
+  },
+  "outbounds" : [
+    {
+      "protocol" : "vless",
+      "settings" : {
+        "address" : "x.example.com",
+        "encryption" : "none",
+        "id" : "07bdfc86-4b12-4705-a9b2-477e3e708615",
+        "port" : 443
+      },
+      "streamSettings" : {
+        "network" : "xhttp",
+        "security" : "tls",
+        "tlsSettings" : {
+          "alpn" : [
+            "h2"
+          ],
+          "fingerprint" : "chrome",
+          "serverName" : "x.example.com"
+        },
+        "xhttpSettings" : {
+          "host" : "x.example.com",
+          "mode" : "packet-up",
+          "path" : "/xh"
+        }
+      },
+      "tag" : "proxy-0000"
+    },
+    {
+      "protocol" : "freedom",
+      "tag" : "direct"
+    },
+    {
+      "protocol" : "blackhole",
+      "tag" : "block"
+    }
+  ],
+  "routing" : {
+    "rules" : [
+      {
+        "network" : "tcp,udp",
+        "outboundTag" : "proxy-0000",
+        "type" : "field"
+      }
+    ]
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "credentials" : {
+    "userID" : {
+      "kind" : "inline",
+      "value" : "07bdfc86-4b12-4705-a9b2-477e3e708615"
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "vmess-url",
+  "server" : {
+    "host" : "vu.example.com",
+    "port" : 443
+  },
+  "settings" : {
+    "vmess" : {
+      "_0" : {
+        "alterID" : 0,
+        "cipher" : "aes-128-gcm"
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "tls" : {
+        "_0" : {
+          "allowInsecure" : false,
+          "alpn" : [
+
+          ],
+          "disableSNI" : false,
+          "serverName" : "vu.example.com"
+        }
+      }
+    },
+    "transport" : {
+      "httpUpgrade" : {
+        "_0" : {
+          "host" : "vu.example.com",
+          "path" : "/hu"
+        }
+      }
+    }
+  },
+  "tag" : "vmess-url",
+  "unsupported" : [
+
+  ]
+}

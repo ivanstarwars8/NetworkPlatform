@@ -1,0 +1,65 @@
+{
+  "credentials" : {
+    "password" : {
+      "kind" : "inline",
+      "value" : "FY2WsKBsjAkZYhQ+4FHQq4s+"
+    }
+  },
+  "extras" : {
+    "storage" : {
+
+    }
+  },
+  "name" : "hy2-hop",
+  "server" : {
+    "host" : "hy2.example.com",
+    "port" : 443
+  },
+  "settings" : {
+    "hysteria2" : {
+      "_0" : {
+        "hopIntervalSeconds" : 45,
+        "obfuscation" : {
+          "password" : {
+            "kind" : "inline",
+            "value" : "UD3nWFp4ew79/MjLvzbno+6K"
+          },
+          "type" : "salamander"
+        },
+        "serverPorts" : [
+          {
+            "lower" : 443,
+            "upper" : 443
+          },
+          {
+            "lower" : 5000,
+            "upper" : 6000
+          }
+        ]
+      }
+    }
+  },
+  "stream" : {
+    "security" : {
+      "tls" : {
+        "_0" : {
+          "allowInsecure" : false,
+          "alpn" : [
+
+          ],
+          "disableSNI" : false,
+          "serverName" : "hy2.example.com"
+        }
+      }
+    },
+    "transport" : {
+      "native" : {
+
+      }
+    }
+  },
+  "tag" : "hy2-hop",
+  "unsupported" : [
+
+  ]
+}

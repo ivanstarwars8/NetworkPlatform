@@ -1,0 +1,40 @@
+{
+  "conversion" : {
+    "engine" : "xray",
+    "engineTags" : {
+      "vmess legacy" : "proxy-0000"
+    },
+    "engineVersion" : "26.11.9",
+    "excludedOutbounds" : [
+
+    ],
+    "issues" : [
+      {
+        "detail" : "Xray has no VMess cipher 'zero'; 'auto' is used",
+        "kind" : "approximated",
+        "path" : "outbounds[0].settings.cipher",
+        "severity" : "warning"
+      },
+      {
+        "detail" : "Xray speaks only VMess AEAD; a non-zero alterId is ignored and a legacy server will not answer",
+        "kind" : "unsupported",
+        "path" : "outbounds[0].settings.alterID",
+        "severity" : "warning"
+      }
+    ],
+    "verdict" : "degraded"
+  },
+  "importReport" : {
+    "format" : "vmess-base64-json",
+    "scheme" : "vmess",
+    "unsupported" : [
+
+    ],
+    "warnings" : [
+      {
+        "code" : "legacyFeature",
+        "message" : "VMess alterId is non-zero (legacy non-AEAD mode); engines may reject it"
+      }
+    ]
+  }
+}

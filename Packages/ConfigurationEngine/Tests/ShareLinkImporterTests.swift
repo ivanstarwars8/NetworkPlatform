@@ -580,7 +580,8 @@ final class ShareLinkImporterTests: XCTestCase {
             serverName: "hy.example.com", allowInsecure: true, pinnedPeerCertificateSHA256: "deadbeef"
         )))
         XCTAssertEqual(result.report.unsupported, [])
-        XCTAssertEqual(result.report.warnings.map { $0.code }, [.insecureTLS])
+        // `up`/`down` are outside the official scheme; the importer says so.
+        XCTAssertEqual(result.report.warnings.map { $0.code }, [.nonStandardFormat, .insecureTLS])
         XCTAssertEqual(outbound.inlineSecretSlots, [.password, .obfuscationPassword])
     }
 

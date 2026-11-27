@@ -1,0 +1,56 @@
+{
+  "inbounds" : [
+    {
+      "listen" : "127.0.0.1",
+      "port" : 10808,
+      "protocol" : "socks",
+      "settings" : {
+        "auth" : "noauth",
+        "udp" : true
+      },
+      "tag" : "socks-in"
+    }
+  ],
+  "log" : {
+    "loglevel" : "warning"
+  },
+  "outbounds" : [
+    {
+      "protocol" : "trojan",
+      "settings" : {
+        "address" : "192.0.2.30",
+        "password" : "FY2WsKBsjAkZYhQ+4FHQq4s+",
+        "port" : 443
+      },
+      "streamSettings" : {
+        "network" : "ws",
+        "security" : "tls",
+        "tlsSettings" : {
+          "serverName" : "tw.example.com"
+        },
+        "wsSettings" : {
+          "host" : "tw.example.com",
+          "path" : "/trojan"
+        }
+      },
+      "tag" : "proxy-0000"
+    },
+    {
+      "protocol" : "freedom",
+      "tag" : "direct"
+    },
+    {
+      "protocol" : "blackhole",
+      "tag" : "block"
+    }
+  ],
+  "routing" : {
+    "rules" : [
+      {
+        "network" : "tcp,udp",
+        "outboundTag" : "proxy-0000",
+        "type" : "field"
+      }
+    ]
+  }
+}

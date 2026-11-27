@@ -1,0 +1,59 @@
+{
+  "inbounds" : [
+    {
+      "listen" : "127.0.0.1",
+      "port" : 10808,
+      "protocol" : "socks",
+      "settings" : {
+        "auth" : "noauth",
+        "udp" : true
+      },
+      "tag" : "socks-in"
+    }
+  ],
+  "log" : {
+    "loglevel" : "warning"
+  },
+  "outbounds" : [
+    {
+      "protocol" : "vless",
+      "settings" : {
+        "address" : "192.0.2.11",
+        "encryption" : "none",
+        "id" : "7cbd604a-1e57-419f-8fe1-e39a88ade162",
+        "port" : 8443
+      },
+      "streamSettings" : {
+        "grpcSettings" : {
+          "multiMode" : true,
+          "serviceName" : "grpc.Service"
+        },
+        "network" : "grpc",
+        "realitySettings" : {
+          "fingerprint" : "safari",
+          "password" : "Z__smirXnH5v85ySxE24UXnJYAS4ElyAynyt59rqQw4",
+          "serverName" : "www.example.net"
+        },
+        "security" : "reality"
+      },
+      "tag" : "proxy-0000"
+    },
+    {
+      "protocol" : "freedom",
+      "tag" : "direct"
+    },
+    {
+      "protocol" : "blackhole",
+      "tag" : "block"
+    }
+  ],
+  "routing" : {
+    "rules" : [
+      {
+        "network" : "tcp,udp",
+        "outboundTag" : "proxy-0000",
+        "type" : "field"
+      }
+    ]
+  }
+}

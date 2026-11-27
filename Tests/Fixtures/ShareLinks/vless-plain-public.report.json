@@ -1,0 +1,40 @@
+{
+  "conversion" : {
+    "engine" : "xray",
+    "engineTags" : {
+
+    },
+    "engineVersion" : "26.11.9",
+    "excludedOutbounds" : [
+      "plain-public"
+    ],
+    "issues" : [
+      {
+        "detail" : "Xray refuses VLESS without TLS, REALITY or VLESS Encryption to a public address",
+        "kind" : "unsupported",
+        "path" : "outbounds[0].stream.security",
+        "severity" : "error"
+      },
+      {
+        "detail" : "The selected outbound could not be compiled",
+        "kind" : "unsupported",
+        "path" : "profile.selectedTag",
+        "severity" : "error"
+      }
+    ],
+    "verdict" : "blocked"
+  },
+  "importReport" : {
+    "format" : "vless-url",
+    "scheme" : "vless",
+    "unsupported" : [
+
+    ],
+    "warnings" : [
+      {
+        "code" : "plaintextTransport",
+        "message" : "VLESS without TLS, REALITY or VLESS Encryption is not encrypted"
+      }
+    ]
+  }
+}

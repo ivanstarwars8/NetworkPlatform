@@ -1,0 +1,94 @@
+{
+  "groups" : [
+
+  ],
+  "id" : "00000000-0000-4000-8000-000000000105",
+  "name" : "split",
+  "outbounds" : [
+    {
+      "credentials" : {
+        "userID" : {
+          "kind" : "inline",
+          "value" : "1cc9207f-5dda-4274-bb0d-9d105c95c6e8"
+        }
+      },
+      "extras" : {
+        "storage" : {
+
+        }
+      },
+      "name" : "split",
+      "server" : {
+        "host" : "192.0.2.82",
+        "port" : 443
+      },
+      "settings" : {
+        "vless" : {
+          "_0" : {
+            "encryption" : "none"
+          }
+        }
+      },
+      "stream" : {
+        "security" : {
+          "reality" : {
+            "_0" : {
+              "fingerprint" : "chrome",
+              "publicKey" : "VZhM7y7_-UFCl2zNHcAGmpbH_cJyhFV3yXneqhjbwC4",
+              "serverName" : "www.example.org",
+              "shortID" : "65466826"
+            }
+          }
+        },
+        "transport" : {
+          "xhttp" : {
+            "_0" : {
+              "download" : {
+                "server" : {
+                  "host" : "dl.example.net",
+                  "port" : 8443
+                },
+                "stream" : {
+                  "security" : {
+                    "tls" : {
+                      "_0" : {
+                        "allowInsecure" : false,
+                        "alpn" : [
+                          "h2"
+                        ],
+                        "disableSNI" : false
+                      }
+                    }
+                  },
+                  "transport" : {
+                    "xhttp" : {
+                      "_0" : {
+                        "host" : "",
+                        "mode" : "",
+                        "path" : "/down"
+                      }
+                    }
+                  }
+                }
+              },
+              "host" : "",
+              "mode" : "stream-up",
+              "path" : "/up"
+            }
+          }
+        }
+      },
+      "tag" : "split",
+      "unsupported" : [
+
+      ]
+    }
+  ],
+  "schemaVersion" : 1,
+  "selectedTag" : "split",
+  "source" : {
+    "manual" : {
+
+    }
+  }
+}
