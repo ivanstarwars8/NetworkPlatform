@@ -50,7 +50,7 @@
 
 Исправление при слиянии: корневой `Package.swift` не проходил проверку типов в `swift:5.10` («unable to type-check this expression in reasonable time» на цепочке `lib(...) + lib(...)`; все потоки работали через временные манифесты). Список целей теперь собирается по одному оператору `+=`; у `RoutingBench` исключён `run-all.sh` (предупреждение о необработанном файле). Тесты не менялись.
 
-Потоки дополнительно прогоняли (их логи в своих рабочих копиях): `AdaptiveBalancer` — свойства по 2500 шагов, 50/24/20 сидов; `CoreAbstraction` — 28 повторных прогонов без падений, сборка со `-strict-concurrency=complete` без предупреждений в исходниках.
+Потоки дополнительно прогоняли (логи — `Logs/stage2-<поток>/`, вне git): `AdaptiveBalancer` — свойства по 2500 шагов, 50/24/20 сидов; `CoreAbstraction` — 28 повторных прогонов без падений, сборка со `-strict-concurrency=complete` без предупреждений в исходниках.
 
 ### 2.2. Мост Xray — сервер разработки (linux/amd64, Go 1.27.4)
 
@@ -60,7 +60,7 @@
 - `go test ./...` — **ok** (`engine`, 43 с).
 - `go test -race ./...` со штатным xray той же версии как сервером — **FAIL**: только `TestFlowThroughProxyWithDNS`, гонка внутри Vision ядра (`proxy/proxy.go` 255/384, `proxy/vless/outbound.go`), как и в отчёте потока. Тот же тест под `-race` через Trojan+TLS (`NP_TEST_FLOW_PROXY=Trojan+TLS`) — **ok**.
 
-Прогоны потока bridge (не повторялись при слиянии; логи в рабочей копии потока):
+Прогоны потока bridge (не повторялись при слиянии; логи — `Logs/stage2-bridge/`):
 
 - 200 циклов start/stop: горутины 5→5, куча +448 Б/цикл.
 - Шесть протоколов через SOCKS-inbound моста против штатного xray 26.11.9: VLESS+TCP, VLESS+REALITY+Vision, VLESS+XHTTP, Trojan+TLS, Shadowsocks-2022, VMess — TCP 512 КиБ + 8 UDP-датаграмм, все прошли. Счётчики inbound точны; outbound VLESS+TCP и VMess не учитывают UDP-полезную нагрузку (отклонение ядра).
