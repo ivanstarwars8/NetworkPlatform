@@ -319,7 +319,7 @@ python3 Benchmarks/BridgeBench/soak_table.py Logs/tunlab/soak-samples-flow-mobil
 
 ## 10. Мост Mihomo
 
-Дата: 2026-11-27. Мост — `Cores/MihomoBridge` (ветка `stage3b/mihomomem`), Mihomo v1.19.34, Go 1.27.4. Пометки
+Дата: 2026-11-27. Мост — `Cores/MihomoBridge` (поток `stage3b/mihomomem`, слит в `main`), Mihomo v1.19.34, Go 1.27.4. Пометки
 и оговорки §1 действуют: всё измерено на Linux/amd64 на том же общем сервере разработки (load average 3–8 во
 время прогонов), **на устройстве не запускалось**. Сырьё — `Benchmarks/results/mihomo-memory-2026-11-27/`.
 

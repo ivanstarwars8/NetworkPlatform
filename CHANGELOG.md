@@ -6,6 +6,26 @@
 
 ## Не выпущено
 
+### Добавлено (этап 3b, 2026-11-27)
+
+- `stage3b/tunready`: `DomainModels/TunnelAddressing.swift` (`TunnelAddressing`, `TunnelRoute`) — единый источник адресов туннеля, резолверов, MTU и локальных диапазонов; компилятор `XrayCompileOptions.tunnel`/`.packetTunnel(...)` выпускает TUN-inbound `tun-in`, перехват UDP/53 в `dns`-outbound, direct для адресов серверов и локальных сетей, `XrayCompilation.tunnel` (`XrayTunnelPlan`); `TunnelNetworkPlan.excludedRoutes` применяется в `TunnelNetworkSettings`. Сквозной прогон вывода компилятора в мосте (flow, netns, tun ядра): TCP/UDP/DNS/IPv6, 0 утечек DNS, 0 петель (`Benchmarks/results/tunready-2026-11-27/`). Linux + компиляция на macOS CI; на устройстве не запускалось.
+- Вырезание значений конфигурации: мост Xray `engine/redact.go` (ошибки разбора/сборки, `core.New`, `Start`, `lastError`, паники; кольцо журнала — кроме IP назначений), Swift `ConfigValueRedactor` для отчётов компилятора; тесты Go и Swift.
+- Мост Mihomo: `memory.profile:"mobile"` (40 МиБ, GOGC 25, outQueue 512 КиБ, простой UDP 30 с / TCP 300 с, `tun.maxFlows` 512, очередь журнала 128), опции `tcpIdleTimeoutMs`/`udpIdleTimeoutMs` (обходчик моста `engine/idle.go`), `tun.maxFlows`, счётчики `idleClosedTcp/Udp`, `flowsActive/Highest/Rejected`; стенд `cmd/npmlab` (`ENGINE=mihomo` в `bridge-tunlab.sh`); `memory-budget.md` §10, `Benchmarks/results/mihomo-memory-2026-11-27/`. Linux: 30 мин — RssAnon 24–26 МиБ, RSS ~57 МиБ (цель ~50 не достигнута).
+
+### Изменено (этап 3b)
+
+- Адаптер передаёт мосту Xray только `memory:{"profile":"mobile"}` (при старте и проверке); 32 МиБ / GOGC 50 в `PacketTunnelProvider` удалены.
+- `DomainModels` — зависимость приложения, расширения и тестовых целей `CoreAbstraction`/`EngineXray`.
+- `Tools/swift-docker.sh` передаёт `NP_EXPORT_*` в контейнер.
+
+### Исправлено (этап 3b)
+
+- `TestSoakRSS` моста Mihomo копил журнал debug штатного xray в буфере без предела (часть прежних 313 МиБ); теперь хранится хвост 256–512 КиБ, профили по `NP_SOAK_PROF`.
+
+### Проверено (этап 3b)
+
+- 2026-11-27, `main` после слияния этапа 3b: `swift test -j 1` в `swift:5.10` — 533 тестов, 0 падений. Мост Xray: gofmt/vet чисто, `go test ./...` со штатным xray ok. Мост Mihomo: gofmt/vet чисто, `go test ./...` со штатным xray ok. CI — `STATUS.md` §2.0.
+
 ### Добавлено (этап 3, 2026-11-27)
 
 - Профиль памяти `mobile`: мост Xray (`memory.profile:"mobile"` заполняет незаданные опции — предел 40 МиБ, GOGC 25, `tun.outQueueBytes` 512 КиБ, `tun.maxFlows` 512, очередь журнала 128; отказ от `assetDir` и geodata), новый `tun.maxFlows` со счётчиками `flowsActive`/`flowsHighest`/`flowsRejected`; компилятор `XrayCompileOptions.memoryProfile` (`.standard`/`.mobile`: `policy.levels.0` connIdle 30, handshake 10, uplinkOnly/downlinkOnly 1, bufferSize 4 КиБ; окна QUIC Hysteria2). Стенд: RssAnon/RssFile, холодный старт, `burst`, `memcmp`, `MOBILE=1`; `Benchmarks/BridgeBench/soak_table.py`, `Benchmarks/results/memory-2026-11-27/`, `Documentation/Performance/memory-budget.md`. Linux: плато RSS 48–49 МиБ против 138–164; цель ≤ 45 МиБ не достигнута; на устройстве не проверено.

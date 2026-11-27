@@ -6,7 +6,7 @@
 
 Открытая сетевая платформа (прокси/VPN-клиент) для iOS, iPadOS, macOS, tvOS, visionOS. Xray-core и Mihomo — сменные движки за собственным управляющим слоем на Swift (второй движок — Mihomo по ADR-0007; sing-box изучен и не интегрируется).
 
-Состояние: Phase 1, этап 3. Мост Xray (`Cores/Bridge`) и мост Mihomo (`Cores/MihomoBridge`, тот же C ABI) собраны и проверены на Linux. Адаптер `EngineXray` (Swift поверх C ABI, насос пакетов) проверен на Linux против поддельного моста и зарегистрирован в `XrayOnly`. Swift-пакет проходит тесты на Linux и на macOS (CI). На раннере macOS CI без подписи собраны мост (XCFramework, 10 срезов) и приложение с расширением `XrayOnly` для iOS/iPadOS, macOS, tvOS, visionOS. Ничего не подписано и не запущено на устройстве, туннель не поднимался. Точное состояние — в `STATUS.md` §2.0.
+Состояние: Phase 1, этап 3b. Мост Xray (`Cores/Bridge`) и мост Mihomo (`Cores/MihomoBridge`, тот же C ABI) собраны и проверены на Linux. Адаптер `EngineXray` (Swift поверх C ABI, насос пакетов) проверен на Linux против поддельного моста и зарегистрирован в `XrayOnly`. Компилятор выпускает TUN-inbound/перехват DNS/исключения из `TunnelAddressing`; вывод компилятора прогнан в мосте на tun ядра Linux. Swift-пакет проходит тесты на Linux и на macOS (CI). На раннере macOS CI без подписи собраны мост (XCFramework, 10 срезов) и приложение с расширением `XrayOnly` для iOS/iPadOS, macOS, tvOS, visionOS. Ничего не подписано и не запущено на устройстве, туннель не поднимался. Точное состояние — в `STATUS.md` §2.0.
 
 Мастер-спецификация владельца в репозиторий не добавлена. Её разделы 31–33 пересказаны ниже; остальное отражено в ADR и `ROADMAP.md`.
 
@@ -21,7 +21,7 @@ Apps/SharedApp/               оболочка приложения на SwiftUI
 Apps/project.yml              спецификация XcodeGen (iOS/iPadOS, macOS, tvOS, visionOS)
 Apps/Configurations/          xcconfig вариантов сборки: XrayOnly, MihomoOnly, Dual; Local.xcconfig — вне git
 Cores/Bridge/                 мост Xray: Go-модуль (engine/, cabi/ — C ABI v1, cmd/nplab — стенд Linux)
-Cores/MihomoBridge/           мост Mihomo: Go-модуль с тем же C ABI v1; apple/patch — правка ядра для Apple
+Cores/MihomoBridge/           мост Mihomo: Go-модуль с тем же C ABI v1 (cmd/npmlab — стенд Linux); apple/patch — правка ядра для Apple
 Cores/BuildScripts/           мосты: XCFramework Xray для Apple; проверки на Linux (C ABI, netns, стенд tun, правка Apple для Mihomo)
 Benchmarks/                   RoutingBench, RoutingParity (Go), BridgeBench, results/
 Tests/Fixtures/               корпус ссылок, interop-конфигов и профилей; проверка настоящим Xray
@@ -57,7 +57,9 @@ NP_REMOTE=<сервер> NP_KEY=<рабочее место> Tools/remote-go.sh '
 - Мост Mihomo: `go test -race ./engine` падает на гонках внутри ядра Mihomo — `TestProtocolsOverLoopback/VLESS+REALITY+Vision` (Vision ядра) и `TestStartStopCycles` (`log.SetLevel` против `log.print`); на CI (`mihomo-bridge-go.yml`) — шаг «KNOWN FAILURE check», который требует, чтобы самый внутренний кадр каждого конфликтующего доступа был в `github.com/metacubex/mihomo`. Интеграционные тесты моста Mihomo используют штатный xray, собранный из ядра, закреплённого `Cores/Bridge/go.mod`. Mihomo-клиенту REALITY против Xray 26.11.9 нужен `support-x25519mlkem768: true`.
 - Ядро Mihomo оставляет IPv6-адрес tun, только если у хоста есть глобальный IPv6 (`verifyIP6`); у раннеров GitHub его нет — тесты не должны от этого зависеть.
 - Правка Apple для Mihomo — через `-modfile` (`Cores/BuildScripts/mihomo-apple-patch.sh`): `go -overlay` в GOMODCACHE запрещён.
-- Память: профиль `mobile` (`memory.profile` моста, `XrayMemoryProfile.mobile` компилятора) — см. `Documentation/Performance/memory-budget.md`. Совет «предел 24–32 МиБ» опровергнут замером: предел ниже живого набора гоняет GC непрерывно. Лимит памяти расширения iOS (~50 МиБ [U]) повысить нельзя: entitlement increased-memory-limit на app extensions не действует.
+- Память: профиль `mobile` (`memory.profile` обоих мостов, `XrayMemoryProfile.mobile` компилятора) — см. `Documentation/Performance/memory-budget.md` (§10 — Mihomo). Адаптер передаёт мосту только `memory:{"profile":"mobile"}`; числа профиля живут только в Go-константах `Mobile*` — не дублировать их в Swift. Mihomo: тайм-аут UDP-сессий ядра конфигурацией не задаётся (`tun.udp-timeout` стек mips игнорирует) — простой закрывает обходчик моста `engine/idle.go`; не писать в переменные ядра через `go:linkname` (гонка). `TestSoakRSS` моста Mihomo — функциональный прогон, не цифра памяти моста: мерить через `ENGINE=mihomo` в `bridge-tunlab.sh` (`npmlab`). Совет «предел 24–32 МиБ» опровергнут замером: предел ниже живого набора гоняет GC непрерывно. Лимит памяти расширения iOS (~50 МиБ [U]) повысить нельзя: entitlement increased-memory-limit на app extensions не действует.
+- Адреса туннеля (198.18.0.1/30, fd66:6e70::1/126, резолверы, MTU, локальные диапазоны) — только в `DomainModels/TunnelAddressing.swift`; компилятор, план сети и стенд берут их оттуда. Экспорт вывода компилятора для стенда: тесты `testExportCompiledTunnelConfiguration`/`testExportPacketTunnelBridgeOptions` с `NP_EXPORT_DIR` → `bridge-tunlab.sh compiled DIR`.
+- Сообщения об ошибках моста Xray и отчёты компилятора проходят вырезание значений конфигурации (`engine/redact.go`, `ConfigValueRedactor`); новые пути ошибок пропускать через них.
 - `go test -race ./engine` моста Xray со штатным xray (`NP_STOCK_XRAY`) сейчас падает в `TestFlowThroughProxyWithDNS` (на CI — и в `TestProtocolsOverLoopback/VLESS+REALITY+Vision`) из-за гонки Vision внутри ядра; на CI это отдельный шаг «KNOWN FAILURE check»; через `NP_TEST_FLOW_PROXY=Trojan+TLS` тест проходит. Это известный провал, не скрывать его.
 
 Приложение и расширение: только на Mac или на CI (`Documentation/Apple/BUILD_ON_MAC.md`): `Cores/BuildScripts/bridge-apple-xcframework.sh`, затем `cd Apps && xcodegen generate`, затем `xcodebuild … -configuration Debug-XrayOnly`. С этого хоста код под Apple проверяется только через CI: коммит в `main` → `gh run watch` / `gh run view --log-failed`. Задания с фильтрами путей, лишние прогоны отменяются группой concurrency.
@@ -160,4 +162,5 @@ NP_REMOTE=<сервер> NP_KEY=<рабочее место> Tools/remote-go.sh '
 | Ключи JSON и версии Xray | `Documentation/Protocols/xray-modern.md` |
 | Второй движок | ADR-0007, `Documentation/Research/mihomo-leaf.md`, `Cores/MihomoBridge/README.md`, `Documentation/Architecture/mihomo-config.md` |
 | Память расширения, профиль `mobile` | `Documentation/Performance/memory-budget.md` |
+| Адреса туннеля, TUN-inbound, перехват DNS | `Documentation/Architecture/tun-integration.md` §11, `TunnelAddressing.swift` |
 | Угрозы | `Documentation/Security/THREAT_MODEL.md` |

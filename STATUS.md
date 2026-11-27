@@ -1,10 +1,10 @@
 # STATUS
 
-Дата: **2026-11-27**. Этап: Phase 1, этап 3 — профиль памяти `mobile`, адаптер `EngineXray`, мост Mihomo (слиты в `main` 2026-11-27).
+Дата: **2026-11-27**. Этап: Phase 1, этап 3 — профиль памяти `mobile`, адаптер `EngineXray`, мост Mihomo (слиты в `main` 2026-11-27); этап 3b — готовность туннеля (`tunready`) и память моста Mihomo (`mihomomem`), слиты в `main` 2026-11-27.
 
-Одной строкой: **мост Xray (Go) работает на Linux** — трафик через настоящий tun ядра, шесть протоколов против штатного xray; **мост Mihomo (Go, тот же C ABI) работает на Linux** — VLESS+REALITY+Vision и SS-2022 против штатного xray; **компилятор модели → Xray JSON** проверен настоящим Xray 26.11.9; **Swift-пакет из шести модулей (с адаптером `EngineXray`) — 515 тестов, 0 падений на Linux**; профиль памяти `mobile` снизил плато RSS моста Xray на Linux со 138–164 до 48–49 МиБ (цель ≤ 45 МиБ не достигнута). На раннере macOS CI **скомпилированы без подписи**: пакет, мост — 10 срезов C-архива для iOS/симулятора/macOS/tvOS/visionOS в XCFramework (тест C ABI выполнен на macOS arm64), приложение + расширение `XrayOnly` с зарегистрированным адаптером для iOS/iPadOS, macOS, tvOS, visionOS (§2.0). **Ничего не подписано, не установлено и не запущено на устройстве; туннель не поднимался.** `MihomoOnly` и `Dual` не собираются: мост Mihomo под Apple ещё не собирается (нет XCFramework).
+Одной строкой: **мост Xray (Go) работает на Linux** — трафик через настоящий tun ядра, шесть протоколов против штатного xray; **мост Mihomo (Go, тот же C ABI) работает на Linux** — VLESS+REALITY+Vision и SS-2022 против штатного xray; **компилятор модели → Xray JSON** проверен настоящим Xray 26.11.9; **компилятор выпускает TUN-inbound, перехват DNS и исключения маршрутов**, адаптер передаёт мосту `memory.profile=mobile`; вывод компилятора прогнан в мосте на tun ядра Linux (TCP/UDP/DNS/IPv6, 0 утечек DNS, 0 петель); **Swift-пакет из шести модулей (с адаптером `EngineXray`) — 533 тестов, 0 падений на Linux**; профиль памяти `mobile` снизил плато RSS моста Xray на Linux со 138–164 до 48–49 МиБ (цель ≤ 45 МиБ не достигнута); у моста Mihomo прежние 313 МиБ оказались тестом, профиль `mobile` — RssAnon 24–26 МиБ за 30 мин, RSS ~57 МиБ (цель ~50 не достигнута). На раннере macOS CI **скомпилированы без подписи**: пакет, мост — 10 срезов C-архива для iOS/симулятора/macOS/tvOS/visionOS в XCFramework (тест C ABI выполнен на macOS arm64), приложение + расширение `XrayOnly` с зарегистрированным адаптером для iOS/iPadOS, macOS, tvOS, visionOS (§2.0). **Ничего не подписано, не установлено и не запущено на устройстве; туннель не поднимался.** `MihomoOnly` и `Dual` не собираются: мост Mihomo под Apple ещё не собирается (нет XCFramework).
 
-Доказательства разделены по источнику: **Linux** (сервер разработки и контейнер `swift:5.10`) — §2.1–2.6; **macOS CI** (компиляция без подписи, тесты пакета на macOS) — §2.0; **устройство** — ничего (§4).
+Доказательства разделены по источнику: **Linux** (сервер разработки и контейнер `swift:5.10`) — §2.1–2.8; **macOS CI** (компиляция без подписи, тесты пакета на macOS) — §2.0; **устройство** — ничего (§4).
 
 Статусы:
 
@@ -23,6 +23,8 @@
 | Адаптер `EngineXray` (`XrayCore`: `NetworkCore` поверх C ABI моста; насос пакетов `NEPacketTunnelFlow`↔мост пачками с ограниченной очередью и обратным давлением; журнал, статистика, здоровье, нормализация ошибок) | `Packages/EngineXray/`, `Extensions/PacketTunnel/XrayBridgeBinding.swift` | Linux: 36 тестов против поддельного моста (§2.1); macOS CI: тесты пакета и компиляция без подписи для 4 платформ (§2.0); на устройстве не запускалось, туннель не поднимался; привязка к настоящему мосту не вызывалась ни разу |
 | ADR-0008: запрос запуска передаётся файлом в App Group (фиксирует существующий дизайн; ADR-0003 частично заменён); расширение удаляет устаревшие файлы передачи | `Documentation/ADR/0008-start-request-handoff-via-app-group.md` | документ + правка кода; проверки H-1…H-5 — на устройстве |
 | Мост Mihomo: Mihomo v1.19.34 (`0455d0d`), Go 1.27.4, тот же C ABI v1 (14 `npb_*`, проверка формы против моста Xray), пакетный путь без fd utun (свой слушатель на стеке `mips`, входная очередь), stop = пустая конфигурация, переписывание опасных ключей YAML, правка Apple без `proc_pidinfo` через `-modfile` | `Cores/MihomoBridge/`, `Cores/BuildScripts/mihomo-*.sh` | Linux: собран и проверен (§2.6); под Apple — только компиляция `GOOS=ios/darwin` на Linux без SDK; XCFramework нет |
+| Готовность туннеля (`tunready`): общий источник адресов туннеля `TunnelAddressing` (198.18.0.1/30, fd66:6e70::1/126, резолверы .2/::2, MTU 1500, локальные диапазоны); компилятор (`XrayCompileOptions.tunnel`/`.packetTunnel`) выпускает TUN-inbound `tun-in`, перехват UDP/53 в `dns`-outbound, direct для адресов серверов и локальных сетей; план `XrayTunnelPlan` → `TunnelNetworkPlan.excludedRoutes` → `TunnelNetworkSettings`; адаптер передаёт только `memory.profile:"mobile"` (32 МиБ/GOGC 50 убраны); вырезание значений конфигурации из ошибок и журнала моста Xray (`engine/redact.go`) и из отчётов компилятора (`ConfigValueRedactor`) | `Packages/DomainModels/Sources/TunnelAddressing.swift`, `Packages/ConfigurationEngine/`, `Extensions/PacketTunnel/`, `Cores/Bridge/engine/redact.go`, `Benchmarks/results/tunready-2026-11-27/` | Linux: тесты + сквозной прогон в мосте (§2.7); macOS CI: компиляция без подписи (§2.0); на устройстве не запускалось, `excludedRoutes` в NE не проверены |
+| Память моста Mihomo (`mihomomem`): `memory.profile:"mobile"` (предел 40 МиБ, GOGC 25, outQueue 512 КиБ, inQueue 1 МиБ, простой UDP 30 с / TCP 300 с обходчиком моста `engine/idle.go`, `tun.maxFlows` 512, очередь журнала 128), опции `tcpIdleTimeoutMs`/`udpIdleTimeoutMs`, счётчики `idleClosedTcp/Udp`, `flowsActive/Highest/Rejected`; стенд `cmd/npmlab` (`ENGINE=mihomo` в `bridge-tunlab.sh`) | `Cores/MihomoBridge/`, `Documentation/Performance/memory-budget.md` §10, `Benchmarks/results/mihomo-memory-2026-11-27/` | Linux: замерено (§2.8); цель ~50 МиБ RSS не достигнута; на устройстве не мерилось |
 | Решение по utun: основной путь — `NEPacketTunnelFlow` пачками (`tun.mode="flow"`), режим fd — по выбору | `Documentation/Architecture/tun-integration.md`, ADR-0001 §4.1 | проверено на Linux; на Apple — нет |
 | Стенд на tun ядра Linux (`nplab`, `bridge-tunlab.sh`), сводка замеров | `Cores/Bridge/cmd/nplab`, `Cores/BuildScripts/`, `Benchmarks/BridgeBench`, `Benchmarks/results/bridge-2026-11-27/` | прогнан потоком bridge |
 | Компилятор модели → Xray JSON с `ConversionReport` | `Packages/ConfigurationEngine/Sources/Xray*.swift`, `ConversionReport.swift` | сделано (Linux + Xray 26.11.9) |
@@ -46,6 +48,10 @@
 ## 2. Что реально запускалось
 
 ### 2.0. Apple — сборка на CI (GitHub Actions, macOS 15, Xcode 16.4, 2026-11-27)
+
+**Этап 3b, слитый `main`:** прогоны CI ждут результата; номера будут вписаны следующим коммитом.
+
+Потоки до слияния (`workflow_dispatch`): tunready — [apple](../../actions/runs/46023996648) (все 8 заданий), [swift-package](../../actions/runs/46024002141) на `276689e`; [bridge-go](../../actions/runs/46022263817) на `be4df44`. Предупреждений в `Apps/`, `Extensions/`, `Packages/` — 0. Поток mihomomem на CI до слияния не гонялся.
 
 **Этап 3, слитый `main` (коммит `4d1a2bd`, 2026-11-27), все четыре workflow зелёные:**
 
@@ -92,7 +98,11 @@ Go-мост на Linux (`bridge-go.yml`, [прогон](../../actions/runs/45967
 
 Чего CI не может и что осталось за устройством и подписью: подпись и provisioning profile, применение entitlements, App Group (`$(TeamIdentifierPrefix)` на macOS без команды раскрывается в пустую строку — в неподписанной сборке группа `org.example.networkplatform`), установка, загрузка расширения системой, запуск Go на iOS/tvOS/visionOS, лимит памяти, всё из `Documentation/Apple/DEVICE_TEST_PLAN.md`.
 
-### 2.1. Swift-пакет — интеграционный прогон этапа 3, 2026-11-27 (Linux)
+### 2.1. Swift-пакет — интеграционный прогон этапа 3b, 2026-11-27 (Linux)
+
+`Tools/swift-docker.sh swift test -j 1` на `main` после слияния `stage3b/tunready` и `stage3b/mihomomem`, весь пакет одним прогоном: **533 тестов, 0 падений, 325,6 с**, предупреждений компилятора 0. Лог: `Logs/stage3b-int-swift.log` (вне git). Прирост к этапу 3 (515) — тесты компилятора туннеля (`XrayTunnelCompilerTests`), `ConfigValueRedactorTests`, плана сети и адаптера.
+
+Интеграционный прогон этапа 3 (до 3b):
 
 `Tools/swift-docker.sh swift test -j 1` (Docker `swift:5.10`, Swift 5.10.1, Linux x86_64, отладочная сборка, 1300 МБ, 1,5 CPU) на `main` после слияния `stage3/memory`, `stage3/adapter`, `stage3/mihomo`, весь пакет одним прогоном: **515 тестов, 0 падений, 309,3 с**, предупреждений компилятора 0. Лог: `Logs/stage3-int-swift.log` (вне git). Этап 2 (до слияния этапа 3): 477/0.
 
@@ -112,6 +122,8 @@ Go-мост на Linux (`bridge-go.yml`, [прогон](../../actions/runs/45967
 Потоки дополнительно прогоняли (логи — `Logs/stage2-<поток>/`, вне git): `AdaptiveBalancer` — свойства по 2500 шагов, 50/24/20 сидов; `CoreAbstraction` — 28 повторных прогонов без падений, сборка со `-strict-concurrency=complete` без предупреждений в исходниках.
 
 ### 2.2. Мост Xray — сервер разработки (linux/amd64, Go 1.27.4)
+
+Интеграционный прогон этапа 3b на слитом `main` (лог `Logs/stage3b-int-go.log`): gofmt — 0 файлов, `go vet` — чисто; `go test -count=1 ./...` со штатным xray 26.11.9 (`NP_STOCK_XRAY`) — **ok** (`engine`, 105,7 с; 32 теста верхнего уровня прошли, 1 пропущен по запросу), включая новые тесты вырезания значений (`TestConfigErrorsAreRedacted`, `TestParseErrorOfBrokenJSONIsRedacted`, `TestRedactorRules`, `TestCoreLogRecordsAreRedacted`). `-race` — на CI (§2.0).
 
 Интеграционный прогон этапа 3 на слитом `main` (лог `Logs/stage3-int-go.log`): gofmt, `go vet` — чисто; штатный xray 26.11.9 собран из закреплённого ядра; `go test ./...` с `NP_STOCK_XRAY` — **ok** (`engine`, 106 с, включая 4 новых теста профиля `mobile`). `-race` на сервере разработки не повторялся — его выполняет CI (§2.0).
 
@@ -161,6 +173,8 @@ Xray v26.11.9 собран из тега на сервере разработк�
 
 ### 2.6. Мост Mihomo — поток mihomo (Linux/amd64, сервер разработки, 2026-11-27)
 
+Интеграционный прогон этапа 3b на слитом `main` (`Logs/stage3b-int-go.log`): gofmt — 0 файлов, `go vet` — чисто; `go test -count=1 ./...` со штатным xray 26.11.9 — **ok**: `cabi` ok, `engine` 9,5 с (13 тестов верхнего уровня прошли с учётом `cabi`, `TestSoakRSS` пропущен по запросу), включая новые `TestMobileProfileOptions`, `TestFlowMaxFlows`, `TestFlowTCPIdleTimeout`, `TestFlowUDPIdleTimeout`; `cmd/npmlab` собирается. Память — §2.8.
+
 Интеграционный прогон этапа 3 на `main` (`Logs/stage3-int-go.log`): gofmt, `go vet` — чисто; `go test ./...` со штатным xray 26.11.9 — **ok**: `cabi` 1 тест (форма ABI совпадает с мостом Xray), `engine` 8 тестов прошли, `TestSoakRSS` пропущен (по запросу, `NP_SOAK`).
 
 Прогоны потока (логи — `Logs/stage3-mihomo/`, вне git):
@@ -170,20 +184,38 @@ Xray v26.11.9 собран из тега на сервере разработк�
 - Тест C ABI из C (`mihomo-linux-cabi-test.sh`) — PASSED. Переход: 776 нс на вызов при пачке 1, 290–343 нс/пакет при пачке 64 (у моста Xray 32–52 нс). Первая версия (синхронная передача стеку) — ~48 мкс на вызов.
 - Правка Apple (`mihomo-apple-check.sh`, без SDK) — PASSED: `./engine` компилируется для ios/arm64, darwin/arm64, darwin/amd64; `proc_pidinfo` в darwin/arm64-бинарнике: 5 вхождений без правки, 0 с правкой.
 - RSS холостой: 31,4 МиБ → 37,6 МиБ после старта (+6,2 МиБ).
-- 10 мин, VLESS+REALITY через пакетный путь: 11 142 соединения, 44,6 ГиБ, 0 ошибок; RSS процесса теста 126 МиБ (30 с) → ~238 МиБ (5–9 мин), пик 313 МиБ; heapLive 37 → 110 МиБ, **плато нет**. В RSS входят собственный стек и клиент теста; доля моста не выделена; с прогоном Xray (§2.5) не сравнимо. Прогон один.
+- 10 мин, VLESS+REALITY через пакетный путь: 11 142 соединения, 44,6 ГиБ, 0 ошибок; RSS процесса теста 126 МиБ (30 с) → ~238 МиБ (5–9 мин), пик 313 МиБ; heapLive 37 → 110 МиБ, плато нет. **Разобрано в §2.8: это тест, а не мост.**
 - `go test -race` — падает на гонках внутри ядра Mihomo (§3).
+
+### 2.7. Готовность туннеля — поток tunready (Linux, сервер разработки, 2026-11-27)
+
+Сквозной прогон вывода компилятора в мосте Xray: ссылка VLESS+REALITY+Vision → экспорт из Swift (`testExportCompiledTunnelConfiguration`, `testExportPacketTunnelBridgeOptions`, `NP_EXPORT_DIR`) → `bridge-tunlab.sh compiled DIR` (netns, tun ядра, адреса tun из `plan.json`, опции адаптера через `nplab -options`), штатный xray 26.11.9 сервером. Данные — `Benchmarks/results/tunready-2026-11-27/` (ключи стенда заменены заглушками). При слиянии не повторялось.
+
+- TCP-эхо v4/v6 — SHA-256 совпали; TCP вниз v4 106 Мбит/с, вверх v6 1127 Мбит/с.
+- UDP v4/v6 до 4000 Б — прошёл.
+- DNS к резолверам туннеля (v4, v6) — 10/10; DNS на чужие адреса (192.0.2.53, 2001:db8:ffff::53) перехвачен — 10/10.
+- Локальная сеть мимо туннеля — работает. Пакетов на порт 53 вне туннеля — 0 (счётчик nft, без отрицательного контроля). Петель — 0.
+- outQueue 512 КиБ — профиль `mobile` применён. UUID и ключ стенда в журналах не найдены.
+
+### 2.8. Память моста Mihomo — поток mihomomem (Linux/amd64, отдельный процесс `npmlab`, 2026-11-27)
+
+Методика и данные — `Documentation/Performance/memory-budget.md` §10, `Benchmarks/results/mihomo-memory-2026-11-27/`. Тот же стенд и та же нагрузка с темпом, что у моста Xray (§2.5). При слиянии не повторялось.
+
+- **313 МиБ прежнего `TestSoakRSS` — тест, а не утечка моста**: 52 % кучи — запись клиента теста без темпа в собственный стек-«ОС» с растущими буферами, 17 % — журнал debug штатного xray в `bytes.Buffer` без предела (единственное, что росло неограниченно), 1138 из ~1450 горутин — TIME_WAIT клиента теста; путь моста — < 10 % кучи. Тест теперь хранит только хвост вывода xray (плато 182–193 МиБ процесса теста).
+- Умолчания, 8 мин: плато с 2-й минуты, RSS 77–79 МиБ, RssAnon 44–45 (мост Xray с умолчаниями — 138–164).
+- Профиль `mobile`, 30 мин: 7,24 ГБ, 6904 TCP, 0 ошибок, 0 потерь UDP; **RssAnon 24,4–26,1 МиБ без роста**, куча 11–12, 60–66 UDP-сессий. RSS в этом прогоне 40–43 МиБ только потому, что сервер вытеснил страницы бинарника (RssFile 14–19); предыдущий 30-мин. прогон с резидентным бинарником — RSS 56,4–58,2 МиБ. CPU на ГБ +9 %. **Цель ~50 МиБ RSS не достигнута** (бинарник 31–33 МиБ, на 5 МиБ больше, чем у Xray).
+- Всплеск 200 TCP + 200 UDP (3 раунда): пик RssAnon 48,5 МиБ (умолчания — 96), RSS 79,6 (126,6), 0 ошибок, 0 потерь UDP, на 32 % медленнее, CPU ×2,5. Скорость mobile к умолчаниям: вниз 110 %, вверх 91 %, вниз 4 соединения 82–98 %.
+- Простой TCP 300 с — выбран, не измерен (нагрузка не доходит до простоя TCP). inQueue 256–512 КиБ отвергнут: вверх −38…−54 %.
 
 ## 3. Известные проблемы
 
 - **Гонка в ядре Xray (Vision)** под `-race`: `TestFlowThroughProxyWithDNS` падает воспроизводимо, `TestProtocolsOverLoopback/VLESS+REALITY+Vision` — на CI; кадров моста в конфликтующих доступах нет. На CI вынесено в шаг «KNOWN FAILURE check». Не исправлять в ядре без решения — ядро — неизменённая зависимость.
 - **Ограничения ядра** (одинаковы во flow, fd и у штатного xray): UDP через VLESS+REALITY+Vision больше ~7500 Б теряется; TCP half-close не передаётся; отдача упирается в ~200 Мбит/с при 800–1000 вверх (причина не найдена).
 - **Память и iOS:** профиль `mobile` (мост `memory.profile`, компилятор `XrayMemoryProfile.mobile`: connIdle 30 с, bufferSize 4 КиБ, GOGC 25, предел 40 МиБ, maxFlows 512, без geodata). На Linux, 30 мин: плато RSS 48–49 МиБ (было 138–164), RssAnon 20 МиБ, скорость −4…+6 %, CPU +13 %; всплеск 400 потоков — RssAnon до 42–44 МиБ. **Цель RSS ≤ 45 МиБ не достигнута**: 28 МиБ — текст бинарника. Лимит расширения iOS (~50 МиБ [U], по таблице инженера Apple для iOS 16, «не менялся в iOS 26», зашивать его нельзя) **повысить нельзя**: entitlement increased-memory-limit документирован только для приложений, на app extensions не действует (DTS, форум 779756); единственный официальный путь — запрос в Feedback Assistant. На устройстве не проверено. Не измерены: окна Hysteria2 (в стенде нет сервера Hysteria2), влияние connIdle 30 с на долго молчащие TCP (мессенджеры, push; отдельного тайм-аута UDP в Xray нет); окна XHTTP-h3 не ограничены.
-- **Адаптер ещё не передаёт параметры памяти**: `TunnelSession` передаёт `memoryLimitBytes = nil`; расширение по умолчанию задаёт 32 МиБ и GOGC 50 — по старому совету README, который замер §2.5 опроверг (ниже живого набора). Согласовать с профилем `mobile` до первого запуска на устройстве.
-- **Компилятор ещё не задаёт TUN-inbound** (connIdle — только в профиле `mobile`): старт в режиме flow будет отвергнут мостом (`config_unsupported`).
-- Сообщения ошибок сборки конфига Xray от моста пишутся в журнал расширения как `.public` и могут цитировать значения конфига — открытый риск по ADR-0003 §4, проверить на утечку.
+- **Туннель (tunready), ограничения:** перехват DNS — только UDP/53, TCP/53 идёт через прокси; ULA fc00::/7 не исключается (собственный префикс туннеля — ULA); поведение `excludedRoutes` в `NEPacketTunnelNetworkSettings` не проверено; сервер, заданный доменом, получает запись отчёта `untested` (его адрес не исключается из туннеля заранее). Вырезание значений пропускает значения короче 4 символов и общеупотребительные слова; в кольце журнала моста IP-литералы назначений не вырезаются (хост пишет их в журнал как private).
 - `statistics()` адаптера без собственного дедлайна (хост оборачивает вызов в `CoreDeadline`).
 - **Мост Mihomo, `-race`:** падает на гонках внутри ядра — 9 отчётов в Vision ядра (`transport/vless/vision`, `TestProtocolsOverLoopback/VLESS+REALITY+Vision`), 2 — `log.SetLevel` против `log.print` (`TestStartStopCycles`); кадры моста — только как вызывающий `ApplyConfig`. На CI — шаг «KNOWN FAILURE check» в `mihomo-bridge-go.yml`. Третья гонка (ядро переписывало IP-фильтры при живых слушателях) исправлена в мосте: слушатели закрываются первыми.
-- **Мост Mihomo:** REALITY-клиент Mihomo по умолчанию не проходит рукопожатие с Xray 26.11.9 (ядро отбрасывает ключ X25519MLKEM768) — нужен `support-x25519mlkem768: true`; 10-мин. прогон — RSS процесса теста до 313 МиБ, плато нет (§2.6); `tun.mode "fd"` не реализован; статистика только итоговая, без разбивки по inbound/outbound; не собирался под Apple, скрипта XCFramework нет; ядро оставляет IPv6-адрес tun (и его DNS-перехват) только если у хоста в момент разбора конфига есть глобальный IPv6 (`config/utils.go` `verifyIP6`, обход — `SKIP_SYSTEM_IPV6_CHECK`): в расширении это будет зависеть от сети на момент старта — решить в адаптере Mihomo (найдено на CI: у раннеров GitHub нет IPv6, тест исправлен, не ослаблен); после stop до выхода процесса остаются init-горутины и пулы ядра, `cache.db`, глобальные настройки, загруженные geodata.
+- **Мост Mihomo:** REALITY-клиент Mihomo по умолчанию не проходит рукопожатие с Xray 26.11.9 (ядро отбрасывает ключ X25519MLKEM768) — нужен `support-x25519mlkem768: true`; прежние 313 МиБ 10-мин. теста — тест, а не мост (§2.8); профиль `mobile` — RSS ~57 МиБ при резидентном бинарнике, цель ~50 не достигнута; остаток: UDP-сессии со своим REALITY-состоянием (~40 % кучи), TIME_WAIT стека mips (~115 горутин 60 с, константа без опции), буферы отправки стека (11–14 %), очереди моста 1,5 МиБ; тайм-аут UDP-сессий ядра (60 с) не задаётся конфигурацией, `tun.udp-timeout` стек mips игнорирует — простой закрывает обходчик моста; `tun.mode "fd"` не реализован; статистика только итоговая, без разбивки по inbound/outbound; не собирался под Apple, скрипта XCFramework нет; ядро оставляет IPv6-адрес tun (и его DNS-перехват) только если у хоста в момент разбора конфига есть глобальный IPv6 (`config/utils.go` `verifyIP6`, обход — `SKIP_SYSTEM_IPV6_CHECK`): в расширении это будет зависеть от сети на момент старта — решить в адаптере Mihomo (найдено на CI: у раннеров GitHub нет IPv6, тест исправлен, не ослаблен); после stop до выхода процесса остаются init-горутины и пулы ядра, `cache.db`, глобальные настройки, загруженные geodata.
 - **Xray HEAD против тега:** HEAD `e17392a` и v26.11.9 имеют одинаковый номер версии, но разный формат Mux (`mux` против `settings.multiplex`) и freedom (`finalRules` против `firewall`). Компилятор обязан привязываться к закреплённому SHA ядра (сейчас тег). `allowInsecure` в Xray ≥ v26.7.11 — ошибка сборки конфига.
 - **Противоречия ADR, требующие правки:** ADR-0003 §2 «пакеты не проходят через Swift» неточен для Xray (Swift передаёт пачки пакетов, не разбирая их; комментарий в `TunnelNetworkSettings.swift` исправлен). Передача конфигурации файлом в App Group закрыта ADR-0008; вариант системного расширения macOS им не покрыт. Подстановка TUN-inbound в профиль «как есть» противоречит «никто не переписывает конфиг» (ревью, 2.1).
 - **ADR-0006 и README** говорят, что репозиторий не опубликован; `origin` — публичный GitHub, файла `LICENSE` нет (ревью, 6.1). Нужно решение владельца.
@@ -207,12 +239,12 @@ Xray v26.11.9 собран из тега на сервере разработк�
 | **macOS + Xcode** | Закрыто CI (§2.0): пакет на macOS, `xcodegen generate`, компиляция `Extensions/` и `Apps/`, C-архив моста и XCFramework, ветки Darwin/CryptoKit, сигнатуры асинхронных переопределений. Остаётся для Mac с командой разработчика: раскрытие `$(TeamIdentifierPrefix)` в подписанной сборке, доступ к App Group из песочницы macOS. Пометку `UNVERIFIED` сохраняют 4 файла entitlements — в неподписанной сборке они не применяются |
 | **Подпись Apple Developer** (Network Extension, App Group) | установка туннеля на устройство и на Mac; TestFlight |
 | **macOS CI (можно без устройства)** | XCFramework моста Mihomo (`mihomo-apple-patch.sh` + c-archive против SDK), снятие «Flavour guard» для `MihomoOnly` |
-| **Физические устройства** | первый подъём туннеля через `EngineXray` (обработка указателей в привязке, поведение `NEPacketTunnelFlow`, размеры пачек, глубина насоса 2 и буферы 256 КиБ), `phys_footprint` профиля `mobile` против лимита (DEVICE_TEST_PLAN §6.5), проверки H-1…H-5 ADR-0008, Go на tvOS/visionOS, переход Swift↔Go на arm64 и его цена, размеры пачек `readPackets`/`writePackets`, режим fd на Darwin, исключение сокетов движка из туннеля, `phys_footprint` расширения против лимита, `setTunnelNetworkSettings(nil)` при откате, реальные пределы старта/стопа, допустимость `exit()` после зависшего движка, все критерии производительности |
+| **Физические устройства** | первый подъём туннеля через `EngineXray` (обработка указателей в привязке, поведение `NEPacketTunnelFlow`, размеры пачек, глубина насоса 2 и буферы 256 КиБ), `phys_footprint` профиля `mobile` против лимита (DEVICE_TEST_PLAN §6.5), проверки H-1…H-5 ADR-0008, Go на tvOS/visionOS, переход Swift↔Go на arm64 и его цена, размеры пачек `readPackets`/`writePackets`, режим fd на Darwin, исключение сокетов движка из туннеля и применение `excludedRoutes` плана (адреса серверов, локальные сети), перехват DNS на устройстве, `phys_footprint` расширения против лимита, `setTunnelNetworkSettings(nil)` при откате, реальные пределы старта/стопа, допустимость `exit()` после зависшего движка, все критерии производительности |
 | **Лицензия** (ADR-0006, теперь и GPL-3.0 Mihomo по ADR-0007) | файл `LICENSE`, приём сторонних изменений, сборки `MihomoOnly`/`Dual` |
 
 ## 5. Что дальше
 
-1. Компилятор задаёт TUN-inbound; адаптер передаёт профиль `mobile` в опции моста (вместо 32 МиБ/GOGC 50) — без этого первый старт на устройстве отвергнется.
+1. ~~Компилятор задаёт TUN-inbound; адаптер передаёт профиль `mobile`~~ — сделано (этап 3b, §2.7; Linux + компиляция на macOS CI).
 2. Подписанная сборка и первый туннель на iPhone по `Documentation/Apple/DEVICE_TEST_PLAN.md` (E-1…E-9, §6.5 память, H-1…H-5): нужны учётная запись разработчика и устройство (`BUILD_ON_MAC.md`).
 3. XCFramework моста Mihomo на macOS CI, адаптер `EngineMihomo`, компилятор модели → Clash YAML (`Documentation/Architecture/mihomo-config.md`).
 4. Правка ADR-0003 §2; модули `TunnelIPC`/`TunnelHost` вместо символических ссылок.
@@ -229,4 +261,5 @@ Xray v26.11.9 собран из тега на сервере разработк�
 | 2026-11-27 | CI на раннерах macOS/Linux: пакет 477/0 на macOS; мост — 10 срезов Apple, тест C ABI на macOS arm64; приложение + расширение `XrayOnly` скомпилированы без подписи для iOS/iPadOS, macOS, tvOS, visionOS; `MihomoOnly`/`Dual` объявлены, не собираются (нет артефакта Mihomo). Исправлены 4 предупреждения строгой конкурентности. |
 | 2026-11-27 | Проверка полноты этапа 2 (критик): повторены на `main` a8910ab — gofmt/vet/build/`go test` моста — ok; `-race` воспроизводит гонку Vision в ядре, через Trojan+TLS — ok; `validate-fixtures.sh` — 53/53; `run-interop.sh` — 16/16; Swift `DomainModels`+`AdaptiveBalancer` в контейнере — 99/0. Уточнены README (сборка на CI, два случая гонки, публичность репозитория), STATUS (RSS в 30-мин. прогоне, TunnelSession скомпилирован на CI), THREAT_MODEL T-54. |
 | 2026-11-27 | ADR-0007 окончательно: движки — Xray-core и Mihomo; сравнительные замеры отменены владельцем. |
+| 2026-11-27 | Этап 3b слит в `main`: tunready (TUN-inbound, перехват DNS и исключения из общего `TunnelAddressing`; `memory.profile=mobile` из адаптера; вырезание значений конфигурации из ошибок/журнала моста и отчётов компилятора; сквозной прогон вывода компилятора в мосте) и mihomomem (313 МиБ — тест; профиль `mobile` моста Mihomo, RssAnon 24–26 МиБ за 30 мин; стенд `npmlab`). Swift 533/0; Go-тесты обоих мостов — ok; CI — §2.0. |
 | 2026-11-27 | Этап 3, три потока слиты в `main`: профиль памяти `mobile` (Linux: плато RSS 48–49 МиБ вместо 138–164, цель ≤ 45 МиБ не достигнута), адаптер `EngineXray` + ADR-0008, мост Mihomo (Linux). Swift 515/0 (Linux и macOS CI); Go-тесты обоих мостов — ok; новый CI `mihomo-bridge-go.yml`; все четыре workflow зелёные. Исправлен `TestPrepareConfig` моста Mihomo (зависел от IPv6 хоста). |

@@ -4,16 +4,17 @@
 
 Рабочее название. Имя продукта не выбрано; имена движков в нём использоваться не будут (ADR-0006, правило 7).
 
-## Состояние на 2026-11-27
+## Состояние на 2026-11-27 (этап 3b)
 
 **Phase 1. Рабочего приложения нет.** На раннерах macOS CI код для Apple скомпилирован без подписи; ничего не подписано, не установлено и не запущено на устройствах Apple, туннель не поднимался.
 
 - Мост Xray (`Cores/Bridge`, Go, Xray-core v26.11.9) собран и проверен на Linux: шесть протоколов против штатного xray, трафик через настоящий tun ядра в netns, пропускная способность 90–129 % от штатного xray на стенде Linux. Под детектором гонок падают случаи с VLESS+REALITY+Vision (`TestFlowThroughProxyWithDNS`, на CI также `TestProtocolsOverLoopback/VLESS+REALITY+Vision`) из-за гонки внутри ядра.
 - Компилятор модели → Xray JSON проверен настоящим Xray 26.11.9: 53 конфига приняты, 16 из 16 interop-конфигов передали трафик (Xray ↔ Xray, Linux).
-- Профиль памяти `mobile` моста Xray: на Linux плато RSS 48–49 МиБ вместо 138–164 при той же скорости (±6 %); ориентир iOS (≤ 45 МиБ при лимите расширения ~50 МиБ) не достигнут, на устройстве не мерилось.
-- Swift-пакет из шести модулей (`DomainModels`, `CoreAbstraction`, `ConfigurationEngine`, `RoutingEngine`, `AdaptiveBalancer`, `EngineXray`) — 515 тестов, 0 падений на Linux (Swift 5.10.1) и на macOS CI (Xcode 16.4).
-- Приложение и расширение Packet Tunnel (`XrayOnly`) с адаптером `EngineXray` **скомпилированы на macOS CI без подписи** для iOS/iPadOS, симулятора iOS, macOS, tvOS, visionOS; мост — XCFramework из 10 срезов. **Ни разу не запускались**; компилятор ещё не задаёт TUN-inbound, без него старт будет отвергнут. Для запуска нужны аккаунт Apple Developer с Network Extension и устройство.
-- Движки — Xray-core и Mihomo (ADR-0007, окончательно). Мост Mihomo (`Cores/MihomoBridge`, Mihomo v1.19.34, тот же C ABI) собран и проверен на Linux против штатного xray; под Apple не собирался, адаптера и компилятора Clash YAML нет.
+- Профиль памяти `mobile` моста Xray: на Linux плато RSS 48–49 МиБ вместо 138–164 при той же скорости (±6 %); ориентир iOS (≤ 45 МиБ при лимите расширения ~50 МиБ) не достигнут, на устройстве не мерилось. Адаптер передаёт мосту этот профиль.
+- Компилятор выпускает TUN-inbound, перехват DNS и исключения маршрутов из общего описания адресов туннеля; вывод компилятора прогнан в мосте на tun ядра Linux: TCP, UDP, DNS, IPv6, без утечек DNS и петель. Значения конфигурации вырезаются из сообщений об ошибках моста и отчётов компилятора.
+- Swift-пакет из шести модулей (`DomainModels`, `CoreAbstraction`, `ConfigurationEngine`, `RoutingEngine`, `AdaptiveBalancer`, `EngineXray`) — 533 тестов, 0 падений на Linux (Swift 5.10.1) и на macOS CI (Xcode 16.4).
+- Приложение и расширение Packet Tunnel (`XrayOnly`) с адаптером `EngineXray` **скомпилированы на macOS CI без подписи** для iOS/iPadOS, симулятора iOS, macOS, tvOS, visionOS; мост — XCFramework из 10 срезов. **Ни разу не запускались**. Для запуска нужны аккаунт Apple Developer с Network Extension и устройство.
+- Движки — Xray-core и Mihomo (ADR-0007, окончательно). Мост Mihomo (`Cores/MihomoBridge`, Mihomo v1.19.34, тот же C ABI) собран и проверен на Linux против штатного xray; профиль памяти `mobile` — на Linux RssAnon 24–26 МиБ за 30 мин, RSS ~57 МиБ (цель ~50 не достигнута); под Apple не собирался, адаптера и компилятора Clash YAML нет.
 
 Подробно, с разделением на «сделано / не проверено / заблокировано»: [`STATUS.md`](STATUS.md).
 
@@ -23,9 +24,9 @@
 
 | Путь | Содержимое | Проверено сборкой |
 |---|---|---|
-| `Package.swift`, `Packages/` | модули `DomainModels`, `CoreAbstraction`, `ConfigurationEngine`, `RoutingEngine`, `AdaptiveBalancer`, `EngineXray` с тестами XCTest | Linux (Swift 5.10.1) и macOS CI (Xcode 16.4): 515 тестов, 0 падений |
+| `Package.swift`, `Packages/` | модули `DomainModels`, `CoreAbstraction`, `ConfigurationEngine`, `RoutingEngine`, `AdaptiveBalancer`, `EngineXray` с тестами XCTest | Linux (Swift 5.10.1) и macOS CI (Xcode 16.4): 533 тестов, 0 падений |
 | `Cores/Bridge/` | мост Xray на Go с C ABI | Linux — тесты и стенд; Apple — 10 срезов собраны на CI, тест C ABI выполнен на macOS arm64; на iOS/tvOS/visionOS не запускался |
-| `Cores/MihomoBridge/` | мост Mihomo на Go с тем же C ABI | Linux — тесты против штатного xray, C ABI; под Apple — только компиляция `GOOS=ios/darwin` на Linux |
+| `Cores/MihomoBridge/` | мост Mihomo на Go с тем же C ABI | Linux — тесты против штатного xray, C ABI, стенд `npmlab` на tun ядра; под Apple — только компиляция `GOOS=ios/darwin` на Linux |
 | `Extensions/PacketTunnel/` | `NEPacketTunnelProvider`: сетевые настройки, старт и стоп, сообщения приложения, контроль памяти, привязка адаптера `EngineXray` к мосту | скомпилировано на macOS CI без подписи; не запускалось |
 | `Apps/` | оболочка приложения на SwiftUI и спецификация XcodeGen для iOS/iPadOS, macOS, tvOS, visionOS | скомпилировано на macOS CI без подписи; не запускалось |
 | `Cores/BuildScripts/` | сборка XCFramework моста; скрипты проверки моста на Linux (C ABI, netns, стенд tun) | Linux — да; XCFramework — на macOS CI |
