@@ -1,0 +1,47 @@
+File: nplab
+Build ID: 599ddedaccb7ff0ed6692619b347bb4cddba8448
+Type: inuse_space
+Time: 2026-11-27 12:29:43 UTC
+Showing nodes accounting for 4160kB, 46.41% of 8962.69kB total
+Showing top 40 nodes out of 112
+      flat  flat%   sum%        cum   cum%
+         0     0%     0%  2560.80kB 28.57%  github.com/xtls/xray-core/app/dispatcher.(*DefaultDispatcher).DispatchLink
+         0     0%     0%  2560.80kB 28.57%  github.com/xtls/xray-core/app/dispatcher.(*DefaultDispatcher).routedDispatch
+         0     0%     0%  2560.80kB 28.57%  github.com/xtls/xray-core/app/proxyman/outbound.(*Handler).Dial
+         0     0%     0%  2560.80kB 28.57%  github.com/xtls/xray-core/app/proxyman/outbound.(*Handler).Dispatch
+         0     0%     0%  2560.80kB 28.57%  github.com/xtls/xray-core/common/retry.(*retryer).On
+         0     0%     0%  2560.80kB 28.57%  github.com/xtls/xray-core/proxy/vless/outbound.(*Handler).Process
+         0     0%     0%  2560.80kB 28.57%  github.com/xtls/xray-core/proxy/vless/outbound.(*Handler).Process.func2
+         0     0%     0%  2560.80kB 28.57%  github.com/xtls/xray-core/transport/internet.Dial
+         0     0%     0%  2560.80kB 28.57%  github.com/xtls/xray-core/transport/internet/reality.UClient
+         0     0%     0%  2560.80kB 28.57%  github.com/xtls/xray-core/transport/internet/tcp.Dial
+         0     0%     0%  2560.80kB 28.57%  networkplatform/bridge/engine.(*flowInbound).HandleConnection
+ 2050.47kB 22.88% 22.88%  2050.47kB 22.88%  runtime.mallocgc
+         0     0% 22.88%  2050.47kB 22.88%  runtime.newobject
+         0     0% 22.88%  1591.27kB 17.75%  runtime.doInit (inline)
+         0     0% 22.88%  1591.27kB 17.75%  runtime.doInit1
+         0     0% 22.88%  1591.27kB 17.75%  runtime.main
+         0     0% 22.88%  1548.03kB 17.27%  github.com/xtls/xray-core/common/buf.New
+ 1548.03kB 17.27% 40.15%  1548.03kB 17.27%  github.com/xtls/xray-core/common/bytespool.createAllocFunc.func1
+         0     0% 40.15%  1548.03kB 17.27%  sync.(*Pool).Get
+         0     0% 40.15%  1536.70kB 17.15%  github.com/refraction-networking/utls.(*UConn).HandshakeContext (inline)
+         0     0% 40.15%  1536.70kB 17.15%  github.com/refraction-networking/utls.(*UConn).clientHandshake
+         0     0% 40.15%  1536.70kB 17.15%  github.com/refraction-networking/utls.(*UConn).handshakeContext
+  561.50kB  6.26% 46.41%  1077.51kB 12.02%  main.(*pump).rx
+         0     0% 46.41%  1032.02kB 11.51%  github.com/xtls/xray-core/common/buf.(*SingleReader).ReadMultiBuffer
+         0     0% 46.41%  1032.02kB 11.51%  github.com/xtls/xray-core/common/buf.ReadBuffer
+         0     0% 46.41%  1032.02kB 11.51%  github.com/xtls/xray-core/common/task.OnSuccess.func1
+         0     0% 46.41%  1032.02kB 11.51%  github.com/xtls/xray-core/common/task.Run.func1
+         0     0% 46.41%  1032.02kB 11.51%  github.com/xtls/xray-core/proxy.(*VisionReader).ReadMultiBuffer
+         0     0% 46.41%  1032.02kB 11.51%  github.com/xtls/xray-core/proxy/vless/encoding.XtlsRead
+         0     0% 46.41%  1032.02kB 11.51%  github.com/xtls/xray-core/proxy/vless/encoding.XtlsRead.func1 (inline)
+         0     0% 46.41%  1032.02kB 11.51%  github.com/xtls/xray-core/proxy/vless/outbound.(*Handler).Process.func5
+         0     0% 46.41%     1026kB 11.45%  runtime.allocm
+         0     0% 46.41%     1026kB 11.45%  runtime.newm
+         0     0% 46.41%     1026kB 11.45%  runtime.resetspinning
+         0     0% 46.41%     1026kB 11.45%  runtime.schedule
+         0     0% 46.41%     1026kB 11.45%  runtime.startm
+         0     0% 46.41%     1026kB 11.45%  runtime.wakep
+         0     0% 46.41%  1024.47kB 11.43%  runtime.malg
+         0     0% 46.41%  1024.47kB 11.43%  runtime.newproc.func1
+         0     0% 46.41%  1024.47kB 11.43%  runtime.newproc1

@@ -10,6 +10,9 @@
 #   Cores/BuildScripts/bridge-tunlab.sh batch [reps]     packet-path cost per npb_tun_write batch size
 #   Cores/BuildScripts/bridge-tunlab.sh profile          pprof CPU and heap profiles under load
 #   Cores/BuildScripts/bridge-tunlab.sh soak [minutes]   long run with periodic memory/goroutine samples
+#   Cores/BuildScripts/bridge-tunlab.sh memcmp [reps]    default vs mobile memory profile: cold start, throughput, 200-flow burst
+# MOBILE=1 runs the bridge with memory.profile=mobile and gives the client config the policy level of the
+# compiler's mobile profile (XrayMemoryProfile.mobile); CONNIDLE / BUFSIZE override its connIdle / bufferSize.
 #   Cores/BuildScripts/bridge-tunlab.sh teardown         kill lab processes, delete the namespaces
 # Results go to $NP_LAB_OUT (default Logs/tunlab, git-ignored), one JSON object per line.
 #
@@ -25,14 +28,19 @@ BRIDGE="$ROOT/Cores/Bridge"
 OUT="${NP_LAB_OUT:-$ROOT/Logs/tunlab}"
 BIN="$OUT/bin"
 CFG="$OUT/cfg"
-NC=npbl-c
-NS=npbl-s
+# NP_LAB_NS prefixes the two namespace names (default npbl), so parallel workspaces do not collide
+NC=${NP_LAB_NS:-npbl}-c
+NS=${NP_LAB_NS:-npbl}-s
 SERVER4=203.0.113.1
 T4=198.18.0.10
 T6=2001:db8:1::10
 D4=198.18.0.53
 D6=2001:db8:1::53
 CTL=127.0.0.1:6060
+# policy level 0 of the compiler's mobile profile (seconds; bufferSize in KiB)
+MOBILE_CONNIDLE=30
+MOBILE_HANDSHAKE=10
+MOBILE_BUFSIZE=4
 mkdir -p "$OUT" "$CFG"
 
 log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*" >&2; }
@@ -137,11 +145,15 @@ EOF
 # client_config KIND MTU -> path. KIND: reality (VLESS+REALITY+Vision) | ss (Shadowsocks 2022). The same file is given to the bridge and to stock xray.
 client_config() {
 	local kind=$1 mtu=$2 uuid pub out levels=''
-	# CONNIDLE=<s> sets the core's connIdle for user level 0 (default 300 s), used by the soak comparison
-	if [ -n "${CONNIDLE:-}" ]; then levels=',"levels":{"0":{"connIdle":'"$CONNIDLE"'}}'; fi
+	# CONNIDLE=<s> sets the core's connIdle for user level 0 (default 300 s), used by the soak comparison.
+	# MOBILE=1: the level the compiler emits for XrayMemoryProfile.mobile (keep in sync with
+	# XrayConfigCompiler.mobilePolicy; asserted there by XrayConfigCompilerTests).
+	if [ -n "${MOBILE:-}" ]; then
+		levels=',"levels":{"0":{"connIdle":'"${CONNIDLE:-$MOBILE_CONNIDLE}"',"handshake":'$MOBILE_HANDSHAKE',"uplinkOnly":1,"downlinkOnly":1,"bufferSize":'"${BUFSIZE:-$MOBILE_BUFSIZE}"'}}'
+	elif [ -n "${CONNIDLE:-}" ]; then levels=',"levels":{"0":{"connIdle":'"$CONNIDLE"'}}'; fi
 	uuid="$(cat "$CFG/uuid")"
 	pub="$(cat "$CFG/pub")"
-	out="$CFG/client-$kind-$mtu${CONNIDLE:+-idle$CONNIDLE}.json"
+	out="$CFG/client-$kind-$mtu${MOBILE:+-mobile}${CONNIDLE:+-idle$CONNIDLE}${BUFSIZE:+-buf$BUFSIZE}.json"
 	local proxy
 	if [ "$kind" = reality ]; then
 		proxy='{"tag":"proxy","protocol":"vless","settings":{"address":"'$SERVER4'","port":443,"id":"'$uuid'","flow":"xtls-rprx-vision","encryption":"none"},"streamSettings":{"network":"raw","security":"reality","realitySettings":{"serverName":"np.test","fingerprint":"chrome","password":"'$pub'","shortId":"0123abcd"}}}'
@@ -460,7 +472,11 @@ do_profile() {
 # flow mode, RSS and thread count from /proc for both. CONNIDLE=<s> lowers the core's connIdle.
 do_soak() {
 	local minutes=${1:-30} mode=${2:-flow}
-	local label="$mode${CONNIDLE:+-idle$CONNIDLE}"
+	local label="$mode${MOBILE:+-mobile}${CONNIDLE:+-idle$CONNIDLE}${BUFSIZE:+-buf$BUFSIZE}${SOAK_TAG:+-$SOAK_TAG}"
+	local flags=()
+	[ -n "${MOBILE:-}" ] && [ "$mode" = flow ] && flags+=(-profile mobile)
+	# BRIDGE_EXTRA: more bridge flags, e.g. "-memlimit 25165824 -gcpercent 100"
+	[ "$mode" = flow ] && read -r -a extra <<<"${BRIDGE_EXTRA:-}" && flags+=("${extra[@]}")
 	local samples="$OUT/soak-samples-$label.jsonl"
 	RES="$OUT/soak-$label.jsonl"
 	: >"$RES"
@@ -469,20 +485,29 @@ do_soak() {
 	trap 'stop_client; teardown' EXIT
 	start_far
 	[ "$mode" = flow ] && WITH_CTL=1
-	start_client "$mode" "$(client_config reality 1500)"
+	start_client "$mode" "$(client_config reality 1500)" "${flags[@]}"
+	grep '"ready"' "$OUT/client-$mode.log" | tail -1 | sed "s/^/{\"label\":\"soak-$label\",\"test\":\"cold-start\",\"ready\":/; s/\$/}/" >>"$RES"
 	(
 		while kill -0 "$CLIENT_PID" 2>/dev/null; do
-			local rss thr bs
+			local rss thr bs anon file
 			rss=$(($(awk '{print $2}' /proc/$CLIENT_PID/statm) * $(getconf PAGESIZE)))
 			thr=$(awk '/^Threads:/ {print $2}' /proc/$CLIENT_PID/status)
+			# RssAnon (dirty private memory) is the closer analogue of the phys_footprint iOS enforces;
+			# RssFile is mostly the binary's clean text pages
+			anon=$(awk '/^RssAnon:/ {print $2 * 1024}' /proc/$CLIENT_PID/status)
+			file=$(awk '/^RssFile:/ {print $2 * 1024}' /proc/$CLIENT_PID/status)
 			bs='null'
 			[ "$mode" = flow ] && bs=$(inc curl -s --max-time 5 "http://$CTL/sample" || echo null)
-			echo "{\"timeUnixMs\":$(date +%s%3N),\"rssBytes\":$rss,\"threads\":$thr,\"bridge\":$bs}" >>"$samples"
+			echo "{\"timeUnixMs\":$(date +%s%3N),\"rssBytes\":$rss,\"rssAnonBytes\":${anon:-0},\"rssFileBytes\":${file:-0},\"threads\":$thr,\"bridge\":$bs}" >>"$samples"
 			sleep 30
 		done
 	) &
 	local sampler=$!
 	c "soak-$label" mix "$T4" -conns 4 -rate $((1 << 20)) -duration "${minutes}m" -timeout "$((minutes + 5))m" || true
+	if [ "$mode" = flow ]; then
+		inc curl -s -o "$OUT/soak-$label-heap-loaded.pprof" "http://$CTL/debug/pprof/heap"
+		inc curl -s -o "$OUT/soak-$label-goroutine-loaded.txt" "http://$CTL/debug/pprof/goroutine?debug=1"
+	fi
 	sleep 35 # one more sample after the load stopped
 	if [ "$mode" = flow ]; then
 		inc curl -s -o "$OUT/soak-$label-heap.pprof" "http://$CTL/debug/pprof/heap"
@@ -493,6 +518,46 @@ do_soak() {
 	wait "$sampler" 2>/dev/null || true
 	unset WITH_CTL
 	log "soak done: $samples"
+}
+
+# memcmp [REPS]: default vs mobile profile on the same lab, alternating within each round (REALITY, flow).
+# Per variant: cold-start memory (ready line), TCP 64 MiB down / up / down with 4 connections, 100 new
+# connections, then a burst of BURST (default 200) parallel TCP connections + UDP sessions with RSS peaks.
+do_memcmp() {
+	local reps=${1:-5} burst=${BURST:-200}
+	RES="$OUT/memcmp.jsonl"
+	: >"$RES"
+	BYTES=$((64 << 20))
+	setup
+	trap 'stop_client; teardown' EXIT
+	start_far
+	set_mtu 1500
+	local r variant cfg
+	for r in $(seq 1 "$reps"); do
+		for variant in default mobile; do
+			log "memcmp round $r/$reps: $variant"
+			WITH_CTL=1
+			if [ "$variant" = mobile ]; then
+				cfg="$(MOBILE=1 client_config reality 1500)"
+				start_client flow "$cfg" -profile mobile
+			else
+				cfg="$(client_config reality 1500)"
+				start_client flow "$cfg"
+			fi
+			grep '"ready"' "$OUT/client-flow.log" | tail -1 | sed "s/^/{\"label\":\"$variant\",\"test\":\"cold-start\",\"round\":$r,\"ready\":/; s/\$/}/" | tee -a "$RES"
+			c "$variant-warmup" tcp-down $T4:19 -bytes $((16 << 20)) >/dev/null
+			c "$variant" tcp-down $T4:19 -bytes "$BYTES"
+			c "$variant" tcp-up $T4:10 -bytes "$BYTES"
+			c "$variant-4c" tcp-down $T4:19 -bytes "$BYTES" -conns 4
+			c "$variant" tcp-setup $T4:7 -n 100
+			c "$variant-burst$burst" burst "$T4" -conns "$burst" -bytes $((burst * (64 << 10))) -timeout 120s || true
+			sleep 2
+			inc curl -s "http://$CTL/sample" | sed "s/^/{\"label\":\"$variant\",\"test\":\"after-burst\",\"round\":$r,\"sample\":/; s/\$/}/" >>"$RES"
+			stop_client
+			unset WITH_CTL
+		done
+	done
+	log "memcmp done: $RES"
 }
 
 # diag MODE: kernel-side counters around one download, for finding where a throughput cap comes from.
@@ -541,5 +606,6 @@ bench) shift; do_bench "$@" ;;
 batch) shift; do_batch "$@" ;;
 profile) shift; do_profile "$@" ;;
 soak) shift; do_soak "$@" ;;
+memcmp) shift; do_memcmp "$@" ;;
 *) sed -n '2,20p' "$0"; exit 2 ;;
 esac

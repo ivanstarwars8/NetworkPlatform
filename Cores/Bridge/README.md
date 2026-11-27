@@ -47,8 +47,13 @@ Go-модуль `networkplatform/bridge`: один экземпляр Xray-core 
 11 not_running, 12 buffer_too_small, 13 closed.
 
 Опции запуска (`engine/options.go`): `startTimeoutMs` (15000), `stopTimeoutMs` (5000), `assetDir`, `logLevel`,
-`accessLog`, `logQueueSize` (512), `disableStats`, `memory{limitBytes, gcPercent, freeOSMemoryIntervalMs}`,
-`tun{mode: ""|"flow"|"fd", fd, mtu, outQueueBytes (2 МиБ)}`. Неизвестные поля отвергаются.
+`accessLog`, `logQueueSize` (512), `disableStats`, `memory{profile, limitBytes, gcPercent, freeOSMemoryIntervalMs}`,
+`tun{mode: ""|"flow"|"fd", fd, mtu, outQueueBytes (2 МиБ), maxFlows (0 — без предела)}`. Неизвестные поля отвергаются.
+`memory.profile: "mobile"` заполняет незаданные `limitBytes` (40 МиБ), `gcPercent` (25), `tun.outQueueBytes`
+(512 КиБ), `tun.maxFlows` (512), `logQueueSize` (128) и отвергает `assetDir` и ссылки на geodata
+(`geosite:`/`geoip:`/`ext:`) в `routing`/`dns`. Политику (`connIdle`, `bufferSize`) и окна QUIC мост не
+переписывает — их выпускает компилятор (`XrayMemoryProfile.mobile`). Замеры —
+`Documentation/Performance/memory-budget.md`.
 
 ## Поведение, о котором надо знать
 
@@ -78,8 +83,10 @@ Go-модуль `networkplatform/bridge`: один экземпляр Xray-core 
   VLESS+REALITY+Vision, путь `flow`): живая куча под нагрузкой 8–10 МиБ; `limitBytes` 24–40 МиБ с
   `gcPercent` 50 держат память рантайма в 22–27 МиБ без потери скорости (≈800 Мбит/с); профиль libXray
   (30 МиБ, GC 10 %, `FreeOSMemory` каждую секунду) даёт ещё −4 МиБ ценой пятикратного числа циклов GC и
-  −7 % скорости. Исходная рекомендация для iOS: `limitBytes` 24–32 МиБ, `gcPercent` 50, без периодического
-  `FreeOSMemory`. На устройстве не проверено (E-4).
+  −7 % скорости. Исходная рекомендация для iOS была `limitBytes` 24–32 МиБ, `gcPercent` 50; долгий прогон
+  с короткими UDP-сессиями её опроверг: при 28 МиБ живая память рантайма (куча + стеки) упирается в предел и
+  GC работает непрерывно (18 600 циклов за 8 минут, CPU ×8). Значения профиля `mobile` выбраны по замеру в
+  `Documentation/Performance/memory-budget.md`. На устройстве не проверено (E-4).
 
 ## Проверка
 

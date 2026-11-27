@@ -2,6 +2,7 @@ package engine
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -78,6 +79,11 @@ func prepareConfig(data []byte, opts *Options) (p *prepared, rerr *Error) {
 	if e := refuseSections(jc); e != nil {
 		return nil, e
 	}
+	if opts.Memory.Profile == MemoryProfileMobile {
+		if e := refuseGeodata(data); e != nil {
+			return nil, e
+		}
+	}
 	pb, err := jc.Build()
 	if err != nil {
 		return nil, newError(CodeConfigBuild, "%v", err)
@@ -123,6 +129,31 @@ func refuseSections(jc *conf.Config) *Error {
 	}
 	if len(refused) > 0 {
 		return newError(CodeConfigUnsupport, "config sections not accepted by the bridge: %s", strings.Join(refused, ", "))
+	}
+	return nil
+}
+
+// geodataPrefixes are the rule values that make the core read geoip.dat / geosite.dat (or another asset file)
+// while the config is built: infra/conf expands them into full lists in memory.
+var geodataPrefixes = []string{`"geosite:`, `"geoip:`, `"ext:`, `"ext-domain:`, `"ext-ip:`}
+
+// refuseGeodata rejects a config whose routing or DNS section names geodata. The mobile profile keeps the
+// multi-megabyte files out of the process; the control plane compiles such rules into explicit lists.
+func refuseGeodata(data []byte) *Error {
+	var sections struct {
+		Routing json.RawMessage `json:"routing"`
+		DNS     json.RawMessage `json:"dns"`
+	}
+	if err := json.Unmarshal(data, &sections); err != nil {
+		return newError(CodeConfigParse, "%v", err)
+	}
+	for name, raw := range map[string]json.RawMessage{"routing": sections.Routing, "dns": sections.DNS} {
+		lowered := bytes.ToLower(raw)
+		for _, p := range geodataPrefixes {
+			if bytes.Contains(lowered, []byte(p)) {
+				return newError(CodeConfigUnsupport, "memory.profile=mobile: %s references geodata (%s...); compile the rule into an explicit list", name, strings.Trim(p, `"`))
+			}
+		}
 	}
 	return nil
 }

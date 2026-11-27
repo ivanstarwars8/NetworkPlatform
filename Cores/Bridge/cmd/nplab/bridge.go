@@ -235,6 +235,8 @@ type sample struct {
 	CPUUserSec  float64                 `json:"cpuUserSec"`
 	CPUSysSec   float64                 `json:"cpuSysSec"`
 	RSSBytes    uint64                  `json:"rssBytes"`
+	RSSAnon     uint64                  `json:"rssAnonBytes"`
+	RSSFile     uint64                  `json:"rssFileBytes"`
 	AllocBytes  uint64                  `json:"allocBytes"`   // /gc/heap/allocs:bytes, cumulative
 	AllocObjs   uint64                  `json:"allocObjects"` // /gc/heap/allocs:objects, cumulative
 	GCCPUSec    float64                 `json:"gcCPUSec"`     // /cpu/classes/gc/total:cpu-seconds (runtime estimate)
@@ -262,6 +264,7 @@ func takeSample(e *engine.Engine, p *pump) sample {
 		s.CPUSysSec = float64(ru.Stime.Sec) + float64(ru.Stime.Usec)/1e6
 	}
 	s.RSSBytes = procRSS(os.Getpid())
+	s.RSSAnon, s.RSSFile = procRSSSplit(os.Getpid())
 	ms := make([]metrics.Sample, len(sampleMetrics))
 	for i, n := range sampleMetrics {
 		ms[i].Name = n
@@ -290,6 +293,24 @@ func takeSample(e *engine.Engine, p *pump) sample {
 		s.Pump = &c
 	}
 	return s
+}
+
+// procRSSSplit reads RssAnon and RssFile (bytes) from /proc/<pid>/status. RssAnon is private memory, the
+// closer analogue of the phys_footprint iOS enforces; RssFile is mostly clean text pages of the binary.
+func procRSSSplit(pid int) (anon, file uint64) {
+	b, err := os.ReadFile(fmt.Sprintf("/proc/%d/status", pid))
+	if err != nil {
+		return 0, 0
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		var kb uint64
+		if _, err := fmt.Sscanf(line, "RssAnon: %d kB", &kb); err == nil {
+			anon = kb << 10
+		} else if _, err := fmt.Sscanf(line, "RssFile: %d kB", &kb); err == nil {
+			file = kb << 10
+		}
+	}
+	return anon, file
 }
 
 // procRSS reads the resident set of a process from /proc/<pid>/statm.
@@ -322,6 +343,9 @@ func runBridge(args []string) error {
 	dropLoop := fs.Bool("drop-loop", true, "drop loop packets instead of feeding them back to the core")
 	memLimit := fs.Int64("memlimit", 0, "memory.limitBytes")
 	gcPercent := fs.Int("gcpercent", 0, "memory.gcPercent")
+	memProfile := fs.String("profile", "", "memory.profile: empty or mobile")
+	maxFlows := fs.Int("maxflows", 0, "tun.maxFlows (0 = profile default / no cap)")
+	freeOS := fs.Int("freeos-ms", 0, "memory.freeOSMemoryIntervalMs")
 	logLevel := fs.String("loglevel", "warning", "core log level")
 	_ = fs.Parse(args)
 
@@ -337,8 +361,9 @@ func runBridge(args []string) error {
 
 	opts := engine.Options{
 		LogLevel: *logLevel,
-		Memory:   engine.MemoryOptions{LimitBytes: *memLimit, GCPercent: *gcPercent},
-		Tun:      engine.TunOptions{MTU: *mtu, OutQueueBytes: *outQueue},
+		Memory: engine.MemoryOptions{Profile: engine.MemoryProfile(*memProfile), LimitBytes: *memLimit,
+			GCPercent: *gcPercent, FreeOSMemoryIntervalMs: *freeOS},
+		Tun: engine.TunOptions{MTU: *mtu, OutQueueBytes: *outQueue, MaxFlows: *maxFlows},
 	}
 	e := engine.New()
 	var p *pump
@@ -391,7 +416,11 @@ func runBridge(args []string) error {
 	}
 	srv := &http.Server{ReadHeaderTimeout: 5 * time.Second}
 	go func() { _ = srv.Serve(ln) }()
-	fmt.Printf("{\"ready\":true,\"mode\":%q,\"pid\":%d,\"gomaxprocs\":%d}\n", *mode, os.Getpid(), runtime.GOMAXPROCS(0))
+	// cold start: process memory right after Start, before any packet
+	anon, file := procRSSSplit(os.Getpid())
+	fmt.Printf("{\"ready\":true,\"mode\":%q,\"profile\":%q,\"pid\":%d,\"gomaxprocs\":%d,\"rssBytes\":%d,\"rssAnonBytes\":%d,\"rssFileBytes\":%d,\"heapLive\":%d,\"goroutines\":%d}\n",
+		*mode, *memProfile, os.Getpid(), runtime.GOMAXPROCS(0), procRSS(os.Getpid()), anon, file,
+		engine.ReadMemoryStats().HeapObjects, runtime.NumGoroutine())
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
