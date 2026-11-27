@@ -1,0 +1,37 @@
+File: npmlab
+Build ID: 5923606b9d5ab7c063889fbeb34594a7719b7fa8
+Type: inuse_space
+Time: 2026-11-27 14:39:27 UTC
+Showing nodes accounting for 13539.28kB, 100% of 13539.28kB total
+Showing top 30 nodes out of 128
+      flat  flat%   sum%        cum   cum%
+ 2086.21kB 15.41% 15.41%  2086.21kB 15.41%  networkplatform/mihomobridge/engine.newPacketQueue
+ 2080.17kB 15.36% 30.77%  2080.17kB 15.36%  github.com/metacubex/mipstack.(*tcpSendBuffer).append
+    1026kB  7.58% 38.35%     1026kB  7.58%  runtime.mallocgc
+ 1025.50kB  7.57% 45.92%  1025.50kB  7.57%  bytes.growSlice
+ 1025.50kB  7.57% 53.50%  1025.50kB  7.57%  crypto/x509.parseCertificate
+  650.62kB  4.81% 58.30%  1162.68kB  8.59%  main.(*pump).tx
+  520.04kB  3.84% 62.15%   520.04kB  3.84%  github.com/metacubex/mihomo/common/pool.NewAllocator.func9
+     514kB  3.80% 65.94%      514kB  3.80%  hash/crc32.archInitCastagnoli
+  513.12kB  3.79% 69.73%   513.12kB  3.79%  github.com/metacubex/mihomo/tunnel.newPacketSender
+  512.69kB  3.79% 73.52%   512.69kB  3.79%  regexp/syntax.(*compiler).inst
+  512.62kB  3.79% 77.30%   512.62kB  3.79%  github.com/metacubex/utls.(*Conn).unmarshalHandshakeMessage
+  512.56kB  3.79% 81.09%   512.56kB  3.79%  github.com/metacubex/utls.UClient
+  512.06kB  3.78% 84.87%   512.06kB  3.78%  github.com/metacubex/utls.KeyShares.ToPrivate (inline)
+  512.05kB  3.78% 88.65%   512.05kB  3.78%  github.com/metacubex/mipstack.(*TCPConn).readChunk
+  512.05kB  3.78% 92.44%   512.05kB  3.78%  github.com/metacubex/mipstack.newTCPConn
+  512.05kB  3.78% 96.22%   512.05kB  3.78%  networkplatform/mihomobridge/engine.(*packetQueue).read
+  512.01kB  3.78%   100%   512.01kB  3.78%  crypto/rand.Int
+         0     0%   100%   512.88kB  3.79%  bufio.(*Writer).Flush
+         0     0%   100%   512.88kB  3.79%  bufio.(*Writer).ReadFrom
+         0     0%   100%  1025.50kB  7.57%  bytes.(*Buffer).Write
+         0     0%   100%  1025.50kB  7.57%  bytes.(*Buffer).grow
+         0     0%   100%  1025.50kB  7.57%  crypto/x509.ParseCertificate
+         0     0%   100%      514kB  3.80%  github.com/golang/snappy.init
+         0     0%   100%   512.75kB  3.79%  github.com/metacubex/mihomo/adapter.(*Proxy).DialContext
+         0     0%   100%  3587.51kB 26.50%  github.com/metacubex/mihomo/adapter.(*Proxy).ListenPacketContext
+         0     0%   100%   512.75kB  3.79%  github.com/metacubex/mihomo/adapter/outbound.(*Vless).DialContext
+         0     0%   100%  3587.51kB 26.50%  github.com/metacubex/mihomo/adapter/outbound.(*Vless).ListenPacketContext
+         0     0%   100%  4100.26kB 30.28%  github.com/metacubex/mihomo/adapter/outbound.(*Vless).StreamConnContext
+         0     0%   100%  4100.26kB 30.28%  github.com/metacubex/mihomo/adapter/outbound.(*Vless).streamTLSConn
+         0     0%   100%   512.75kB  3.79%  github.com/metacubex/mihomo/adapter/outbound.(*autoCloseProxyAdapter).DialContext

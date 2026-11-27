@@ -38,14 +38,22 @@ Go-модуль `networkplatform/mihomobridge`: ядро Mihomo за тем же
 попытку собрать оба движка в один бинарник (ADR-0001). Отличается по движку:
 
 - конфигурация — Clash/Mihomo YAML (или JSON), не больше 4 МиБ (ограничение проекта);
-- опции: `startTimeoutMs`, `stopTimeoutMs`, `homeDir`, `logLevel`, `logQueueSize`, `memory{…}`,
-  `tun{mode: ""|"flow", mtu, outQueueBytes}`; поля моста Xray (`assetDir`, `accessLog`, `disableStats`,
+- опции: `startTimeoutMs`, `stopTimeoutMs`, `homeDir`, `logLevel`, `logQueueSize`, `tcpIdleTimeoutMs`,
+  `udpIdleTimeoutMs`, `memory{profile, limitBytes, gcPercent, freeOSMemoryIntervalMs}`,
+  `tun{mode: ""|"flow", mtu, outQueueBytes, inQueueBytes, maxFlows}`; `memory.profile: "mobile"` заполняет
+  незаданные: предел 40 МиБ, GOGC 25, `outQueueBytes` 512 КиБ, `maxFlows` 512 (только TCP), очередь журнала
+  128, простой TCP 300 с, UDP 30 с (`Documentation/Performance/memory-budget.md`, §10); поля моста Xray (`assetDir`, `accessLog`, `disableStats`,
   `tun.fd`) отвергаются как неизвестные, `tun.mode: "fd"` не реализован;
 - `npb_version` → `{"abi":1,"engine":"mihomo","core":"v1.19.34","go":…}`;
 - `npb_validate` → `ConfigSummary` (`depth` всегда `"parse"`, список `overridden` — что мост переписал);
   при активном движке отказ `invalid_state` (разбор временно применяет секцию general к работающему ядру);
-- `npb_stats` → `uptimeMs`, `total{uplink,downlink}`, `connections`, `tun` — ядро считает по соединениям,
-  без разбивки по inbound/outbound;
+- `npb_stats` → `uptimeMs`, `total{uplink,downlink}`, `connections`, `idleClosedTcp`/`idleClosedUdp`, `tun`
+  (с `flowsActive`/`flowsHighest`/`flowsRejected`) — ядро считает по соединениям, без разбивки по
+  inbound/outbound;
+- простои: у ядра нет таймаута простоя TCP, а таймаут UDP-сессии (60 с, `tunnel.udpTimeout`) не задаётся
+  конфигурацией (`tun.udp-timeout` стек `mips` не читает). Мост раз в 0,25–1 с обходит соединения ядра
+  (`statistic.DefaultManager`) и закрывает те, у которых счётчики не менялись дольше `tcpIdleTimeoutMs` /
+  `udpIdleTimeoutMs` (`engine/idle.go`) — для всех входов, не только пакетного;
 - `npb_tun_write` копирует пакеты во входную очередь моста и возвращается; буфер не меняется. Опция
   `tun.inQueueBytes` (1 МиБ) — размер этой очереди, у моста Xray её нет.
 
@@ -137,6 +145,10 @@ NP_STOCK_XRAY=/path/to/xray NP_SOAK=10m go test -run TestSoakRSS -v ./engine
   darwin/arm64, darwin/amd64 с правкой; `proc_pidinfo` в Mach-O проверочной программы: 5 вхождений без
   правки, 0 с ней. Бинарник одного `engine` без правки тоже не содержит `proc_pidinfo` (линкер выбрасывает
   неиспользуемую статистику памяти ядра) — правка страхует от случайного вызова.
+- **Память моста — отдельным процессом на стенде** (`cmd/npmlab`, `bridge-tunlab.sh` с `ENGINE=mihomo`):
+  см. `Documentation/Performance/memory-budget.md` §10. Абзац ниже — про процесс теста, а не про мост: рост до
+  313 МиБ дали сам тест (неограниченный буфер журнала xray, буферы отправки и TIME_WAIT стека-«ОС» при
+  непрерывной нагрузке ~75 МБ/с), а не утечка моста.
 - Холостой RSS и 10-минутный прогон (`TestSoakRSS`, `NP_SOAK=10m`): пакетный путь → VLESS+REALITY+Vision →
   штатный xray, 4 потока непрерывно открывают и закрывают TCP-соединения (по 2 МиБ эхо) плюс UDP-датаграмма на
   каждое 20-е. Процесс теста до старта — 31,4 МиБ RSS, после старта в покое — 37,6 МиБ (+6,2 МиБ; куча 2 МиБ,

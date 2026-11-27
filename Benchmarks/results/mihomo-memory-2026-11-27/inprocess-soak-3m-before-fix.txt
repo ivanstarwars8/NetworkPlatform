@@ -1,0 +1,11 @@
+=== RUN   TestSoakRSS
+    unit_test.go:405: RSS before start: 31984 KiB
+    unit_test.go:414: idle RSS after start: 38096 KiB, {Mapped:16494195 Total:23260787 HeapObjects:5336824 HeapLive:2095728 HeapFree:2473984 HeapReleased:6766592 Stacks:622592 Goroutines:28 GCCycles:3 Limit:9223372036854775807 GCPercent:100}
+    unit_test.go:482: t= 30s rss=124508 KiB anon=91072 file=33436 heapLive=36214 KiB mapped=94263 KiB goroutines=800 conns=566 bytes=2264 MiB failures=0
+    unit_test.go:482: t= 60s rss=173744 KiB anon=139940 file=33804 heapLive=58176 KiB mapped=143083 KiB goroutines=1322 conns=1039 bytes=4156 MiB failures=0
+    unit_test.go:482: t= 90s rss=188644 KiB anon=154712 file=33932 heapLive=63207 KiB mapped=157635 KiB goroutines=1388 conns=1623 bytes=6492 MiB failures=0
+    unit_test.go:482: t=120s rss=196564 KiB anon=162632 file=33932 heapLive=66692 KiB mapped=165659 KiB goroutines=1500 conns=2188 bytes=8752 MiB failures=0
+    unit_test.go:482: t=150s rss=214908 KiB anon=180912 file=33996 heapLive=72061 KiB mapped=183831 KiB goroutines=1461 conns=2741 bytes=10964 MiB failures=0
+    unit_test.go:482: t=180s rss=211908 KiB anon=177912 file=33996 heapLive=70992 KiB mapped=180503 KiB goroutines=1452 conns=3300 bytes=13200 MiB failures=0
+    unit_test.go:494: soak done: peak rss=214908 KiB, conns=3305, 13220 MiB, failures=0, stats {Tag:total Uplink:6931255360 Downlink:6931255360} tun {RxPackets:7264206 RxBytes:7309087352 RxMalformed:0 RxNoStack:0 RxOversize:0 RxDropped:0 RxQueueHighest:138470 TxPackets:7262063 TxBytes:7308996725 TxDropped:0 TxQueueHighest:138416 TxQueueBytes:2097152 FlowsActive:23 FlowsHighest:34 FlowsRejected:0}
+--- PASS: TestSoakRSS (183.58s)

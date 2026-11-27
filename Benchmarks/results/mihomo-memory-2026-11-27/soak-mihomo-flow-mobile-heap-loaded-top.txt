@@ -1,0 +1,37 @@
+File: npmlab
+Build ID: 725b593c7056e90bbeb7835637b8a84687d4f010
+Type: inuse_space
+Time: 2026-11-27 14:56:44 UTC
+Showing nodes accounting for 7563.43kB, 100% of 7563.43kB total
+Showing top 30 nodes out of 60
+      flat  flat%   sum%        cum   cum%
+ 1560.12kB 20.63% 20.63%  1560.12kB 20.63%  github.com/metacubex/mipstack.(*tcpSendBuffer).append
+ 1032.02kB 13.64% 34.27%  1032.02kB 13.64%  github.com/metacubex/utls/mlkem.NewDecapsulationKey768 (inline)
+    1026kB 13.57% 47.84%     1026kB 13.57%  runtime.mallocgc
+  809.97kB 10.71% 58.55%   809.97kB 10.71%  networkplatform/mihomobridge/engine.newPacketQueue
+  561.50kB  7.42% 65.97%   561.50kB  7.42%  main.(*pump).rx
+  525.43kB  6.95% 72.92%   525.43kB  6.95%  github.com/metacubex/gopacket/layers.map.init.0
+  512.28kB  6.77% 79.69%   512.28kB  6.77%  github.com/metacubex/utls.(*clientHelloMsg).getPublicPtr
+  512.05kB  6.77% 86.46%   512.05kB  6.77%  github.com/metacubex/mipstack.(*socketDeadline).waitLocked (inline)
+  512.02kB  6.77% 93.23%   512.02kB  6.77%  github.com/metacubex/mihomo/dns.init
+  512.02kB  6.77%   100%   512.02kB  6.77%  internal/sync.newEntryNode[go.shape.interface {},go.shape.interface {}] (inline)
+         0     0%   100%   525.43kB  6.95%  github.com/metacubex/gopacket/layers.init
+         0     0%   100%  2056.33kB 27.19%  github.com/metacubex/mihomo/adapter.(*Proxy).ListenPacketContext
+         0     0%   100%  2056.33kB 27.19%  github.com/metacubex/mihomo/adapter/outbound.(*Vless).ListenPacketContext
+         0     0%   100%  2056.33kB 27.19%  github.com/metacubex/mihomo/adapter/outbound.(*Vless).StreamConnContext
+         0     0%   100%  2056.33kB 27.19%  github.com/metacubex/mihomo/adapter/outbound.(*Vless).streamTLSConn
+         0     0%   100%  2056.33kB 27.19%  github.com/metacubex/mihomo/adapter/outbound.(*autoCloseProxyAdapter).ListenPacketContext
+         0     0%   100%  2072.18kB 27.40%  github.com/metacubex/mihomo/common/net.Relay.func2
+         0     0%   100%  2056.33kB 27.19%  github.com/metacubex/mihomo/component/tls.GetRealityConn
+         0     0%   100%  2056.33kB 27.19%  github.com/metacubex/mihomo/transport/vmess.StreamTLSConn
+         0     0%   100%  2056.33kB 27.19%  github.com/metacubex/mihomo/tunnel.handleUDPConn.func2
+         0     0%   100%  2056.33kB 27.19%  github.com/metacubex/mihomo/tunnel.handleUDPConn.func2.1
+         0     0%   100%  2056.33kB 27.19%  github.com/metacubex/mihomo/tunnel.handleUDPConn.func3
+         0     0%   100%  2056.33kB 27.19%  github.com/metacubex/mihomo/tunnel.retry[go.shape.236ad9fe3cb0b75d63670f30a9c0752240c150f5d789a754443edd79ac0e644e]
+         0     0%   100%  2072.18kB 27.40%  github.com/metacubex/mipstack.(*TCPConn).Write
+         0     0%   100%  2072.18kB 27.40%  github.com/metacubex/mipstack.(*TCPConn).write
+         0     0%   100%  2072.18kB 27.40%  github.com/metacubex/sing/common/bufio.(*ExtendedWriterWrapper).WriteBuffer
+         0     0%   100%  2072.18kB 27.40%  github.com/metacubex/sing/common/bufio.Copy
+         0     0%   100%  2072.18kB 27.40%  github.com/metacubex/sing/common/bufio.CopyExtended
+         0     0%   100%  2072.18kB 27.40%  github.com/metacubex/sing/common/bufio.CopyExtendedWithPool
+         0     0%   100%   512.02kB  6.77%  github.com/metacubex/utls.(*Conn).verifyServerCertificate

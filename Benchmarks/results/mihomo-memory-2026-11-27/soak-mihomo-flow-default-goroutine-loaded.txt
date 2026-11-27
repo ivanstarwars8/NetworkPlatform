@@ -1,0 +1,112 @@
+goroutine profile: total 480
+116 @ 0x48f72a 0x44df37 0x48e925 0x4fb867 0x4fc728 0x4fc716 0x5ad1c5 0x5bc3e5 0x9c32bb 0x52df78 0x9c34ae 0x9c03db 0x9fc459 0x9fc45a 0x133dc82 0x133a3ef 0x4c40a3 0x1366a90 0x1366a1e 0x7b4a10 0x7bb8e8 0x496aa1
+#	0x48e924	internal/poll.runtime_pollWait+0x84								runtime/netpoll.go:351
+#	0x4fb866	internal/poll.(*pollDesc).wait+0x26								internal/poll/fd_poll_runtime.go:84
+#	0x4fc727	internal/poll.(*pollDesc).waitRead+0x2a7							internal/poll/fd_poll_runtime.go:89
+#	0x4fc715	internal/poll.(*FD).Read+0x295									internal/poll/fd_unix.go:170
+#	0x5ad1c4	net.(*netFD).Read+0x24										net/fd_posix.go:68
+#	0x5bc3e4	net.(*conn).Read+0x44										net/net.go:196
+#	0x9c32ba	github.com/metacubex/utls.(*atLeastReader).Read+0x3a						github.com/metacubex/utls@v1.9.0-alpha.1/conn.go:866
+#	0x52df77	bytes.(*Buffer).ReadFrom+0x97									bytes/buffer.go:229
+#	0x9c34ad	github.com/metacubex/utls.(*Conn).readFromUntil+0xed						github.com/metacubex/utls@v1.9.0-alpha.1/conn.go:888
+#	0x9c03da	github.com/metacubex/utls.(*Conn).readRecordOrCCS+0x3fa						github.com/metacubex/utls@v1.9.0-alpha.1/conn.go:677
+#	0x9fc458	github.com/metacubex/utls.(*Conn).readRecord+0x158						github.com/metacubex/utls@v1.9.0-alpha.1/conn.go:639
+#	0x9fc459	github.com/metacubex/utls.(*UConn).Read+0x159							github.com/metacubex/utls@v1.9.0-alpha.1/u_conn.go:868
+#	0x133dc81	github.com/metacubex/mihomo/transport/vless.(*Conn).Read+0x61					github.com/metacubex/mihomo@v1.19.34/transport/vless/conn.go:33
+#	0x133a3ee	github.com/metacubex/mihomo/transport/vless/vision.(*Conn).Read+0x10e				github.com/metacubex/mihomo@v1.19.34/transport/vless/vision/conn.go:60
+#	0x4c40a2	io.ReadAtLeast+0x82										io/io.go:335
+#	0x1366a8f	io.ReadFull+0x8f										io/io.go:354
+#	0x1366a1d	github.com/metacubex/sing-vmess.(*XUDPConn).WaitReadPacket+0x1d					github.com/metacubex/sing-vmess@v0.2.5/xudp.go:128
+#	0x7b4a0f	github.com/metacubex/mihomo/common/net/packet.(*enhanceSingPacketConn).WaitReadFrom+0x6f	github.com/metacubex/mihomo@v1.19.34/common/net/packet/packet_sing.go:30
+#	0x7bb8e7	github.com/metacubex/mihomo/common/net/deadline.(*enhancePacketConn).pipeWaitReadFrom+0x27	github.com/metacubex/mihomo@v1.19.34/common/net/deadline/packet_enhance.go:76
+
+116 @ 0x48f72a 0x4676d7 0x7bb515 0x7bb75e 0x7b515f 0x96f462 0xb84ed5 0x496aa1
+#	0x7bb514	github.com/metacubex/mihomo/common/net/deadline.(*enhancePacketConn).WaitReadFrom+0x114	github.com/metacubex/mihomo@v1.19.34/common/net/deadline/packet_enhance.go:37
+#	0x7bb75d	github.com/metacubex/mihomo/common/net/deadline.(*enhancePacketConn).WaitReadFrom+0x35d	github.com/metacubex/mihomo@v1.19.34/common/net/deadline/packet_enhance.go:72
+#	0x7b515e	github.com/metacubex/mihomo/common/net/packet.(*refPacketConn).WaitReadFrom+0x7e	github.com/metacubex/mihomo@v1.19.34/common/net/packet/ref.go:16
+#	0x96f461	github.com/metacubex/mihomo/tunnel/statistic.(*udpTracker).WaitReadFrom+0x21		github.com/metacubex/mihomo@v1.19.34/tunnel/statistic/tracker.go:183
+#	0xb84ed4	github.com/metacubex/mihomo/tunnel.handleUDPToLocal+0xf4				github.com/metacubex/mihomo@v1.19.34/tunnel/connection.go:178
+
+116 @ 0x48f72a 0x4676d7 0xb849a5 0xb8ae58 0x496aa1
+#	0xb849a4	github.com/metacubex/mihomo/tunnel.(*packetSender).Process+0xc4	github.com/metacubex/mihomo@v1.19.34/tunnel/connection.go:106
+#	0xb8ae57	github.com/metacubex/mihomo/tunnel.handleUDPConn.func3+0x97	github.com/metacubex/mihomo@v1.19.34/tunnel/tunnel.go:496
+
+113 @ 0x48f72a 0x4676d7 0x143f1b8 0x1435d88 0x496aa1
+#	0x143f1b7	github.com/metacubex/mipstack.(*TCPConn).established+0x17f7		github.com/metacubex/mipstack@v0.0.0-20261019124225-9a80a07eaeb9/tcp.go:9296
+#	0x1435d87	github.com/metacubex/mipstack.(*TCPConn).runForwardedPassive+0x267	github.com/metacubex/mipstack@v0.0.0-20261019124225-9a80a07eaeb9/tcp.go:7078
+
+5 @ 0x48f72a 0x41abce 0x41a712 0xb8a7e5 0x496aa1
+#	0xb8a7e4	github.com/metacubex/mihomo/tunnel.processUDP+0x44	github.com/metacubex/mihomo@v1.19.34/tunnel/tunnel.go:415
+
+1 @ 0x4208c9 0x491b38 0x7935d3 0x496aa1
+#	0x491b37	os/signal.signal_recv+0x97	runtime/sigqueue.go:152
+#	0x7935d2	os/signal.loop+0x12		os/signal/signal_unix.go:23
+
+1 @ 0x44a7f1 0x48e4fd 0x777831 0x777505 0x774469 0x78e3b4 0x78edfc 0x728009 0x729b8f 0x74190e 0x72633c 0x496aa1
+#	0x777830	runtime/pprof.writeRuntimeProfile+0xb0	runtime/pprof/pprof.go:848
+#	0x777504	runtime/pprof.writeGoroutine+0x44	runtime/pprof/pprof.go:781
+#	0x774468	runtime/pprof.(*Profile).WriteTo+0x148	runtime/pprof/pprof.go:405
+#	0x78e3b3	net/http/pprof.handler.ServeHTTP+0x553	net/http/pprof/pprof.go:272
+#	0x78edfb	net/http/pprof.Index+0xdb		net/http/pprof/pprof.go:391
+#	0x728008	net/http.HandlerFunc.ServeHTTP+0x28	net/http/server.go:2362
+#	0x729b8e	net/http.(*ServeMux).ServeHTTP+0x1ce	net/http/server.go:2927
+#	0x74190d	net/http.serverHandler.ServeHTTP+0x8d	net/http/server.go:3440
+#	0x72633b	net/http.(*conn).serve+0x6db		net/http/server.go:2161
+
+1 @ 0x48f72a 0x41abce 0x41a6f2 0x1781473 0x17813cd 0x167ba67 0x496aa1
+#	0x1781472	networkplatform/mihomobridge/engine.(*packetQueue).readOne+0x32	networkplatform/mihomobridge/engine/flowtun.go:168
+#	0x17813cc	networkplatform/mihomobridge/engine.(*flowDevice).Read+0x4c	networkplatform/mihomobridge/engine/flowtun.go:132
+#	0x167ba66	github.com/metacubex/sing-tun.(*Mipstack).readLoop+0x1a6	github.com/metacubex/sing-tun@v0.4.29/stack_mipstack.go:170
+
+1 @ 0x48f72a 0x41abce 0x41a6f2 0x178897d 0x17860bc 0x455067 0x496aa1
+#	0x178897c	main.runBridge+0x10bc	networkplatform/mihomobridge/cmd/npmlab/main.go:372
+#	0x17860bb	main.main+0xbb		networkplatform/mihomobridge/cmd/npmlab/main.go:44
+#	0x455066	runtime.main+0x426	runtime/proc.go:302
+
+1 @ 0x48f72a 0x41abce 0x41a712 0x178517b 0x496aa1
+#	0x178517a	networkplatform/mihomobridge/engine.init.0.func1+0x3a	networkplatform/mihomobridge/engine/logsink.go:144
+
+1 @ 0x48f72a 0x41abce 0x41a712 0x7ef495 0x496aa1
+#	0x7ef494	github.com/metacubex/mihomo/common/observable.(*Observable[...]).process+0x54	github.com/metacubex/mihomo@v1.19.34/common/observable/observable.go:17
+
+1 @ 0x48f72a 0x41abce 0x41a712 0x96e8fb 0x496aa1
+#	0x96e8fa	github.com/metacubex/mihomo/tunnel/statistic.(*Manager).handle+0x7a	github.com/metacubex/mihomo@v1.19.34/tunnel/statistic/manager.go:118
+
+1 @ 0x48f72a 0x44df37 0x48e925 0x4fb867 0x4ff97d 0x4ff96b 0x5aebe9 0x5c6c3b 0x5c6090 0x72ac99 0x1788ddf 0x496aa1
+#	0x48e924	internal/poll.runtime_pollWait+0x84		runtime/netpoll.go:351
+#	0x4fb866	internal/poll.(*pollDesc).wait+0x26		internal/poll/fd_poll_runtime.go:84
+#	0x4ff97c	internal/poll.(*pollDesc).waitRead+0x27c	internal/poll/fd_poll_runtime.go:89
+#	0x4ff96a	internal/poll.(*FD).Accept+0x26a		internal/poll/fd_unix.go:618
+#	0x5aebe8	net.(*netFD).accept+0x28			net/fd_unix.go:149
+#	0x5c6c3a	net.(*TCPListener).accept+0x1a			net/tcpsock_posix.go:159
+#	0x5c608f	net.(*TCPListener).Accept+0x2f			net/tcpsock.go:387
+#	0x72ac98	net/http.(*Server).Serve+0x378			net/http/server.go:3578
+#	0x1788dde	main.runBridge.func3+0x1e			networkplatform/mihomobridge/cmd/npmlab/main.go:364
+
+1 @ 0x48f72a 0x4676d7 0x13f8805 0x496aa1
+#	0x13f8804	github.com/metacubex/mipstack.(*Stack).runFragmentCleaner+0x224	github.com/metacubex/mipstack@v0.0.0-20261019124225-9a80a07eaeb9/fragment.go:634
+
+1 @ 0x48f72a 0x4676d7 0x1410a56 0x14124f4 0x141a9ef 0x167d6a5 0x496aa1
+#	0x1410a55	github.com/metacubex/mipstack.(*fairPacketScheduler).dequeue+0x75	github.com/metacubex/mipstack@v0.0.0-20261019124225-9a80a07eaeb9/stack.go:1590
+#	0x14124f3	github.com/metacubex/mipstack.(*packetQueue).dequeue+0x53		github.com/metacubex/mipstack@v0.0.0-20261019124225-9a80a07eaeb9/stack.go:2259
+#	0x141a9ee	github.com/metacubex/mipstack.(*Stack).Read+0x24e			github.com/metacubex/mipstack@v0.0.0-20261019124225-9a80a07eaeb9/stack.go:3793
+#	0x167d6a4	github.com/metacubex/sing-tun.(*Mipstack).writeLoop+0x284		github.com/metacubex/sing-tun@v0.4.29/stack_mipstack.go:393
+
+1 @ 0x48f72a 0x4676d7 0x1412633 0x1416195 0x496aa1
+#	0x1412632	github.com/metacubex/mipstack.(*packetQueue).dequeue+0x192	github.com/metacubex/mipstack@v0.0.0-20261019124225-9a80a07eaeb9/stack.go:2265
+#	0x1416194	github.com/metacubex/mipstack.(*Stack).runLoopback+0x54		github.com/metacubex/mipstack@v0.0.0-20261019124225-9a80a07eaeb9/stack.go:3198
+
+1 @ 0x48f72a 0x4676d7 0x1784746 0x1780ed9 0x1786bce 0x496aa1
+#	0x1784745	networkplatform/mihomobridge/engine.(*packetQueue).read+0x1e5	networkplatform/mihomobridge/engine/packetqueue.go:132
+#	0x1780ed8	networkplatform/mihomobridge/engine.(*Engine).TunRead+0x58	networkplatform/mihomobridge/engine/engine.go:571
+#	0x1786bcd	main.(*pump).tx+0xed						networkplatform/mihomobridge/cmd/npmlab/main.go:173
+
+1 @ 0x496aa1
+
+1 @ 0x4ad019 0x7973b2 0x794638 0x79470a 0x1786693 0x496aa1
+#	0x4ad018	syscall.Syscall6+0x38			syscall/syscall_linux.go:96
+#	0x7973b1	golang.org/x/sys/unix.ppoll+0x51	golang.org/x/sys@v0.30.0/unix/zsyscall_linux.go:138
+#	0x794637	golang.org/x/sys/unix.Ppoll+0x37	golang.org/x/sys@v0.30.0/unix/syscall_linux.go:157
+#	0x794709	golang.org/x/sys/unix.Poll+0x89		golang.org/x/sys@v0.30.0/unix/syscall_linux.go:166
+#	0x1786692	main.(*pump).rx+0x112			networkplatform/mihomobridge/cmd/npmlab/main.go:125
+

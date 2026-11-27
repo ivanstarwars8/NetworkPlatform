@@ -1,0 +1,37 @@
+File: npmlab
+Build ID: 725b593c7056e90bbeb7835637b8a84687d4f010
+Type: inuse_space
+Time: 2026-11-27 15:10:50 UTC
+Showing nodes accounting for 16437.34kB, 100% of 16437.34kB total
+Showing top 30 nodes out of 144
+      flat  flat%   sum%        cum   cum%
+ 3640.29kB 22.15% 22.15%  3640.29kB 22.15%  github.com/metacubex/mipstack.(*tcpSendBuffer).append
+    1539kB  9.36% 31.51%     1539kB  9.36%  runtime.mallocgc
+ 1056.33kB  6.43% 37.94%  1056.33kB  6.43%  github.com/metacubex/mihomo/common/pool.NewAllocator.func10
+ 1025.50kB  6.24% 44.17%  1025.50kB  6.24%  github.com/metacubex/mipstack.newTCPEstablishedState
+  809.97kB  4.93% 49.10%   809.97kB  4.93%  networkplatform/mihomobridge/engine.newPacketQueue
+  650.62kB  3.96% 53.06%   650.62kB  3.96%  main.(*pump).tx
+  525.43kB  3.20% 56.26%   525.43kB  3.20%  github.com/metacubex/gopacket/layers.map.init.1
+  518.65kB  3.16% 59.41%   518.65kB  3.16%  github.com/metacubex/mipstack.newFairPacketScheduler
+  518.65kB  3.16% 62.57%   518.65kB  3.16%  github.com/metacubex/wazero/internal/wasm.map.init.0
+  516.01kB  3.14% 65.71%   516.01kB  3.14%  github.com/metacubex/utls/mlkem.NewDecapsulationKey768
+     513kB  3.12% 68.83%      513kB  3.12%  encoding/pem.Decode
+  512.88kB  3.12% 71.95%   512.88kB  3.12%  bytes.growSlice
+  512.75kB  3.12% 75.07%   512.75kB  3.12%  crypto/x509.parseCertificate
+  512.75kB  3.12% 78.19%   512.75kB  3.12%  github.com/metacubex/mipstack.(*packetQueue).acquireBuffer
+  512.75kB  3.12% 81.31%   512.75kB  3.12%  github.com/metacubex/sing-tun.(*Mipstack).writeLoop
+  512.34kB  3.12% 84.42%   512.34kB  3.12%  github.com/metacubex/mipstack.newTCPConn
+  512.19kB  3.12% 87.54%   512.19kB  3.12%  github.com/metacubex/mipstack.(*tcpSegmentQueue).enqueueLocked
+  512.14kB  3.12% 90.65%   512.14kB  3.12%  reflect.unsafe_NewArray
+  512.05kB  3.12% 93.77%   512.05kB  3.12%  github.com/metacubex/mihomo/common/observable.(*Observable[go.shape.struct { LogLevel github.com/metacubex/mihomo/log.LogLevel; Payload string }]).process
+  512.02kB  3.11% 96.89%   512.02kB  3.11%  golang.org/x/net/ipv4.map.init.1
+  512.01kB  3.11%   100%   512.01kB  3.11%  net/netip.Addr.AsSlice
+         0     0%   100%   512.88kB  3.12%  bytes.(*Buffer).Grow
+         0     0%   100%   512.88kB  3.12%  bytes.(*Buffer).grow
+         0     0%   100%      513kB  3.12%  crypto/x509.(*CertPool).AppendCertsFromPEM
+         0     0%   100%   512.75kB  3.12%  crypto/x509.ParseCertificate
+         0     0%   100%      513kB  3.12%  crypto/x509.SystemCertPool
+         0     0%   100%      513kB  3.12%  crypto/x509.initSystemRoots
+         0     0%   100%      513kB  3.12%  crypto/x509.loadOnDiskRoots
+         0     0%   100%      513kB  3.12%  crypto/x509.loadSystemRoots
+         0     0%   100%      513kB  3.12%  crypto/x509.systemRootsPool
