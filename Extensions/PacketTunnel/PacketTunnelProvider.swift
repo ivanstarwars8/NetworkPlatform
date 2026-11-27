@@ -1,5 +1,5 @@
 // compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS,
-// visionOS, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 45966628451 (workflow apple.yml)
+// visionOS, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 45987643793 (workflow apple.yml)
 //
 // Minimal Packet Tunnel host (ADR-0001 §4, ADR-0003 §2–3).
 //
@@ -20,15 +20,21 @@
 // - No task captures the provider strongly, and nothing non-Sendable crosses
 //   a task boundary except through `ProviderReference`.
 //
+// Engines: in flavours with Xray (`NP_ENGINE_XRAY`) the registry holds the
+// `XrayCore` adapter (Packages/EngineXray) over the C archive of the bridge
+// (XrayBridgeBinding.swift), with the packet pump on `packetFlow`. In any
+// other flavour the registry stays empty and a start ends with
+// `core_not_registered`. Nothing of this has run on a device.
+//
 // What is missing, and therefore what this file cannot do yet:
-// - No engine adapter exists in the repository, so the registry below is
-//   empty and every start ends with `core_not_registered`. The tunnel never
-//   comes up without an engine; that is the intended failure.
 // - The utun file descriptor is not located (ADR-0001 §4, risk R-08), so
 //   `CoreStartOptions.tunnelFileDescriptor` is always `nil`.
 // - Network path changes are not observed.
 
 import CoreAbstraction
+#if NP_ENGINE_XRAY
+import EngineXray
+#endif
 import Foundation
 import NetworkExtension
 import os
@@ -37,7 +43,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     private let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "NetworkPlatform.PacketTunnel", category: "tunnel")
 
     /// The engines linked into this extension. One engine per tunnel process
-    /// (ADR-0001 §3, rule 1). Nothing is registered: there is no adapter yet.
+    /// (ADR-0001 §3, rule 1). Filled by `registerEngines()` on the first start.
     private let registry = CoreRegistry()
 
     private let session = TunnelSession()
@@ -55,6 +61,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             log.error("xray bridge abi \(abi) differs from the expected \(XrayBridgeInfo.expectedABIVersion)")
         }
         #endif
+        registerEngines()
         do {
             // Decoded here, synchronously: the options dictionary is not
             // Sendable and must not travel further.
@@ -68,6 +75,8 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 let request: TunnelStartRequest
                 if let reference = reference {
                     let handoff = ConfigurationHandoff(directory: try ConfigurationHandoff.sharedDirectory())
+                    // ADR-0008: both sides remove leftovers older than `staleAfter`.
+                    defer { handoff.removeStale() }
                     request = try handoff.consume(reference)
                 } else if let saved = try snapshots?.load() {
                     // Started by the system: the last successful request is reused.
@@ -132,6 +141,59 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 log.error("\(message, privacy: .public)")
             }
         )
+    }
+
+    /// Registers the engines of this flavour once per process. The factory
+    /// runs when a start request names the engine.
+    private func registerEngines() {
+        #if NP_ENGINE_XRAY
+        guard registry.descriptor(for: XrayCore.identifier) == nil else { return }
+        let bridge = XrayBridgeBinding()
+        let descriptor = XrayCore.makeDescriptor(bridge: bridge)
+        let io = PacketTunnelFlowIO(flow: packetFlow)
+        let session = self.session
+        let log = self.log
+        var settings = XrayCoreSettings()
+        // Starting point from the bridge's Linux measurements (Cores/Bridge/README.md,
+        // "Память"): 24-32 MiB limit, GC 50 %. Not measured on a device (E-4).
+        settings.memoryLimitBytes = 32 << 20
+        settings.gcPercent = 50
+        let fixedSettings = settings
+        let events = XrayCoreEvents(
+            unexpectedExit: { message in
+                log.error("\(message, privacy: .public)")
+                Task {
+                    if let lifecycle = await session.lifecycle {
+                        await lifecycle.reportUnexpectedExit(message)
+                    }
+                }
+            },
+            log: { record in
+                // Core messages may name destinations: private (ADR-0003 §4).
+                log.log(
+                    level: PacketTunnelProvider.logType(record.level),
+                    "xray \(record.kind, privacy: .public): \(record.message, privacy: .private)"
+                )
+            }
+        )
+        do {
+            try registry.register(descriptor) {
+                XrayCore(bridge: bridge, packetIO: io, descriptor: descriptor, settings: fixedSettings, events: events)
+            }
+            log.info("engine registered: \(descriptor.id.rawValue, privacy: .public) \(descriptor.version, privacy: .public)")
+        } catch {
+            log.error("engine registration failed: \(TunnelRunner.describe(error), privacy: .public)")
+        }
+        #endif
+    }
+
+    private static func logType(_ level: String?) -> OSLogType {
+        switch level {
+        case "debug": return .debug
+        case "info": return .info
+        case "error": return .error
+        default: return .default
+        }
     }
 
     private func startMemoryMonitor() {

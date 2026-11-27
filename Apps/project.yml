@@ -17,7 +17,7 @@
 #
 # Targets (one per platform, XcodeGen suffixes the name with _<platform>):
 #   App_<p>           application; embeds PacketTunnel_<p>; does not link Go (ADR-0001)
-#   PacketTunnel_<p>  app extension (NEPacketTunnelProvider); links CoreAbstraction and NPXrayBridge
+#   PacketTunnel_<p>  app extension (NEPacketTunnelProvider); links CoreAbstraction, EngineXray and NPXrayBridge
 #
 # Build configurations = flavour x {Debug, Release}; each flavour sets NP_FLAVOUR and Swift compilation
 # conditions through Configurations/<flavour>.xcconfig (ADR-0004: flavours by xcconfig, no duplicated
@@ -175,6 +175,10 @@ targets:
     dependencies:
       - package: NetworkPlatform
         product: CoreAbstraction
+      # Adapter of the Xray bridge (NetworkCore + packet pump). Pure Swift; the npb_* calls are made by
+      # Extensions/PacketTunnel/XrayBridgeBinding.swift, so the package never links Go.
+      - package: NetworkPlatform
+        product: EngineXray
       # Static C archive of the Go bridge (Cores/BuildScripts/bridge-apple-xcframework.sh); not embedded.
       # Its module map links libresolv, CoreFoundation and Security, which the Go runtime needs.
       - framework: ../Cores/Bridge/build/apple/NPXrayBridge.xcframework
