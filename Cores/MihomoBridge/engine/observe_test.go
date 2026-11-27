@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/metacubex/mihomo/tunnel"
 )
 
 // TestObserveAndSelect starts a url-test group of two direct proxies whose health check probes a local HTTP
@@ -26,7 +28,7 @@ proxies:
   - {name: proxy-0000, type: direct}
   - {name: proxy-0001, type: direct}
 proxy-groups:
-  - {name: group-0000, type: url-test, proxies: [proxy-0000, proxy-0001], url: "%s/", interval: 1, lazy: false}
+  - {name: group-0000, type: url-test, proxies: [proxy-0000, proxy-0001], url: "%s/", interval: 300, lazy: false}
   - {name: group-0001, type: select, proxies: [group-0000, proxy-0000, proxy-0001]}
 rules:
   - MATCH,group-0001
@@ -41,21 +43,31 @@ rules:
 		}
 		return nil
 	}
-	var obs Observation
+	// Wait for the one health check at start through the core's locked history copy, then observe: the
+	// pinned core reads its delay queue without the lock in URLTest.fast (queue.Last checks len unlocked), so
+	// observing while a check writes is a race inside the core (the core's own dispatch path does the same).
 	deadline := time.Now().Add(10 * time.Second)
 	for {
-		var err *Error
-		obs, err = e.Observe()
-		if err != nil {
-			t.Fatalf("observe: %v", err)
+		measured := 0
+		for _, name := range []string{"proxy-0000", "proxy-0001"} {
+			if p := tunnel.Proxies()[name]; p != nil && len(p.ExtraDelayHistories()[probe.URL+"/"].History) > 0 {
+				measured++
+			}
 		}
-		if g := find(obs, "group-0000"); g != nil && len(g.Members) == 2 && g.Members[0].Alive && g.Members[1].Alive {
+		if measured == 2 {
 			break
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("members not measured in time: %+v", obs)
+			t.Fatal("members not measured in time")
 		}
 		time.Sleep(100 * time.Millisecond)
+	}
+	obs, err := e.Observe()
+	if err != nil {
+		t.Fatalf("observe: %v", err)
+	}
+	if g := find(obs, "group-0000"); g == nil || len(g.Members) != 2 || !g.Members[0].Alive || !g.Members[1].Alive {
+		t.Fatalf("members: %+v", obs)
 	}
 	if len(obs.Groups) != 2 || find(obs, "GLOBAL") != nil {
 		t.Fatalf("groups %+v", obs.Groups)

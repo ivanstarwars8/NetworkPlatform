@@ -16,7 +16,8 @@ import (
 type MemberObservation struct {
 	Tag   string `json:"tag"`
 	Alive bool   `json:"alive"`
-	// DelayMs is the last measured delay; 0 when the member has not been measured or is not alive.
+	// DelayMs is the last measured delay; 0 when the member has not been measured or is not alive. A measured
+	// delay under 1 ms (a local test server) is reported as 1: the field would otherwise read as "no value".
 	DelayMs        int64 `json:"delayMs,omitempty"`
 	LastTryUnixMs  int64 `json:"lastTryUnixMs,omitempty"`
 	LastSeenUnixMs int64 `json:"lastSeenUnixMs,omitempty"`
@@ -123,8 +124,8 @@ func (e *Engine) Observe() (obs Observation, rerr *Error) {
 			m := MemberObservation{Tag: tag}
 			if s := status[tag]; s != nil {
 				m.Alive = s.GetAlive()
-				if m.Alive && s.GetDelay() > 0 {
-					m.DelayMs = s.GetDelay()
+				if m.Alive {
+					m.DelayMs = max(s.GetDelay(), 1)
 				}
 				m.LastTryUnixMs = s.GetLastTryTime() * 1000
 				m.LastSeenUnixMs = s.GetLastSeenTime() * 1000

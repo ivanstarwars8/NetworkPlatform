@@ -13,7 +13,8 @@ import (
 type MemberObservation struct {
 	Tag   string `json:"tag"`
 	Alive bool   `json:"alive"`
-	// DelayMs is the last measured delay; 0 when the member has not been measured or is not alive.
+	// DelayMs is the last measured delay; 0 when the member has not been measured or is not alive. A measured
+	// delay under 1 ms (a local test server) is reported as 1: the field would otherwise read as "no value".
 	DelayMs        int64 `json:"delayMs,omitempty"`
 	LastTryUnixMs  int64 `json:"lastTryUnixMs,omitempty"`
 	LastSeenUnixMs int64 `json:"lastSeenUnixMs,omitempty"`
@@ -88,15 +89,21 @@ func (e *Engine) Observe() (obs Observation, rerr *Error) {
 			}
 			total++
 			m := MemberObservation{Tag: member.Name()}
-			history := member.DelayHistory()
+			// The group's own test URL: its history and alive flag (locked copies in the core). Without one
+			// (a selector), the proxy's default history.
+			history, alive := member.DelayHistory(), false
 			if state.TestURL != "" {
-				history = member.ExtraDelayHistories()[state.TestURL].History
+				st := member.ExtraDelayHistories()[state.TestURL]
+				history, alive = st.History, st.Alive
+			} else if len(history) > 0 {
+				alive = history[len(history)-1].Delay > 0
 			}
 			if len(history) > 0 {
 				last := history[len(history)-1]
-				m.Alive = last.Delay > 0
+				// The core records a failed check with delay 0; a success under 1 ms is also 0, reported as 1.
+				m.Alive = alive && (last.Delay > 0 || state.TestURL != "")
 				if m.Alive {
-					m.DelayMs = int64(last.Delay)
+					m.DelayMs = max(int64(last.Delay), 1)
 					m.LastSeenUnixMs = last.Time.UnixMilli()
 				}
 				m.LastTryUnixMs = last.Time.UnixMilli()
