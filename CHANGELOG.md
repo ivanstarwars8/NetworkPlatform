@@ -24,7 +24,7 @@
 
 ### Проверено (этап 3b)
 
-- 2026-11-27, `main` после слияния этапа 3b: `swift test -j 1` в `swift:5.10` — 533 тестов, 0 падений. Мост Xray: gofmt/vet чисто, `go test ./...` со штатным xray ok. Мост Mihomo: gofmt/vet чисто, `go test ./...` со штатным xray ok. CI — `STATUS.md` §2.0.
+- 2026-11-27, `main` после слияния этапа 3b: `swift test -j 1` в `swift:5.10` — 533 тестов, 0 падений. Мост Xray: gofmt/vet чисто, `go test ./...` со штатным xray ok. Мост Mihomo: gofmt/vet чисто, `go test ./...` со штатным xray ok. CI на `079355a`: apple (8 заданий), swift-package (533/0 на macOS и Linux), bridge-go, mihomo-bridge-go — зелёные (`STATUS.md` §2.0).
 
 ### Добавлено (этап 3, 2026-11-27)
 

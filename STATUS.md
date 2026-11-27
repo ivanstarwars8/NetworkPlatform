@@ -49,7 +49,12 @@
 
 ### 2.0. Apple — сборка на CI (GitHub Actions, macOS 15, Xcode 16.4, 2026-11-27)
 
-**Этап 3b, слитый `main`:** прогоны CI ждут результата; номера будут вписаны следующим коммитом.
+**Этап 3b, слитый `main` (коммит `079355a`, 2026-11-27; push, workflow запущены изменениями путей), все четыре workflow зелёные:**
+
+- `apple.yml` ([прогон](../../actions/runs/46037216559)): все 8 заданий — XCFramework моста Xray; `XrayOnly` без подписи для iOS (Debug и Release), iOS Simulator, macOS, tvOS, visionOS; отказ `MihomoOnly`/`Dual` фазой «Flavour guard» — как задумано. Предупреждений в исходниках `Apps/`, `Extensions/`, `Packages/` — 0 (есть только предупреждение настроек проекта об ориентациях экрана iOS).
+- `swift-package.yml` ([прогон](../../actions/runs/46037216583)): **533 теста, 0 падений на macOS** (Xcode 16.4) и 533/0 на Linux-раннере (не Apple).
+- `bridge-go.yml` ([прогон](../../actions/runs/46037216330)): gofmt, vet, тесты, `-race` остальных тестов — ok; C ABI — PASSED; «KNOWN FAILURE check»: `TestFlowThroughProxyWithDNS` — 2 отчёта, `TestProtocolsOverLoopback/VLESS+REALITY+Vision` — 3, все в Vision ядра, кадров моста нет.
+- `mihomo-bridge-go.yml` ([прогон](../../actions/runs/46037216432)): gofmt, vet, тесты со штатным xray, `-race` остальных — ok; C ABI — PASSED; правка Apple — PASSED; «KNOWN FAILURE check»: Vision — 8 отчётов, `TestStartStopCycles` — 2, все доступы в ядре Mihomo.
 
 Потоки до слияния (`workflow_dispatch`): tunready — [apple](../../actions/runs/46023996648) (все 8 заданий), [swift-package](../../actions/runs/46024002141) на `276689e`; [bridge-go](../../actions/runs/46022263817) на `be4df44`. Предупреждений в `Apps/`, `Extensions/`, `Packages/` — 0. Поток mihomomem на CI до слияния не гонялся.
 
@@ -261,5 +266,5 @@ Xray v26.11.9 собран из тега на сервере разработк�
 | 2026-11-27 | CI на раннерах macOS/Linux: пакет 477/0 на macOS; мост — 10 срезов Apple, тест C ABI на macOS arm64; приложение + расширение `XrayOnly` скомпилированы без подписи для iOS/iPadOS, macOS, tvOS, visionOS; `MihomoOnly`/`Dual` объявлены, не собираются (нет артефакта Mihomo). Исправлены 4 предупреждения строгой конкурентности. |
 | 2026-11-27 | Проверка полноты этапа 2 (критик): повторены на `main` a8910ab — gofmt/vet/build/`go test` моста — ok; `-race` воспроизводит гонку Vision в ядре, через Trojan+TLS — ok; `validate-fixtures.sh` — 53/53; `run-interop.sh` — 16/16; Swift `DomainModels`+`AdaptiveBalancer` в контейнере — 99/0. Уточнены README (сборка на CI, два случая гонки, публичность репозитория), STATUS (RSS в 30-мин. прогоне, TunnelSession скомпилирован на CI), THREAT_MODEL T-54. |
 | 2026-11-27 | ADR-0007 окончательно: движки — Xray-core и Mihomo; сравнительные замеры отменены владельцем. |
-| 2026-11-27 | Этап 3b слит в `main`: tunready (TUN-inbound, перехват DNS и исключения из общего `TunnelAddressing`; `memory.profile=mobile` из адаптера; вырезание значений конфигурации из ошибок/журнала моста и отчётов компилятора; сквозной прогон вывода компилятора в мосте) и mihomomem (313 МиБ — тест; профиль `mobile` моста Mihomo, RssAnon 24–26 МиБ за 30 мин; стенд `npmlab`). Swift 533/0; Go-тесты обоих мостов — ok; CI — §2.0. |
+| 2026-11-27 | Этап 3b слит в `main`: tunready (TUN-inbound, перехват DNS и исключения из общего `TunnelAddressing`; `memory.profile=mobile` из адаптера; вырезание значений конфигурации из ошибок/журнала моста и отчётов компилятора; сквозной прогон вывода компилятора в мосте) и mihomomem (313 МиБ — тест; профиль `mobile` моста Mihomo, RssAnon 24–26 МиБ за 30 мин; стенд `npmlab`). Swift 533/0 (Linux и macOS CI); Go-тесты обоих мостов — ok; все четыре workflow зелёные на `079355a`. |
 | 2026-11-27 | Этап 3, три потока слиты в `main`: профиль памяти `mobile` (Linux: плато RSS 48–49 МиБ вместо 138–164, цель ≤ 45 МиБ не достигнута), адаптер `EngineXray` + ADR-0008, мост Mihomo (Linux). Swift 515/0 (Linux и macOS CI); Go-тесты обоих мостов — ok; новый CI `mihomo-bridge-go.yml`; все четыре workflow зелёные. Исправлен `TestPrepareConfig` моста Mihomo (зависел от IPv6 хоста). |

@@ -52,7 +52,7 @@ swift test
 
 Нужен Swift 5.9 или новее (`// swift-tools-version:5.9` в `Package.swift`); проверено на 5.10.1. Внешних зависимостей у пакета нет.
 
-Те же две команды выполняет CI (`.github/workflows/swift-package.yml`) на macOS и в Linux-контейнере; мосты на Linux проверяют `bridge-go.yml` и `mihomo-bridge-go.yml`, сборку для Apple — `apple.yml`. Все четыре зелёные на 2026-11-27 (`STATUS.md` §2.0).
+Те же две команды выполняет CI (`.github/workflows/swift-package.yml`) на macOS и в Linux-контейнере; мосты на Linux проверяют `bridge-go.yml` и `mihomo-bridge-go.yml`, сборку для Apple — `apple.yml`. Все четыре зелёные на 2026-11-27, коммит `079355a` (`STATUS.md` §2.0).
 
 Приложение и расширение этой командой не собираются: `Cores/BuildScripts/bridge-apple-xcframework.sh`, затем `cd Apps && xcodegen generate`, затем `xcodebuild … -configuration Debug-XrayOnly` — см. [`Documentation/Apple/BUILD_ON_MAC.md`](Documentation/Apple/BUILD_ON_MAC.md). Неподписанная сборка проверена на CI; подписанная и установка на устройство — нет.
 
