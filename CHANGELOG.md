@@ -6,6 +6,28 @@
 
 ## Не выпущено
 
+### Добавлено (этап 3, 2026-11-27)
+
+- Профиль памяти `mobile`: мост Xray (`memory.profile:"mobile"` заполняет незаданные опции — предел 40 МиБ, GOGC 25, `tun.outQueueBytes` 512 КиБ, `tun.maxFlows` 512, очередь журнала 128; отказ от `assetDir` и geodata), новый `tun.maxFlows` со счётчиками `flowsActive`/`flowsHighest`/`flowsRejected`; компилятор `XrayCompileOptions.memoryProfile` (`.standard`/`.mobile`: `policy.levels.0` connIdle 30, handshake 10, uplinkOnly/downlinkOnly 1, bufferSize 4 КиБ; окна QUIC Hysteria2). Стенд: RssAnon/RssFile, холодный старт, `burst`, `memcmp`, `MOBILE=1`; `Benchmarks/BridgeBench/soak_table.py`, `Benchmarks/results/memory-2026-11-27/`, `Documentation/Performance/memory-budget.md`. Linux: плато RSS 48–49 МиБ против 138–164; цель ≤ 45 МиБ не достигнута; на устройстве не проверено.
+- Модуль `EngineXray` (чистый Swift): `XrayBridgeABI`, адаптер `XrayCore` (`NetworkCore`), `PacketPump` (`NEPacketTunnelFlow`↔мост пачками, ограниченная очередь, обратное давление), `XrayLogReader`; 36 тестов против поддельного моста. `Extensions/PacketTunnel/XrayBridgeBinding.swift`; адаптер зарегистрирован в `XrayOnly`. Скомпилировано на macOS CI без подписи; **не запускалось**.
+- ADR-0008: передача запроса запуска файлом в App Group; ADR-0003 помечен как частично заменённый.
+- Мост Mihomo `Cores/MihomoBridge` (Mihomo v1.19.34, Go 1.27.4): тот же C ABI v1, пакетный путь без fd utun на стеке `mips`, stop через пустую конфигурацию, переписывание опасных ключей; `Cores/BuildScripts/mihomo-linux-cabi-test.sh`, `mihomo-apple-patch.sh`, `mihomo-apple-check.sh`; `Documentation/Architecture/mihomo-config.md` (записка, без кода). Проверено на Linux; под Apple не собиралось.
+- CI `.github/workflows/mihomo-bridge-go.yml` (Linux): gofmt, vet, тесты со штатным xray, `-race` с известными гонками ядра Mihomo отдельным шагом, тест C ABI, проверка правки Apple.
+
+### Изменено (этап 3)
+
+- Расширение удаляет устаревшие файлы передачи запроса запуска после чтения (ADR-0008).
+- Исправлен комментарий «пакеты не проходят через Swift» в `TunnelNetworkSettings.swift`.
+- `Cores/Bridge/README.md`: совет «предел 24–32 МиБ» заменён ссылкой на замер (предел ниже живого набора гоняет GC непрерывно).
+
+### Исправлено (этап 3)
+
+- `TestPrepareConfig` моста Mihomo зависел от наличия IPv6 у хоста (ядро отбрасывает IPv6-адрес tun без глобального IPv6, `verifyIP6`) и падал на раннерах GitHub; теперь ожидание строится по адресам tun и проверяется каждый элемент.
+
+### Проверено (этап 3)
+
+- 2026-11-27, `main` после слияния этапа 3: `swift test -j 1` в `swift:5.10` — 515 тестов, 0 падений. Мост Xray: gofmt/vet чисто, `go test ./...` ok. Мост Mihomo: gofmt/vet чисто, `go test ./...` со штатным xray 26.11.9 ok. `-race` обоих мостов — известные гонки внутри ядер (шаги «KNOWN FAILURE check» на CI). CI на слитом `main`: apple, swift-package (515/0 на macOS и Linux), bridge-go, mihomo-bridge-go — зелёные.
+
 ### Добавлено (сборка под Apple на CI, 2026-11-27)
 
 - `.github/workflows/swift-package.yml` (macOS + Linux), `bridge-go.yml` (Linux: gofmt, vet, test, `-race` со штатным xray, известный провал Vision отдельным шагом, тест C ABI), `apple.yml` (XCFramework моста, приложение + расширение по платформам без подписи, проверка отказа `MihomoOnly`/`Dual`). Заменяют `ci.yml`.

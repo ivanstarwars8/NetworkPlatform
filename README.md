@@ -10,9 +10,10 @@
 
 - Мост Xray (`Cores/Bridge`, Go, Xray-core v26.11.9) собран и проверен на Linux: шесть протоколов против штатного xray, трафик через настоящий tun ядра в netns, пропускная способность 90–129 % от штатного xray на стенде Linux. Под детектором гонок падают случаи с VLESS+REALITY+Vision (`TestFlowThroughProxyWithDNS`, на CI также `TestProtocolsOverLoopback/VLESS+REALITY+Vision`) из-за гонки внутри ядра.
 - Компилятор модели → Xray JSON проверен настоящим Xray 26.11.9: 53 конфига приняты, 16 из 16 interop-конфигов передали трафик (Xray ↔ Xray, Linux).
-- Swift-пакет из пяти модулей (`DomainModels`, `CoreAbstraction`, `ConfigurationEngine`, `RoutingEngine`, `AdaptiveBalancer`) — 477 тестов, 0 падений на Linux (Swift 5.10.1) и на macOS CI (Xcode 16.4).
-- Приложение и расширение Packet Tunnel (`XrayOnly`) **скомпилированы на macOS CI без подписи** для iOS/iPadOS, симулятора iOS, macOS, tvOS, visionOS; мост — XCFramework из 10 срезов. **Ни разу не запускались**: адаптера движка нет, старт расширения отказывает `core_not_registered`. Для запуска нужны аккаунт Apple Developer с Network Extension и устройство.
-- Второй движок — Mihomo (ADR-0007, направление до сравнительных замеров); моста Mihomo пока нет.
+- Профиль памяти `mobile` моста Xray: на Linux плато RSS 48–49 МиБ вместо 138–164 при той же скорости (±6 %); ориентир iOS (≤ 45 МиБ при лимите расширения ~50 МиБ) не достигнут, на устройстве не мерилось.
+- Swift-пакет из шести модулей (`DomainModels`, `CoreAbstraction`, `ConfigurationEngine`, `RoutingEngine`, `AdaptiveBalancer`, `EngineXray`) — 515 тестов, 0 падений на Linux (Swift 5.10.1) и на macOS CI (Xcode 16.4).
+- Приложение и расширение Packet Tunnel (`XrayOnly`) с адаптером `EngineXray` **скомпилированы на macOS CI без подписи** для iOS/iPadOS, симулятора iOS, macOS, tvOS, visionOS; мост — XCFramework из 10 срезов. **Ни разу не запускались**; компилятор ещё не задаёт TUN-inbound, без него старт будет отвергнут. Для запуска нужны аккаунт Apple Developer с Network Extension и устройство.
+- Движки — Xray-core и Mihomo (ADR-0007, окончательно). Мост Mihomo (`Cores/MihomoBridge`, Mihomo v1.19.34, тот же C ABI) собран и проверен на Linux против штатного xray; под Apple не собирался, адаптера и компилятора Clash YAML нет.
 
 Подробно, с разделением на «сделано / не проверено / заблокировано»: [`STATUS.md`](STATUS.md).
 
@@ -22,9 +23,10 @@
 
 | Путь | Содержимое | Проверено сборкой |
 |---|---|---|
-| `Package.swift`, `Packages/` | модули `DomainModels`, `CoreAbstraction`, `ConfigurationEngine`, `RoutingEngine`, `AdaptiveBalancer` с тестами XCTest | Linux (Swift 5.10.1) и macOS CI (Xcode 16.4): 477 тестов, 0 падений |
+| `Package.swift`, `Packages/` | модули `DomainModels`, `CoreAbstraction`, `ConfigurationEngine`, `RoutingEngine`, `AdaptiveBalancer`, `EngineXray` с тестами XCTest | Linux (Swift 5.10.1) и macOS CI (Xcode 16.4): 515 тестов, 0 падений |
 | `Cores/Bridge/` | мост Xray на Go с C ABI | Linux — тесты и стенд; Apple — 10 срезов собраны на CI, тест C ABI выполнен на macOS arm64; на iOS/tvOS/visionOS не запускался |
-| `Extensions/PacketTunnel/` | `NEPacketTunnelProvider`: сетевые настройки, старт и стоп, сообщения приложения, контроль памяти; адаптера движка нет | скомпилировано на macOS CI без подписи; не запускалось |
+| `Cores/MihomoBridge/` | мост Mihomo на Go с тем же C ABI | Linux — тесты против штатного xray, C ABI; под Apple — только компиляция `GOOS=ios/darwin` на Linux |
+| `Extensions/PacketTunnel/` | `NEPacketTunnelProvider`: сетевые настройки, старт и стоп, сообщения приложения, контроль памяти, привязка адаптера `EngineXray` к мосту | скомпилировано на macOS CI без подписи; не запускалось |
 | `Apps/` | оболочка приложения на SwiftUI и спецификация XcodeGen для iOS/iPadOS, macOS, tvOS, visionOS | скомпилировано на macOS CI без подписи; не запускалось |
 | `Cores/BuildScripts/` | сборка XCFramework моста; скрипты проверки моста на Linux (C ABI, netns, стенд tun) | Linux — да; XCFramework — на macOS CI |
 | `Benchmarks/` | замеры моста и маршрутизации, тест паритета с роутером Xray | Linux — да |
@@ -32,11 +34,11 @@
 | `RESEARCH.md`, `Documentation/Research/` | результаты аудита движков, референс-клиентов и платформ | — |
 | `PROTOCOL_MATRIX.md`, `PLATFORM_MATRIX.md`, `COMPETITOR_MATRIX.md`, `LICENSE_AUDIT.md` | матрицы и аудит лицензий | — |
 | `TECHNICAL_RISKS.md` | реестр рисков R-01…R-22 | — |
-| `Documentation/ADR/` | архитектурные решения 0001–0007, ревью ADR | — |
+| `Documentation/ADR/` | архитектурные решения 0001–0008, ревью ADR | — |
 | `Documentation/Architecture/`, `Documentation/Performance/`, `Documentation/Protocols/` | архитектура, замеры, форматы и справочник Xray | — |
 | `Documentation/Security/THREAT_MODEL.md` | модель угроз, первая версия | — |
 
-Исходников движков в репозитории нет: мост подключает Xray-core как Go-зависимость (`Cores/Bridge/go.mod`). Собранные библиотеки в git не хранятся.
+Исходников движков в репозитории нет: мосты подключают Xray-core и Mihomo как Go-зависимости (`Cores/Bridge/go.mod`, `Cores/MihomoBridge/go.mod`). Собранные библиотеки в git не хранятся.
 
 ## Сборка и тесты
 
@@ -49,7 +51,7 @@ swift test
 
 Нужен Swift 5.9 или новее (`// swift-tools-version:5.9` в `Package.swift`); проверено на 5.10.1. Внешних зависимостей у пакета нет.
 
-Те же две команды выполняет CI (`.github/workflows/swift-package.yml`) на macOS и в Linux-контейнере; мост на Linux проверяет `bridge-go.yml`, сборку для Apple — `apple.yml`. Все три зелёные на 2026-11-27 (`STATUS.md` §2.0).
+Те же две команды выполняет CI (`.github/workflows/swift-package.yml`) на macOS и в Linux-контейнере; мосты на Linux проверяют `bridge-go.yml` и `mihomo-bridge-go.yml`, сборку для Apple — `apple.yml`. Все четыре зелёные на 2026-11-27 (`STATUS.md` §2.0).
 
 Приложение и расширение этой командой не собираются: `Cores/BuildScripts/bridge-apple-xcframework.sh`, затем `cd Apps && xcodegen generate`, затем `xcodebuild … -configuration Debug-XrayOnly` — см. [`Documentation/Apple/BUILD_ON_MAC.md`](Documentation/Apple/BUILD_ON_MAC.md). Неподписанная сборка проверена на CI; подписанная и установка на устройство — нет.
 
