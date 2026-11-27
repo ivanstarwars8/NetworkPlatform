@@ -92,6 +92,17 @@ public enum UnitFormat {
         return "\(number(value)) \(units[index])"
     }
 
+    /// A duration in whole units, the two largest non-zero ones: "45 с", "3 мин 05 с", "2 ч 07 мин", "3 д 4 ч".
+    public static func duration(seconds: Double) -> String {
+        let total = Int(max(0, seconds.isFinite ? seconds : 0))
+        let days = total / 86_400, hours = total / 3_600 % 24, minutes = total / 60 % 60, secs = total % 60
+        func two(_ value: Int) -> String { value < 10 ? "0\(value)" : "\(value)" }
+        if days > 0 { return hours > 0 ? "\(days) д \(hours) ч" : "\(days) д" }
+        if hours > 0 { return "\(hours) ч \(two(minutes)) мин" }
+        if minutes > 0 { return "\(minutes) мин \(two(secs)) с" }
+        return "\(secs) с"
+    }
+
     /// The value as it will be displayed, for unit promotion: 999.96 shows as "1000", so it is promoted.
     private static func rounded(_ value: Double) -> Double {
         value < 10 ? (value * 10).rounded() / 10 : value.rounded()

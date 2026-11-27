@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
 # Checks a signed iOS IPA before it is uploaded (.github/workflows/testflight.yml). macOS only.
 #
-#   Tools/verify-ipa.sh <ipa> <app-bundle-id> <extension-bundle-id> <app-group> <build-number> <marketing-version>
+#   Tools/verify-ipa.sh <ipa> <app-bundle-id> <app-group> <build-number> <marketing-version> <Name=bundle-id>...
+#     e.g. ... PacketTunnelXray=com.gbnconnect.app.tun PacketTunnelMihomo=com.gbnconnect.app.mihomo
 #
-# For the app and its Packet Tunnel extension: the code signature (codesign --verify --strict), the signing
+# The app must embed exactly the listed extensions (Name.appex). For the app and each Packet Tunnel extension: the code signature (codesign --verify --strict), the signing
 # authority (Apple Distribution), the bundle identifier and versions, the signed entitlements (packet-tunnel-provider,
 # the App Group, no get-task-allow) and the embedded App Store provisioning profile (same entitlements, no device
 # list, beta-reports-active). The app: display name, icon, and no ITSAppUsesNonExemptEncryption key (export
 # compliance is answered by the owner, not by this build). Prints the entitlements; the team identifier in them is
 # masked by GitHub Actions because it is a repository secret.
 set -euo pipefail
-ipa="$1"; app_id="$2"; ext_id="$3"; group="$4"; build="$5"; version="$6"
+[ "$#" -ge 6 ] || { echo "usage: $0 <ipa> <app-id> <app-group> <build> <version> <Name=bundle-id>..." >&2; exit 2; }
+ipa="$1"; app_id="$2"; group="$3"; build="$4"; version="$5"; shift 5
 work="$(mktemp -d)"; trap 'rm -rf "$work"' EXIT
 unzip -q "$ipa" -d "$work"
 app="$(ls -d "$work"/Payload/*.app)"
@@ -54,15 +56,29 @@ check_bundle() { # bundle expected-id kind
 }
 
 check_bundle "$app" "$app_id" app
-ext="$app/PlugIns/PacketTunnelXray.appex"
-[ -d "$ext" ] || fail "no PacketTunnelXray.appex in the app"
-[ "$(ls -d "$app"/PlugIns/*.appex | wc -l | tr -d ' ')" = 1 ] || fail "the app embeds more than one extension"
-check_bundle "$ext" "$ext_id" extension
-[ "$(plutil -extract NSExtension.NSExtensionPointIdentifier raw "$ext/Info.plist")" = com.apple.networkextension.packet-tunnel ] \
-  || fail "extension point is not packet-tunnel"
-# The app selects its extension by this identifier (TunnelEngineCatalog); it must be the embedded one.
-got="$(plutil -extract NPXrayExtensionBundleIdentifier raw "$app/Info.plist" 2>/dev/null || true)"
-[ "$got" = "$ext_id" ] || fail "app Info.plist NPXrayExtensionBundleIdentifier is '$got', expected $ext_id"
+# Embedded extensions: exactly the listed ones.
+want="$(for spec in "$@"; do echo "${spec%%=*}.appex"; done | sort | tr '\n' ' ')"
+have="$(ls "$app/PlugIns" 2>/dev/null | grep '\.appex$' | sort | tr '\n' ' ')"
+echo "== embedded extensions: $have"
+[ "$have" = "$want" ] || fail "the app embeds '$have', expected '$want'"
+ids=""
+for spec in "$@"; do
+  name="${spec%%=*}"; ext_id="${spec#*=}"
+  [ -n "$name" ] && [ -n "$ext_id" ] && [ "$name" != "$spec" ] || fail "bad extension spec '$spec' (Name=bundle-id)"
+  ext="$app/PlugIns/$name.appex"
+  check_bundle "$ext" "$ext_id" "$name"
+  [ "$(plutil -extract NSExtension.NSExtensionPointIdentifier raw "$ext/Info.plist")" = com.apple.networkextension.packet-tunnel ] \
+    || fail "$name extension point is not packet-tunnel"
+  # The app selects each extension by these identifiers (TunnelEngineCatalog); they must be the embedded ones.
+  case "$name" in
+    PacketTunnelXray) key=NPXrayExtensionBundleIdentifier ;;
+    PacketTunnelMihomo) key=NPMihomoExtensionBundleIdentifier ;;
+    *) fail "unknown extension $name" ;;
+  esac
+  got="$(plutil -extract "$key" raw "$app/Info.plist" 2>/dev/null || true)"
+  [ "$got" = "$ext_id" ] || fail "app Info.plist $key is '$got', expected $ext_id"
+  ids="$ids $ext_id"
+done
 
 name="$(plutil -extract CFBundleDisplayName raw "$app/Info.plist")"
 echo "== app display name: $name"
@@ -73,4 +89,4 @@ if plutil -extract ITSAppUsesNonExemptEncryption raw "$app/Info.plist" >/dev/nul
   fail "ITSAppUsesNonExemptEncryption is set; export compliance is the owner's declaration"
 fi
 echo "== orientations iPad: $(plutil -extract UISupportedInterfaceOrientations~ipad json -o - "$app/Info.plist" 2>/dev/null || echo none)"
-echo "VERIFY OK: $app_id ($version, $build) + $ext_id, group $group"
+echo "VERIFY OK: $app_id ($version, $build) +$ids, group $group"

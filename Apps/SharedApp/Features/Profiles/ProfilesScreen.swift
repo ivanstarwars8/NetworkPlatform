@@ -2,8 +2,9 @@
 // MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46073714202 (workflow apple.yml)
 // (Rebuilt from ContentView.swift, compiled on macOS CI in GitHub Actions run 46055850203; same behaviour.)
 //
-// Профили (level Обычный): the profiles, which one is in use, its servers; adding a profile from a pasted share
-// link, subscription address or subscription body; the import report; deleting a profile.
+// Профили (level Обычный): the profiles, which one is in use, its servers and engine (EngineChoiceSection.swift);
+// adding a profile from a pasted share link, subscription address or subscription body; the import report;
+// deleting a profile.
 
 import DesignSystem
 import DomainModels
@@ -184,6 +185,8 @@ struct ProfileDetailView: View {
                         }
                     }
                 }
+
+                EngineChoiceSection(profile: profile, isLocked: tunnelBusy && profile.id == library.selectedProfileID)
 
                 Section {
                     ForEach(profile.outbounds, id: \.tag) { outbound in

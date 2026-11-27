@@ -1,15 +1,16 @@
-# Signed iOS/iPadOS build of the XrayOnly app ("Бык") uploaded to internal TestFlight. Documentation/Apple/TESTFLIGHT.md.
+# Signed iOS/iPadOS build of the Dual app ("Бык", Xray and Mihomo extensions) uploaded to internal TestFlight. Documentation/Apple/TESTFLIGHT.md.
 #
 # Runs only from the owner's repository on workflow_dispatch or on a pushed tag testflight-*; never on pull requests,
 # so secrets are not exposed to forks. Signing material exists only as repository secrets; it is decoded into
 # $RUNNER_TEMP/np-secrets and a temporary keychain, never printed, never uploaded as an artifact, and removed in the
 # always() cleanup step. Build logs stay on the runner (they name the team) and are not uploaded as artifacts.
 #
-# Pipeline: ASC preflight (read-only) -> Xray bridge xcframework (cache shared with apple.yml) -> temporary keychain
-# with the distribution certificate -> App Store profiles for the app and the extension (found or created through
-# the ASC API) -> xcodegen + archive Release-XrayOnly with the Byk.xcconfig overlay -> export IPA (app-store-connect,
-# internal TestFlight only) -> verify signature, entitlements, profiles -> upload (altool) -> wait for VALID ->
-# internal group "oz".
+# Pipeline: ASC preflight (read-only) -> Mihomo extension bundle id registered if missing (Network Extensions +
+# App Groups) -> temporary keychain with the distribution certificate -> App Store profiles for the app and both
+# extensions (found or created through the ASC API), each checked for the App Group -> both bridge xcframeworks
+# (caches shared with apple.yml) -> xcodegen + archive Release-Dual with the Byk.xcconfig overlay -> export IPA
+# (app-store-connect, internal TestFlight only) -> verify signature, entitlements, profiles of the app and both
+# extensions -> upload (altool) -> wait for VALID -> internal group "oz". upload=false stops after the verification.
 #
 # Never: review submission, external testers or groups, metadata, ITSAppUsesNonExemptEncryption.
 name: TestFlight
@@ -39,7 +40,8 @@ env:
   XCODEGEN_URL: https://github.com/yonaskolb/XcodeGen/releases/download/2.44.1/xcodegen.zip
   ASC_APP_ID: "6833782634"
   APP_BUNDLE_ID: com.gbnconnect.app
-  EXT_BUNDLE_ID: com.gbnconnect.app.tun
+  XRAY_EXT_BUNDLE_ID: com.gbnconnect.app.tun
+  MIHOMO_EXT_BUNDLE_ID: com.gbnconnect.app.mihomo
   APP_GROUP: group.com.gbnconnect.app
   BETA_GROUP: oz
   # Builds 401-403 of this app record belong to another app; ours start above them.
@@ -105,6 +107,14 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: python3 -I Tools/asc.py preflight --app "$ASC_APP_ID" --bundle-id "$APP_BUNDLE_ID" --version "${{ steps.v.outputs.version }}" --build "${{ steps.v.outputs.build }}"
 
+      # The only App ID write of the workflow: creates the Mihomo extension's bundle id and its capabilities when
+      # missing. Which App Groups it belongs to cannot be set through the ASC API; the next step checks the profile.
+      - name: Register the Mihomo extension bundle id
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: python3 -I Tools/asc.py register-bundle-id --identifier "$MIHOMO_EXT_BUNDLE_ID" --name "Byk Mihomo tunnel" --capability NETWORK_EXTENSIONS --capability APP_GROUPS
+
       - name: App Store provisioning profiles
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
@@ -112,7 +122,7 @@ jobs:
         run: |
           set -euo pipefail
           s="$RUNNER_TEMP/np-secrets"
-          python3 -I Tools/asc.py profiles --cert-serial "$NP_CERT_SERIAL" --bundle-id "$APP_BUNDLE_ID" --bundle-id "$EXT_BUNDLE_ID" --out "$s/profiles" | tee "$s/profiles.txt"
+          python3 -I Tools/asc.py profiles --cert-serial "$NP_CERT_SERIAL" --bundle-id "$APP_BUNDLE_ID" --bundle-id "$XRAY_EXT_BUNDLE_ID" --bundle-id "$MIHOMO_EXT_BUNDLE_ID" --out "$s/profiles" | tee "$s/profiles.txt"
           for d in "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
             mkdir -p "$d"
             for f in "$s"/profiles/*.mobileprovision; do
@@ -120,24 +130,43 @@ jobs:
               cp "$f" "$d/$uuid.mobileprovision"; echo "$uuid.mobileprovision" >> "$s/installed-profiles.txt"
             done
           done
-          for b in "$APP_BUNDLE_ID" "$EXT_BUNDLE_ID"; do
+          missing=""
+          for b in "$APP_BUNDLE_ID" "$XRAY_EXT_BUNDLE_ID" "$MIHOMO_EXT_BUNDLE_ID"; do
             security cms -D -i "$s/profiles/$b.mobileprovision" > "$s/profile-$b.plist"
             echo "== $b profile entitlements"
             plutil -extract Entitlements xml1 -o - "$s/profile-$b.plist" | grep -E '<key>|<string>|<true/>|<false/>' | sed 's/^[[:space:]]*/  /'
+            python3 -I -c 'import plistlib, sys; e = plistlib.load(open(sys.argv[1], "rb")).get("Entitlements", {}); sys.exit(0 if sys.argv[2] in (e.get("com.apple.security.application-groups") or []) else 1)' "$s/profile-$b.plist" "$APP_GROUP" \
+              || missing="$missing $b"
           done
-          echo "NP_APP_PROFILE=$(awk -v b="$APP_BUNDLE_ID" '$1=="PROFILE" && $2==b {sub(/^PROFILE [^ ]+ /,""); print}' "$s/profiles.txt")" >> "$GITHUB_ENV"
-          echo "NP_EXT_PROFILE=$(awk -v b="$EXT_BUNDLE_ID" '$1=="PROFILE" && $2==b {sub(/^PROFILE [^ ]+ /,""); print}' "$s/profiles.txt")" >> "$GITHUB_ENV"
+          if [ -n "$missing" ]; then
+            echo "error: the App Store profile of$missing does not include the App Group $APP_GROUP."
+            echo "The App Store Connect API cannot assign App Groups to a bundle id. Once, in the Apple Developer portal:"
+            echo "Certificates, Identifiers & Profiles -> Identifiers -> <bundle id> -> App Groups -> Configure -> $APP_GROUP -> Save,"
+            echo "then run this workflow again (the old profile becomes invalid and a new one is created)."
+            exit 1
+          fi
+          prof() { awk -v b="$1" '$1=="PROFILE" && $2==b {sub(/^PROFILE [^ ]+ /,""); print}' "$s/profiles.txt"; }
+          { echo "NP_APP_PROFILE=$(prof "$APP_BUNDLE_ID")"; echo "NP_XRAY_EXT_PROFILE=$(prof "$XRAY_EXT_BUNDLE_ID")";
+            echo "NP_MIHOMO_EXT_PROFILE=$(prof "$MIHOMO_EXT_BUNDLE_ID")"; } >> "$GITHUB_ENV"
 
-      # Same cache key as apple.yml, so a bridge built there is reused.
-      - name: Cache key of the bridge sources
+      # Same cache keys as apple.yml, so bridges built there are reused.
+      - name: Cache keys of the bridge sources
         id: key
-        run: echo "hash=${{ hashFiles('Cores/Bridge/**', 'Cores/BuildScripts/bridge-apple-xcframework.sh', 'Cores/BuildScripts/mihomo-apple-patch.sh') }}" >> "$GITHUB_OUTPUT"
-      - name: Restore xcframework
+        run: |
+          echo "xray=${{ hashFiles('Cores/Bridge/**', 'Cores/BuildScripts/bridge-apple-xcframework.sh', 'Cores/BuildScripts/mihomo-apple-patch.sh') }}" >> "$GITHUB_OUTPUT"
+          echo "mihomo=${{ hashFiles('Cores/MihomoBridge/**', 'Cores/BuildScripts/bridge-apple-xcframework.sh', 'Cores/BuildScripts/mihomo-apple-patch.sh') }}" >> "$GITHUB_OUTPUT"
+      - name: Restore the Xray xcframework
         id: cache
         uses: actions/cache@v4
         with:
           path: Cores/Bridge/build/apple
-          key: npxraybridge-${{ steps.key.outputs.hash }}
+          key: npxraybridge-${{ steps.key.outputs.xray }}
+      - name: Restore the Mihomo xcframework
+        id: cache_mihomo
+        uses: actions/cache@v4
+        with:
+          path: Cores/MihomoBridge/build/apple
+          key: npmihomobridge-${{ steps.key.outputs.mihomo }}
       - uses: actions/setup-go@v5
         if: steps.cache.outputs.cache-hit != 'true'
         with:
@@ -148,10 +177,20 @@ jobs:
         env:
           NP_BRIDGE_ENGINE: xray
         run: Cores/BuildScripts/bridge-apple-xcframework.sh
-      - name: Verify the bridge
+      - uses: actions/setup-go@v5
+        if: steps.cache_mihomo.outputs.cache-hit != 'true'
+        with:
+          go-version-file: Cores/MihomoBridge/go.mod
+          cache-dependency-path: Cores/MihomoBridge/go.sum
+      - name: Build the Mihomo bridge xcframework
+        if: steps.cache_mihomo.outputs.cache-hit != 'true'
         env:
-          NP_BRIDGE_ENGINE: xray
-        run: Cores/BuildScripts/bridge-apple-verify.sh
+          NP_BRIDGE_ENGINE: mihomo
+        run: Cores/BuildScripts/bridge-apple-xcframework.sh
+      - name: Verify both bridges
+        run: |
+          NP_BRIDGE_ENGINE=xray Cores/BuildScripts/bridge-apple-verify.sh
+          NP_BRIDGE_ENGINE=mihomo Cores/BuildScripts/bridge-apple-verify.sh
 
       # App Store Connect accepts iOS uploads only from the current major SDK (iOS 26 SDK / Xcode 26 since 2026);
       # pick the newest Xcode 26+ on the image.
@@ -171,20 +210,21 @@ jobs:
           cd Apps && "$RUNNER_TEMP/xcodegen/bin/xcodegen" generate
           xcodebuild -version
 
-      - name: Archive Release-XrayOnly (Byk identity, manual signing)
+      - name: Archive Release-Dual (Byk identity, manual signing)
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           set -euo pipefail
           mkdir -p Logs
           set +e
-          xcodebuild -project Apps/NetworkPlatform.xcodeproj -scheme NetworkPlatform-XrayOnly-iOS \
-            -configuration Release-XrayOnly -destination generic/platform=iOS \
+          xcodebuild -project Apps/NetworkPlatform.xcodeproj -scheme NetworkPlatform-Dual-iOS \
+            -configuration Release-Dual -destination generic/platform=iOS \
             -derivedDataPath "$RUNNER_TEMP/dd" -archivePath "$RUNNER_TEMP/Byk.xcarchive" \
             -xcconfig "$PWD/Apps/Configurations/Byk.xcconfig" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="Apple Distribution" \
             OTHER_CODE_SIGN_FLAGS="--keychain $NP_KEYCHAIN" \
-            NP_APP_PROFILE_SPECIFIER="$NP_APP_PROFILE" NP_XRAY_EXTENSION_PROFILE_SPECIFIER="$NP_EXT_PROFILE" \
+            NP_APP_PROFILE_SPECIFIER="$NP_APP_PROFILE" NP_XRAY_EXTENSION_PROFILE_SPECIFIER="$NP_XRAY_EXT_PROFILE" \
+            NP_MIHOMO_EXTENSION_PROFILE_SPECIFIER="$NP_MIHOMO_EXT_PROFILE" \
             MARKETING_VERSION="${{ steps.v.outputs.version }}" CURRENT_PROJECT_VERSION="${{ steps.v.outputs.build }}" \
             archive > Logs/archive.log 2>&1
           rc=$?
@@ -207,7 +247,8 @@ jobs:
               "teamID": os.environ["APPLE_TEAM_ID"],
               "signingCertificate": "Apple Distribution",
               "provisioningProfiles": {os.environ["APP_BUNDLE_ID"]: os.environ["NP_APP_PROFILE"],
-                                       os.environ["EXT_BUNDLE_ID"]: os.environ["NP_EXT_PROFILE"]},
+                                       os.environ["XRAY_EXT_BUNDLE_ID"]: os.environ["NP_XRAY_EXT_PROFILE"],
+                                       os.environ["MIHOMO_EXT_BUNDLE_ID"]: os.environ["NP_MIHOMO_EXT_PROFILE"]},
               "manageAppVersionAndBuildNumber": False,
               "uploadSymbols": True,
               "testFlightInternalTestingOnly": True,
@@ -224,7 +265,10 @@ jobs:
           echo "NP_IPA=$(ls "$RUNNER_TEMP"/export/*.ipa)" >> "$GITHUB_ENV"
 
       - name: Verify signature, entitlements and profiles
-        run: Tools/verify-ipa.sh "$NP_IPA" "$APP_BUNDLE_ID" "$EXT_BUNDLE_ID" "$APP_GROUP" "${{ steps.v.outputs.build }}" "${{ steps.v.outputs.version }}"
+        run: |
+          Tools/verify-ipa.sh "$NP_IPA" "$APP_BUNDLE_ID" "$APP_GROUP" "${{ steps.v.outputs.build }}" "${{ steps.v.outputs.version }}" \
+            "PacketTunnelXray=$XRAY_EXT_BUNDLE_ID" "PacketTunnelMihomo=$MIHOMO_EXT_BUNDLE_ID"
+          [ "${{ steps.v.outputs.upload }}" = true ] || echo "- upload=false: signed IPA verified, nothing uploaded" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Validate and upload to App Store Connect
         if: steps.v.outputs.upload == 'true'

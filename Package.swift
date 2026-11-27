@@ -27,6 +27,9 @@ allTargets += lib("EngineMihomo", deps: ["CoreAbstraction", "EngineBridge", "Con
 // secret store, compilation for the Packet Tunnel. App-side only, no engine adapters (ADR-0001 rule 2).
 // The tests compile Extensions/PacketTunnel/Shared and the app's start-request mapping through symbolic links.
 allTargets += lib("ProfileLibrary", deps: ["DomainModels", "ConfigurationEngine"], testDeps: ["DomainModels", "ConfigurationEngine"])
+// Engine choice per profile (Авто / Xray / Mihomo) from the compilers' reports, last known good records and the
+// start supervisor (rollback, engine fallback within AdaptiveBalancer's engine-switch limits). App-side only.
+allTargets += lib("EngineSelection", deps: ["DomainModels", "ConfigurationEngine", "ProfileLibrary", "AdaptiveBalancer"], testDeps: ["DomainModels", "ConfigurationEngine", "ProfileLibrary", "AdaptiveBalancer"])
 // Design tokens, the horn connect control and the app's components (Documentation/Design/DESIGN.md). The tokens,
 // state mapping and horn geometry are platform-neutral and tested on Linux; the SwiftUI parts compile only where
 // SwiftUI exists. Bundled fonts (SIL OFL 1.1) are resources. The tests also compile the app's screen registry
@@ -47,6 +50,7 @@ let package = Package(
         .library(name: "RoutingEngine", targets: ["RoutingEngine"]),
         .library(name: "AdaptiveBalancer", targets: ["AdaptiveBalancer"]),
         .library(name: "ProfileLibrary", targets: ["ProfileLibrary"]),
+        .library(name: "EngineSelection", targets: ["EngineSelection"]),
         .library(name: "DesignSystem", targets: ["DesignSystem"]),
         .library(name: "EngineBridge", targets: ["EngineBridge"]),
         .library(name: "EngineXray", targets: ["EngineXray"]),

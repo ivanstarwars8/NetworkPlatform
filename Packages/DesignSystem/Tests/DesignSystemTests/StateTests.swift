@@ -110,6 +110,13 @@ final class UnitFormatTests: XCTestCase {
     }
 
     func testBytes() {
+        XCTAssertEqual(UnitFormat.duration(seconds: 0), "0 с")
+        XCTAssertEqual(UnitFormat.duration(seconds: 45.9), "45 с")
+        XCTAssertEqual(UnitFormat.duration(seconds: 185), "3 мин 05 с")
+        XCTAssertEqual(UnitFormat.duration(seconds: 2 * 3_600 + 7 * 60 + 30), "2 ч 07 мин")
+        XCTAssertEqual(UnitFormat.duration(seconds: 3 * 86_400 + 4 * 3_600), "3 д 4 ч")
+        XCTAssertEqual(UnitFormat.duration(seconds: 86_400), "1 д")
+        XCTAssertEqual(UnitFormat.duration(seconds: -5), "0 с")
         XCTAssertEqual(UnitFormat.bytes(0), "0 Б")
         XCTAssertEqual(UnitFormat.bytes(1_023), "1023 Б")
         XCTAssertEqual(UnitFormat.bytes(1_536), "1,5 КБ")

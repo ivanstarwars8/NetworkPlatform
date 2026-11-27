@@ -14,6 +14,11 @@ Commands (all print only non-secret metadata):
                 Finds (or creates) one active IOS_APP_STORE profile per bundle id that contains the distribution
                 certificate with that serial number. Writes DIR/<bundle-id>.mobileprovision and prints
                 "<bundle-id> <profile name>" lines. Creating a profile is the only write this command does.
+    register-bundle-id --identifier ID --name NAME [--capability TYPE ...]
+                Makes sure an iOS bundle id exists and has the capabilities (e.g. NETWORK_EXTENSIONS, APP_GROUPS).
+                Creates what is missing (the only writes); never removes a capability or a bundle id. Which App Groups
+                a bundle id belongs to cannot be set through the App Store Connect API: the workflow checks the
+                profile's entitlements afterwards.
     wait-build  --app ID --version V --build N [--timeout SECONDS]
                 Read-only. Polls until the uploaded build exists and its processingState is VALID; prints its id.
     beta-group  --app ID --build-id ID --group NAME
@@ -202,6 +207,31 @@ def cmd_profiles(a):
         print(f"PROFILE {bundle} {full['name']}")
 
 
+def cmd_register_bundle_id(a):
+    ids, _ = get_all("/v1/bundleIds", {"filter[identifier]": a.identifier, "filter[platform]": "IOS"})
+    bid = next((b for b in ids if b["attributes"]["identifier"] == a.identifier), None)
+    if bid:
+        print(f"{a.identifier}: registered")
+    else:
+        bid = call("POST", "/v1/bundleIds", body={"data": {
+            "type": "bundleIds",
+            "attributes": {"identifier": a.identifier, "name": a.name, "platform": "IOS"},
+        }})["data"]
+        print(f"{a.identifier}: created")
+    caps, _ = get_all(f"/v1/bundleIds/{bid['id']}/bundleIdCapabilities", limit=None)
+    have = {c["attributes"].get("capabilityType") for c in caps}
+    for cap in a.capability or []:
+        if cap in have:
+            print(f"{a.identifier}: capability {cap} enabled")
+            continue
+        call("POST", "/v1/bundleIdCapabilities", body={"data": {
+            "type": "bundleIdCapabilities",
+            "attributes": {"capabilityType": cap},
+            "relationships": {"bundleId": {"data": {"type": "bundleIds", "id": bid["id"]}}},
+        }})
+        print(f"{a.identifier}: capability {cap} added")
+
+
 def find_build(a):
     data = call("GET", "/v1/builds", {"filter[app]": a.app, "filter[version]": str(a.build),
                                       "filter[preReleaseVersion.version]": a.version,
@@ -260,13 +290,16 @@ def main():
     s = sub.add_parser("profiles")
     s.add_argument("--cert-serial", required=True); s.add_argument("--bundle-id", action="append", required=True)
     s.add_argument("--out", required=True)
+    s = sub.add_parser("register-bundle-id")
+    s.add_argument("--identifier", required=True); s.add_argument("--name", required=True)
+    s.add_argument("--capability", action="append")
     s = sub.add_parser("wait-build")
     s.add_argument("--app", required=True); s.add_argument("--version", required=True)
     s.add_argument("--build", type=int, required=True); s.add_argument("--timeout", type=int, default=3600)
     s = sub.add_parser("beta-group")
     s.add_argument("--app", required=True); s.add_argument("--build-id", required=True); s.add_argument("--group", required=True)
     a = p.parse_args()
-    {"preflight": cmd_preflight, "profiles": cmd_profiles, "wait-build": cmd_wait_build, "beta-group": cmd_beta_group}[a.cmd](a)
+    {"preflight": cmd_preflight, "profiles": cmd_profiles, "register-bundle-id": cmd_register_bundle_id, "wait-build": cmd_wait_build, "beta-group": cmd_beta_group}[a.cmd](a)
 
 
 if __name__ == "__main__":

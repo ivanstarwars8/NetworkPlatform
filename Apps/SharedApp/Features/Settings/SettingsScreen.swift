@@ -1,7 +1,7 @@
 // compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
 // MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46073714202 (workflow apple.yml)
 //
-// Настройки: the level (which screens are shown), the engine of a build with two engines, and about the app
+// Настройки: the level (which screens are shown) and about the app
 // (version, engines in this build, bundled fonts and their licences).
 
 import DesignSystem
@@ -34,26 +34,6 @@ struct SettingsScreen: View {
                     .foregroundStyle(Color.bykSecondaryInk)
             }
 
-            if library.availableEngines.count > 1 {
-                Section {
-                    Picker(selection: $library.engine) {
-                        ForEach(library.availableEngines, id: \.self) { engine in
-                            Text(SettingsScreen.engineName(engine)).tag(engine)
-                        }
-                    } label: {
-                        Text("Движок").font(.bykBody)
-                    }
-                    .disabled(tunnel.phase.action != .connect)
-                    .bykRow()
-                } header: {
-                    SectionHeader("Движок")
-                } footer: {
-                    Text("Применяется при следующем подключении.")
-                        .font(.bykFootnote)
-                        .foregroundStyle(Color.bykSecondaryInk)
-                }
-            }
-
             Section {
                 ValueRow("Версия", value: SettingsScreen.versionText)
                 ValueRow("Движки в сборке", value: library.availableEngines.map(SettingsScreen.engineName).joined(separator: ", "))
@@ -64,6 +44,12 @@ struct SettingsScreen: View {
                 }
             } header: {
                 SectionHeader("О приложении")
+            } footer: {
+                if library.availableEngines.count > 1 {
+                    Text("Движок выбирается для каждого профиля: Профили → профиль → Движок.")
+                        .font(.bykFootnote)
+                        .foregroundStyle(Color.bykSecondaryInk)
+                }
             }
             .bykRow()
         }

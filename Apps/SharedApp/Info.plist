@@ -11,5 +11,8 @@
 	<!-- Bundle identifier of the Xray extension (TunnelEngineCatalog); differs from app + ".PacketTunnelXray" in the Byk build. -->
 	<key>NPXrayExtensionBundleIdentifier</key>
 	<string>$(NP_XRAY_EXTENSION_BUNDLE_ID)</string>
+	<!-- Bundle identifier of the Mihomo extension; com.gbnconnect.app.mihomo in the Byk build. -->
+	<key>NPMihomoExtensionBundleIdentifier</key>
+	<string>$(NP_MIHOMO_EXTENSION_BUNDLE_ID)</string>
 </dict>
 </plist>

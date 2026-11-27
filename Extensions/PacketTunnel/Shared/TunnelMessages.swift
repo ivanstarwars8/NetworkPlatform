@@ -292,6 +292,9 @@ struct TunnelRequest: Codable, Equatable, Sendable {
         case status
         /// Traffic counters of the running engine.
         case statistics
+        /// Engine diagnostics: versions, Go runtime memory, goroutines, uptime, recent errors
+        /// (`TunnelEngineDiagnostics`). An extension of an older build answers `malformed_request`.
+        case diagnostics
     }
 
     var version: UInt16
@@ -303,6 +306,7 @@ struct TunnelResponse: Codable, Equatable, Sendable {
     enum Outcome: Codable, Equatable, Sendable {
         case status(TunnelStatusReport)
         case statistics(TunnelTrafficReport)
+        case diagnostics(TunnelEngineDiagnostics)
         case failure(TunnelIPCError)
     }
 
@@ -331,6 +335,66 @@ struct TunnelTrafficReport: Codable, Equatable, Sendable {
     var downlinkBytes: UInt64
 }
 
+/// What the engine diagnostics screen shows. Numbers come from the bridge (`npb_version`, `npb_health`,
+/// `npb_memory`) and from the Swift host (`phys_footprint`); a value the extension could not read is `nil`,
+/// never estimated. Texts are bounded and carry no configuration (the bridge redacts its errors; the app
+/// passes them through `ConfigValueRedactor` again before showing them).
+struct TunnelEngineDiagnostics: Codable, Equatable, Sendable {
+    struct ErrorRecord: Codable, Equatable, Sendable {
+        var timeUnixMilliseconds: Int64
+        var kind: String
+        var message: String
+    }
+
+    var coreID: String?
+    /// Version of the core the bridge links (Xray-core, Mihomo).
+    var coreVersion: String?
+    var goVersion: String?
+    var bridgeABI: Int32?
+    /// Engine lifecycle state of the Swift adapter, or "absent".
+    var coreState: String
+    /// Seconds since the engine started, from the bridge.
+    var uptimeSeconds: Double?
+    var goHeapLiveBytes: UInt64?
+    var goHeapObjectsBytes: UInt64?
+    var goMappedBytes: UInt64?
+    var goStacksBytes: UInt64?
+    var goroutines: UInt64?
+    var gcCycles: UInt64?
+    var goMemoryLimitBytes: Int64?
+    /// `phys_footprint` of the extension process (what iOS enforces), measured by the Swift host.
+    var physicalFootprintBytes: UInt64?
+    var memoryPressureWarnings: Int
+    var memoryPressureCriticals: Int
+    /// Last error of the Swift engine lifecycle.
+    var lifecycleError: String?
+    /// Last start/stop error the bridge recorded (code and message).
+    var bridgeError: String?
+    /// Error-level engine log records, newest last, bounded.
+    var recentErrors: [ErrorRecord]
+    var logRecordsDropped: UInt64?
+
+    /// Longest text kept per error; a limit of this project.
+    static let maximumErrorLength = 240
+    /// Most error records sent; a limit of this project.
+    static let maximumRecentErrors = 8
+
+    /// Applies the limits (the reply must stay far below `TunnelIPC.maximumMessageBytes`).
+    func bounded() -> TunnelEngineDiagnostics {
+        func cut(_ text: String?) -> String? {
+            guard let text = text else { return nil }
+            return text.count > Self.maximumErrorLength ? String(text.prefix(Self.maximumErrorLength)) + "…" : text
+        }
+        var copy = self
+        copy.lifecycleError = cut(lifecycleError)
+        copy.bridgeError = cut(bridgeError)
+        copy.recentErrors = recentErrors.suffix(Self.maximumRecentErrors).map {
+            ErrorRecord(timeUnixMilliseconds: $0.timeUnixMilliseconds, kind: String($0.kind.prefix(32)), message: cut($0.message) ?? "")
+        }
+        return copy
+    }
+}
+
 // MARK: - Encoding and checking, both directions
 
 /// The rules of one request/reply exchange, independent of the transport so
@@ -351,7 +415,7 @@ enum TunnelExchange {
 
     /// Checks a reply against the request it should answer and returns its
     /// outcome. A `.failure` outcome is thrown, so the caller only ever sees
-    /// `.status` or `.statistics`.
+    /// `.status`, `.statistics` or `.diagnostics`.
     static func outcome(of reply: Data?, for request: TunnelRequest) throws -> TunnelResponse.Outcome {
         guard let reply = reply, !reply.isEmpty else {
             throw TunnelIPCError(.noReply, "the extension answered without data")
@@ -385,6 +449,13 @@ enum TunnelExchange {
     static func trafficReport(of reply: Data?, for request: TunnelRequest) throws -> TunnelTrafficReport {
         guard case let .statistics(report) = try outcome(of: reply, for: request) else {
             throw TunnelIPCError(.unexpectedReply, "expected a traffic report")
+        }
+        return report
+    }
+
+    static func diagnostics(of reply: Data?, for request: TunnelRequest) throws -> TunnelEngineDiagnostics {
+        guard case let .diagnostics(report) = try outcome(of: reply, for: request) else {
+            throw TunnelIPCError(.unexpectedReply, "expected engine diagnostics")
         }
         return report
     }

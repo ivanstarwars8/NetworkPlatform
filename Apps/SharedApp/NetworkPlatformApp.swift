@@ -12,6 +12,7 @@ import SwiftUI
 struct NetworkPlatformApp: App {
     @StateObject private var tunnel = TunnelController()
     @StateObject private var library = ProfileLibraryModel(catalog: .thisBuild)
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         AppearanceSetup.apply()
@@ -24,6 +25,10 @@ struct NetworkPlatformApp: App {
                 .environmentObject(library)
                 .bykScreen()
                 .task { await tunnel.refresh() }
+                // A probation timer may not have fired while the app was suspended.
+                .onChange(of: scenePhase) { _, phase in
+                    if phase == .active { tunnel.probationElapsed() }
+                }
                 #if os(macOS)
                 .frame(minWidth: 720, minHeight: 520)
                 #endif

@@ -30,6 +30,7 @@
 // Not implemented: On-Demand rules.
 
 import ConfigurationEngine
+import EngineSelection
 import Foundation
 // NetworkExtension has no Sendable annotations: `loadAllFromPreferences()`
 // returns non-Sendable managers to the main actor, where they stay.
@@ -48,6 +49,19 @@ final class TunnelController: ObservableObject {
     /// Byte counters of the running engine, from the last `refreshTraffic()`.
     @Published private(set) var traffic: TunnelTrafficReport?
     @Published private(set) var trafficError: String?
+    /// Engine diagnostics (Профи screen), from the last `refreshDiagnostics()`.
+    @Published private(set) var diagnostics: TunnelEngineDiagnostics?
+    @Published private(set) var diagnosticsError: String?
+    /// What the start supervisor did automatically (rollback, engine fallback, giving up), for the user.
+    @Published private(set) var supervisorNotice: String?
+    /// The start in progress or running, as the app requested it.
+    @Published private(set) var currentStart: PreparedStart?
+
+    /// Rollback and engine fallback after failed starts (EngineSelection, AdaptiveBalancer limits).
+    private var supervisor = StartSupervisor.standard
+    private weak var supervisedLibrary: ProfileLibraryModel?
+    /// One-shot wake-up at the end of the probation window; not a polling loop.
+    private var probationTask: Task<Void, Never>?
 
     /// The engines of this build (flavour conditions).
     let catalog = TunnelEngineCatalog.thisBuild
@@ -121,9 +135,10 @@ final class TunnelController: ObservableObject {
     /// the request's engine. The request goes to the extension through a file
     /// in the App Group container; the start options carry only a reference to
     /// it (length and SHA-256 included).
-    func connect(with request: TunnelStartRequest) async {
-        guard manager != nil else { return }
-        guard await selectExtension(for: request.coreID) else { return }
+    @discardableResult
+    func connect(with request: TunnelStartRequest) async -> Bool {
+        guard manager != nil else { return false }
+        guard await selectExtension(for: request.coreID) else { return false }
         do {
             let handoff = ConfigurationHandoff(directory: try ConfigurationHandoff.sharedDirectory())
             let reference = try handoff.write(request)
@@ -131,12 +146,29 @@ final class TunnelController: ObservableObject {
             if !start(options: options) {
                 // The extension will never read the file.
                 handoff.discard(reference)
+                return false
             }
+            return true
         } catch let error as TunnelIPCError {
             lastError = "Не удалось передать профиль расширению: \(error.summary). Попробуйте подключиться ещё раз."
         } catch {
             lastError = "Не удалось передать профиль расширению. Попробуйте подключиться ещё раз."
         }
+        return false
+    }
+
+    /// Starts a prepared start under supervision: a failed start may be followed by one automatic retry
+    /// (rollback to the last known good configuration, or in Авто the other engine).
+    func start(_ prepared: PreparedStart, library: ProfileLibraryModel) async {
+        supervisedLibrary = library
+        if prepared.attempt.origin == .user { supervisorNotice = nil }
+        guard await connect(with: prepared.request) else {
+            supervisor.userStopped()
+            currentStart = nil
+            return
+        }
+        currentStart = prepared
+        supervisor.began(prepared.attempt, at: ProcessInfo.processInfo.systemUptime)
     }
 
     @discardableResult
@@ -180,7 +212,101 @@ final class TunnelController: ObservableObject {
     }
 
     func disconnect() {
+        supervisor.userStopped()
+        probationTask?.cancel()
+        currentStart = nil
         manager?.connection.stopVPNTunnel()
+    }
+
+    // MARK: Supervision
+
+    private func superviseStatus() {
+        let observed: ObservedTunnelState?
+        switch status {
+        case .connecting: observed = .connecting
+        case .connected: observed = .connected
+        case .reasserting: observed = .reasserting
+        case .disconnecting: observed = .disconnecting
+        case .disconnected, .invalid: observed = .disconnected
+        @unknown default: observed = nil
+        }
+        guard let observed = observed else { return }
+        let library = supervisedLibrary
+        // Read before `observe`: the closure must not touch `supervisor` while it is being mutated.
+        let pending = supervisor.attempt
+        let action = supervisor.observe(observed, at: ProcessInfo.processInfo.systemUptime) {
+            guard let library = library, let attempt = pending else {
+                return FailureContext(lastKnownGood: nil, preference: .automatic, completeAlternative: nil)
+            }
+            return library.failureContext(for: attempt)
+        }
+        probationTask?.cancel()
+        if observed == .connected, supervisor.attempt != nil {
+            let window = supervisor.probationWindow
+            probationTask = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(window + 0.5))
+                guard !Task.isCancelled else { return }
+                self?.probationElapsed()
+            }
+        }
+        handle(action)
+    }
+
+    /// Called by the one-shot timer and when the app becomes active.
+    func probationElapsed() {
+        handle(supervisor.tick(at: ProcessInfo.processInfo.systemUptime))
+    }
+
+    private func handle(_ action: SupervisorAction) {
+        if let notice = action.russianNotice { supervisorNotice = notice }
+        switch action {
+        case .none:
+            return
+        case .confirmed:
+            if let start = currentStart { supervisedLibrary?.recordGood(start) }
+        case let .retry(retry, after: failed):
+            guard let library = supervisedLibrary else { return }
+            let next: PreparedStart?
+            switch retry {
+            case let .rollback(good): next = library.prepareRollback(to: good)
+            case let .switchEngine(to: engine): next = library.prepareFallback(to: engine, profileID: failed.profileID)
+            }
+            guard let next = next else {
+                currentStart = nil
+                return
+            }
+            Task { await self.start(next, library: library) }
+        case .gaveUp:
+            currentStart = nil
+        }
+    }
+
+    // MARK: Diagnostics
+
+    /// Engine diagnostics of the running extension (Профи screen); texts redacted again here.
+    func refreshDiagnostics() async {
+        guard status == .connected else {
+            diagnostics = nil
+            diagnosticsError = nil
+            return
+        }
+        let request = makeRequest(.diagnostics)
+        do {
+            var report = try TunnelExchange.diagnostics(of: try await send(request), for: request)
+            report.lifecycleError = report.lifecycleError.map(TunnelController.redacted)
+            report.bridgeError = report.bridgeError.map(TunnelController.redacted)
+            report.recentErrors = report.recentErrors.map {
+                TunnelEngineDiagnostics.ErrorRecord(timeUnixMilliseconds: $0.timeUnixMilliseconds, kind: $0.kind, message: TunnelController.redacted($0.message))
+            }
+            diagnostics = status == .connected ? report : nil
+            diagnosticsError = nil
+        } catch let error as TunnelIPCError {
+            diagnosticsError = error.code == .malformedRequest
+                ? "Расширение этой версии не отдаёт диагностику. Переустановите приложение."
+                : "Расширение не ответило: \(TunnelController.redacted(error.summary))."
+        } catch {
+            diagnosticsError = "Расширение не ответило."
+        }
     }
 
     /// Asks the running extension for the engine state.
@@ -339,7 +465,9 @@ final class TunnelController: ObservableObject {
         if status != .connected {
             engineReport = nil
             traffic = nil
+            diagnostics = nil
         }
+        superviseStatus()
         if status == .disconnected {
             fetchLastDisconnectError()
         }

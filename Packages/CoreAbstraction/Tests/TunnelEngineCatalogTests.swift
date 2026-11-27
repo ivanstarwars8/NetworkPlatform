@@ -49,6 +49,15 @@ final class TunnelEngineCatalogTests: XCTestCase {
         XCTAssertNil(dual.providerBundleIdentifier(for: "xray", appBundleIdentifier: ""), "no app identifier, no extension")
     }
 
+    func testBykDualNamesBothExtensions() {
+        // The Byk Dual build: com.gbnconnect.app.tun (Xray) and com.gbnconnect.app.mihomo (Byk.xcconfig).
+        XCTAssertEqual(TunnelEngineCatalog.infoPlistKeys["mihomo"], "NPMihomoExtensionBundleIdentifier")
+        let byk = TunnelEngineCatalog(entries: [.xray, .mihomo], bundleIdentifiers: ["xray": "com.gbnconnect.app.tun", "mihomo": "com.gbnconnect.app.mihomo"])
+        XCTAssertEqual(byk.providerBundleIdentifier(for: "mihomo", appBundleIdentifier: "com.gbnconnect.app"), "com.gbnconnect.app.mihomo")
+        XCTAssertEqual(byk.coreID(forProviderBundleIdentifier: "com.gbnconnect.app.mihomo", appBundleIdentifier: "com.gbnconnect.app"), "mihomo")
+        XCTAssertEqual(byk.coreID(forProviderBundleIdentifier: "com.gbnconnect.app.tun", appBundleIdentifier: "com.gbnconnect.app"), "xray")
+    }
+
     func testTheTestBuildDeclaresNoEngine() {
         // The package tests compile Shared/ without flavour conditions; the app gets them from the xcconfig.
         XCTAssertEqual(TunnelEngineCatalog.thisBuild.entries, [])

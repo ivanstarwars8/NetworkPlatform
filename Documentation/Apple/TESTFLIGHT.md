@@ -14,9 +14,9 @@
 |---|---|
 | Запись App Store Connect | «Бык VPS», app id 6833782634 |
 | Приложение | `com.gbnconnect.app`, имя на экране «Бык», iPhone + iPad (`TARGETED_DEVICE_FAMILY = 1,2`) |
-| Расширение | `PacketTunnelXray.appex`, `com.gbnconnect.app.tun`, `packet-tunnel-provider` |
+| Расширения | `PacketTunnelXray.appex` — `com.gbnconnect.app.tun`; `PacketTunnelMihomo.appex` — `com.gbnconnect.app.mihomo` (с ветки `byk/dual`); оба `packet-tunnel-provider` |
 | App Group | `group.com.gbnconnect.app` |
-| Вариант сборки | `Release-XrayOnly`, схема `NetworkPlatform-XrayOnly-iOS` (без GPL-кода) |
+| Вариант сборки | `Release-Dual`, схема `NetworkPlatform-Dual-iOS` (оба движка; сборка целиком GPL-3.0, ADR-0007). Сборки 409 и 410 были `XrayOnly` |
 | Номер сборки | `CFBundleVersion = 404 + GITHUB_RUN_NUMBER` (растёт с каждым запуском; 401–403 в записи — чужие сборки, их не трогать) |
 | Версия | `CFBundleShortVersionString` — параметр запуска `marketing_version` (по умолчанию 0.1.0) |
 | Куда | только внутреннее тестирование TestFlight: экспорт с `testFlightInternalTestingOnly = true`, группа «oz» |
@@ -25,9 +25,9 @@
 
 ## 2. Идентичность «Byk» без изменения неподписанных сборок
 
-`Apps/Configurations/Byk.xcconfig` — не конфигурация сборки, а наложение: `xcodebuild -xcconfig Apps/Configurations/Byk.xcconfig` поверх `Release-XrayOnly`. Оно задаёт `NP_BUNDLE_ID_PREFIX`, `NP_XRAY_EXTENSION_BUNDLE_ID`, `NP_APP_GROUP`, `NP_DISPLAY_NAME`, имя иконки и ориентации iPad. Значения по умолчанию этих переменных (`Base.xcconfig`) дают прежние идентификаторы `org.example.networkplatform.*`, поэтому `apple.yml` и `Tools/apple-build-flavour.sh` собирают то же, что раньше (прогон 46053730842 зелёный).
+`Apps/Configurations/Byk.xcconfig` — не конфигурация сборки, а наложение: `xcodebuild -xcconfig Apps/Configurations/Byk.xcconfig` поверх `Release-Dual`. Оно задаёт `NP_BUNDLE_ID_PREFIX`, `NP_XRAY_EXTENSION_BUNDLE_ID`, `NP_MIHOMO_EXTENSION_BUNDLE_ID`, `NP_APP_GROUP`, `NP_DISPLAY_NAME`, имя иконки и ориентации iPad. Значения по умолчанию этих переменных (`Base.xcconfig`) дают прежние идентификаторы `org.example.networkplatform.*`, поэтому `apple.yml` и `Tools/apple-build-flavour.sh` собирают то же, что раньше (прогон 46053730842 зелёный).
 
-Профили задаются по цели: `PROVISIONING_PROFILE_SPECIFIER = $(NP_APP_PROFILE_SPECIFIER)` у приложения и `$(NP_XRAY_EXTENSION_PROFILE_SPECIFIER)` у `PacketTunnelXray`; по умолчанию пусто. Команда, способ подписи (`Manual`, `Apple Distribution`), профили, версия и номер сборки передаются в командной строке workflow.
+Профили задаются по цели: `PROVISIONING_PROFILE_SPECIFIER = $(NP_APP_PROFILE_SPECIFIER)` у приложения, `$(NP_XRAY_EXTENSION_PROFILE_SPECIFIER)` у `PacketTunnelXray` и `$(NP_MIHOMO_EXTENSION_PROFILE_SPECIFIER)` у `PacketTunnelMihomo`; по умолчанию пусто. Команда, способ подписи (`Manual`, `Apple Distribution`), профили, версия и номер сборки передаются в командной строке workflow.
 
 Иконка — дуга рогов из элемента подключения, бронза на сланце (`Documentation/Design/DESIGN.md` §7). Генерируется кодом `Tools/make-app-icon.py` из той же геометрии, что и `HornGeometry.swift` (только стандартная библиотека Python, без исходных изображений): iOS — 1024×1024 RGB без альфа-канала, macOS — набор 16…1024 с полями. Каталоги `Apps/Branding/<платформа>/Assets.xcassets` подключены к целям приложения; `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon` задан в `project.yml` для iOS и macOS (и в `Byk.xcconfig`). Для tvOS и visionOS (многослойные иконки) иконки пока нет.
 
@@ -38,12 +38,13 @@
 1. Версия и номер сборки.
 2. Секреты → `$RUNNER_TEMP/np-secrets`: ключ ASC (.p8), временная связка ключей со случайным паролем, в неё — сертификат Apple WWDR G3 и `.p12`; проверяется наличие действительной идентичности Apple Distribution.
 3. `Tools/asc.py preflight` (только чтение): bundle id записи, версии App Store и поезда TestFlight, существующие номера сборок; отказ, если номер уже занят или версия не выше одобренной.
-4. `Tools/asc.py profiles`: сертификат ищется в списке команды по серийному номеру; для каждого bundle id берётся действующий профиль `IOS_APP_STORE` с именем `NetworkPlatform CI AppStore <bundle id> …`, содержащий этот сертификат, иначе создаётся новый (единственная запись в ASC на этом шаге). Профили ставятся в оба каталога Xcode; в журнал выводятся их entitlements.
-5. XCFramework моста Xray: кэш с тем же ключом, что в `apple.yml`; при промахе — сборка; затем `bridge-apple-verify.sh`.
+3a. `Tools/asc.py register-bundle-id`: идентификатор `com.gbnconnect.app.mihomo` создаётся, если его нет, и получает возможности `NETWORK_EXTENSIONS` и `APP_GROUPS` (единственная запись в App ID; ничего не удаляет). Привязать App Group к идентификатору App Store Connect API не умеет: это один раз делает владелец в портале (Identifiers → `com.gbnconnect.app.mihomo` → App Groups → `group.com.gbnconnect.app`). Шаг профилей проверяет App Group в каждом профиле и при отсутствии останавливается с этой инструкцией.
+4. `Tools/asc.py profiles` (для приложения и обоих расширений): сертификат ищется в списке команды по серийному номеру; для каждого bundle id берётся действующий профиль `IOS_APP_STORE` с именем `NetworkPlatform CI AppStore <bundle id> …`, содержащий этот сертификат, иначе создаётся новый (единственная запись в ASC на этом шаге). Профили ставятся в оба каталога Xcode; в журнал выводятся их entitlements.
+5. XCFramework обоих мостов: кэши с теми же ключами, что в `apple.yml`; при промахе — сборка; затем `bridge-apple-verify.sh` для каждого.
 6. Выбор Xcode 26+ (App Store Connect с 2026 г. принимает iOS-сборки только с iOS 26 SDK; сборка с Xcode 16.4 / iOS 18.5 SDK отклонена с ошибкой 409 в прогоне 46054899462).
 7. `xcodegen generate`, `xcodebuild archive` с наложением `Byk.xcconfig` и ручной подписью.
 8. `xcodebuild -exportArchive`: `method = app-store-connect` (новое имя `app-store`), `signingStyle = manual`, `testFlightInternalTestingOnly = true`, `uploadSymbols = true`.
-9. `Tools/verify-ipa.sh`: для приложения и расширения — `codesign --verify --strict`, подписант Apple Distribution, bundle id, версии, подписанные entitlements (`packet-tunnel-provider`, App Group, нет `get-task-allow`), встроенный профиль (без списка устройств, `beta-reports-active`, тот же NE-тип и App Group, нужный application-identifier); у приложения — имя «Бык», иконка, ровно одно расширение и отсутствие `ITSAppUsesNonExemptEncryption`.
+9. `Tools/verify-ipa.sh <ipa> <app> <group> <build> <version> PacketTunnelXray=<id> PacketTunnelMihomo=<id>`: встроены ровно перечисленные расширения, ключи `NP*ExtensionBundleIdentifier` в Info.plist приложения совпадают с ними; для приложения и каждого расширения — `codesign --verify --strict`, подписант Apple Distribution, bundle id, версии, подписанные entitlements (`packet-tunnel-provider`, App Group, нет `get-task-allow`), встроенный профиль (без списка устройств, `beta-reports-active`, тот же NE-тип и App Group, нужный application-identifier); у приложения — имя «Бык», иконка и отсутствие `ITSAppUsesNonExemptEncryption`.
 10. `xcrun altool --validate-app`, затем `--upload-app` с ключом API (если `upload = true`).
 11. `Tools/asc.py wait-build`: опрос `GET /v1/builds?filter[app]=…&filter[version]=…` до `VALID` (до 60 мин).
 12. `Tools/asc.py beta-group`: группа «oz» должна быть внутренней; если она не получает все сборки автоматически, сборка добавляется в неё. Внешние группы скрипт отвергает.

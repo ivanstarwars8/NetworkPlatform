@@ -8,6 +8,7 @@
 
 import DesignSystem
 import DomainModels
+import EngineSelection
 import ProfileLibrary
 import SwiftUI
 
@@ -105,6 +106,10 @@ struct ConnectionScreen: View {
                 .disabled(busy)
                 .bykRow()
             }
+
+            if let profile = library.selectedProfile, library.availableEngines.count > 1 {
+                ValueRow("Движок", value: engineLine(for: profile)).bykRow()
+            }
         } header: {
             SectionHeader("Маршрут")
         } footer: {
@@ -130,11 +135,31 @@ struct ConnectionScreen: View {
         )
     }
 
+    /// The engine running now (when this profile is up) or the one the next start will use.
+    private func engineLine(for profile: Profile) -> String {
+        _ = library.engineChoiceRevision
+        if let start = tunnel.currentStart, start.attempt.profileID == profile.id, phase.action != .connect {
+            let name = start.attempt.engine.displayName
+            return start.attempt.origin == .rollback ? "\(name), последняя рабочая настройка" : name
+        }
+        let decision = library.engineDecision(for: profile)
+        guard let engine = decision.engine else { return "не подходит ни один" }
+        return decision.preference == .automatic ? "Авто: \(engine.displayName)" : engine.displayName
+    }
+
     // MARK: Messages
 
     private var messages: [(kind: MessageKind, text: String)] {
         var list: [(kind: MessageKind, text: String)] = []
+        if let notice = tunnel.supervisorNotice { list.append((.warning, notice)) }
         if let error = tunnel.lastError { list.append((.error, error)) }
+        if phase.action == .connect, library.compileNotices.isEmpty, let profile = library.selectedProfile {
+            let decision = library.engineDecision(for: profile)
+            if let engine = decision.engine, !decision.losses.isEmpty {
+                let count = RussianPlural.phrase(decision.losses.count, one: "возможность", few: "возможности", many: "возможностей")
+                list.append((.warning, "\(engine.displayName) не передаст \(count) профиля. Подробности — в профиле, раздел «Движок»."))
+            }
+        }
         if let error = library.lastError { list.append((.error, error)) }
         if phase == .disconnected || phase == .notConfigured, let reason = tunnel.lastDisconnectError {
             list.append((.warning, "Туннель остановился: \(reason)"))

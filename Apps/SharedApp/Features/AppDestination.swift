@@ -149,7 +149,7 @@ enum AppDestination: String, CaseIterable, Identifiable, Sendable {
     /// One line under the title in the tools list.
     var summary: String? {
         switch self {
-        case .engineDiagnostics: return "Состояние движка, память расширения, счётчики трафика."
+        case .engineDiagnostics: return "Движок и почему он выбран, версии, память Go и расширения, горутины, ошибки."
         case .connection, .profiles, .settings: return nil
         }
     }

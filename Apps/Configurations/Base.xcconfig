@@ -4,8 +4,11 @@ NP_BUNDLE_ID_PREFIX = org.example.networkplatform
 DEVELOPMENT_TEAM =
 // Bundle identifier of the Xray Packet Tunnel extension (Apps/project.yml, PacketTunnelXray).
 NP_XRAY_EXTENSION_BUNDLE_ID = $(NP_BUNDLE_ID_PREFIX).PacketTunnelXray
+// Bundle identifier of the Mihomo Packet Tunnel extension (Apps/project.yml, PacketTunnelMihomo).
+NP_MIHOMO_EXTENSION_BUNDLE_ID = $(NP_BUNDLE_ID_PREFIX).PacketTunnelMihomo
 // Home-screen name of the app (CFBundleDisplayName).
 NP_DISPLAY_NAME = NetworkPlatform
 // Provisioning profiles per target; empty for unsigned and automatically signed builds.
 NP_APP_PROFILE_SPECIFIER =
 NP_XRAY_EXTENSION_PROFILE_SPECIFIER =
+NP_MIHOMO_EXTENSION_PROFILE_SPECIFIER =

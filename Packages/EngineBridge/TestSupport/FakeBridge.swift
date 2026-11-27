@@ -18,6 +18,10 @@ public final class FakeBridge: BridgeABI, @unchecked Sendable {
     public var stopReply = #"{"code":0}"#
     public var validateReply = #"{"code":0,"data":{"inbounds":[],"outbounds":[],"hasTun":true,"depth":"instance"}}"#
     public var statsReply = #"{"code":0,"data":{"uptimeMs":1500,"inbounds":[{"tag":"tun-in","uplink":100,"downlink":2000}],"outbounds":[{"tag":"proxy","uplink":150,"downlink":2100},{"tag":"direct","uplink":0,"downlink":0}]}}"#
+    /// `npb_memory` reply; the default is an empty payload.
+    public var memoryReply = #"{"code":0,"data":{}}"#
+    /// `npb_health` reply; `nil` derives it from `running`.
+    public var healthReply: String?
     /// When set, `start` blocks until `stop` is called and then returns this reply.
     public var startBlocksUntilStop = false
     /// A value for every `tunWrite` call instead of the packet count (negative = error code).
@@ -143,11 +147,16 @@ public final class FakeBridge: BridgeABI, @unchecked Sendable {
     public func health() -> String {
         condition.lock()
         defer { condition.unlock() }
+        if let healthReply = healthReply { return healthReply }
         let state = running ? "running" : "idle"
         return #"{"code":0,"data":{"state":"\#(state)","coreRunning":\#(running),"lastErrorCode":0}}"#
     }
 
-    public func memory() -> String { #"{"code":0,"data":{}}"# }
+    public func memory() -> String {
+        condition.lock()
+        defer { condition.unlock() }
+        return memoryReply
+    }
 
     public func state() -> Int32 {
         condition.lock()
