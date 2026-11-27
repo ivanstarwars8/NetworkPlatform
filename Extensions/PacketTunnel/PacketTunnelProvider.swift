@@ -47,6 +47,13 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     // MARK: Start and stop
 
     override func startTunnel(options: [String: NSObject]?) async throws {
+        #if NP_ENGINE_XRAY
+        let abi = XrayBridgeInfo.abiVersion
+        log.info("xray bridge linked, abi \(abi), \(XrayBridgeInfo.versionJSON(), privacy: .public)")
+        if abi != XrayBridgeInfo.expectedABIVersion {
+            log.error("xray bridge abi \(abi) differs from the expected \(XrayBridgeInfo.expectedABIVersion)")
+        }
+        #endif
         do {
             // Decoded here, synchronously: the options dictionary is not
             // Sendable and must not travel further.

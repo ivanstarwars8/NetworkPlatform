@@ -1,39 +1,34 @@
-# UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode
+# XcodeGen specification: app + Packet Tunnel extension for iOS/iPadOS (one universal target), macOS,
+# tvOS and visionOS, in the build flavours of ADR-0007 (XrayOnly, MihomoOnly, Dual).
 #
-# XcodeGen specification for the app and Packet Tunnel targets (iOS, macOS).
-# Intended use, on a Mac with XcodeGen installed:
-#
+#   Cores/BuildScripts/bridge-apple-xcframework.sh     # NPXrayBridge.xcframework, needs Go
 #   cd Apps && xcodegen generate
 #
+# Verified state: the XrayOnly flavour of every target compiles and links on the macOS CI runner without
+# signing (.github/workflows/apple.yml; links and results in STATUS.md). Nothing was signed, installed or
+# run. MihomoOnly and Dual are declared but stop at the "Flavour guard" build phase (see below).
 # The generated NetworkPlatform.xcodeproj is not stored in git.
 #
-# Before the first build, replace the placeholders below:
+# Before a signed build replace (Documentation/Apple/BUILD_ON_MAC.md):
 #   NP_BUNDLE_ID_PREFIX  - a bundle identifier owned by the signing team
 #   DEVELOPMENT_TEAM     - the Apple Developer team identifier
-# and register the App Group and the Network Extension capability for both
-# identifiers in the developer account. Without a paid developer account the
-# targets cannot be signed and the tunnel cannot be installed (STATUS.md).
+# and register the App Group and the Network Extension capability for both identifiers.
 #
-# App Group (NP_APP_GROUP). The app writes the start request into the group
-# container and the extension reads it (Shared/ConfigurationHandoff.swift),
-# so both targets of a platform must name the same group, in the entitlements
-# and in the Info.plist key NPAppGroupIdentifier. The identifier has a
-# different form per platform:
-#   iOS    group.<id>            registered in the developer account
-#   macOS  <TeamID>.<id>         the form macOS has always accepted without a
-#                                provisioning profile; $(TeamIdentifierPrefix)
-#                                expands to "<TeamID>." when the target is
-#                                signed with a team
-# Whether macOS accepts the iOS form for a sandboxed extension depends on the
-# OS version and the provisioning profile and was not tested; the macOS form
-# is used because it is the one that does not depend on either. [U]
+# Targets (one per platform, XcodeGen suffixes the name with _<platform>):
+#   App_<p>           application; embeds PacketTunnel_<p>; does not link Go (ADR-0001)
+#   PacketTunnel_<p>  app extension (NEPacketTunnelProvider); links CoreAbstraction and NPXrayBridge
 #
-# Nothing here relies on XcodeGen defaults for behaviour that matters:
-# embedding of the extension, linking of NetworkExtension, the Info.plist of
-# every target and code signing are all stated explicitly.
+# Build configurations = flavour x {Debug, Release}; each flavour sets NP_FLAVOUR and Swift compilation
+# conditions through Configurations/<flavour>.xcconfig (ADR-0004: flavours by xcconfig, no duplicated
+# targets). MihomoOnly and Dual need the Mihomo bridge artifact and, for Dual, a second extension target;
+# neither exists, so the extension's guard phase fails those builds with the reason instead of producing
+# an app that pretends to contain Mihomo.
 #
-# Not covered: tvOS and visionOS targets, the Developer ID system-extension
-# variant of macOS, build variants per engine (ADR-0001 §3, ADR-0005 §3).
+# App Group (NP_APP_GROUP): both targets of a platform name the same group, in the entitlements and in
+# the Info.plist key NPAppGroupIdentifier. iOS, tvOS, visionOS use group.<id>; macOS uses <TeamID>.<id>
+# ($(TeamIdentifierPrefix) expands to "<TeamID>." only when signed with a team). [U] for a signed build.
+#
+# Not covered: the Developer ID system-extension variant of macOS (ADR-0005 §3).
 
 name: NetworkPlatform
 
@@ -42,6 +37,24 @@ options:
   deploymentTarget:
     iOS: "17.0"
     macOS: "14.0"
+    tvOS: "17.0"
+    visionOS: "1.0"
+
+configs:
+  Debug-XrayOnly: debug
+  Release-XrayOnly: release
+  Debug-MihomoOnly: debug
+  Release-MihomoOnly: release
+  Debug-Dual: debug
+  Release-Dual: release
+
+configFiles:
+  Debug-XrayOnly: Configurations/XrayOnly.xcconfig
+  Release-XrayOnly: Configurations/XrayOnly.xcconfig
+  Debug-MihomoOnly: Configurations/MihomoOnly.xcconfig
+  Release-MihomoOnly: Configurations/MihomoOnly.xcconfig
+  Debug-Dual: Configurations/Dual.xcconfig
+  Release-Dual: Configurations/Dual.xcconfig
 
 packages:
   NetworkPlatform:
@@ -55,14 +68,55 @@ settings:
     MARKETING_VERSION: "0.0.1"
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.0"
-    # Reports data-race problems as warnings in Swift 5 mode; the sources
-    # are written to pass it, which the first build has to confirm.
+    # Reports data-race problems as warnings in Swift 5 mode.
     SWIFT_STRICT_CONCURRENCY: complete
+    # Flavour conditions come from the xcconfig; DEBUG is kept for debug configurations.
+    SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) $(NP_FLAVOUR_CONDITIONS)"
+    NP_APP_GROUP: group.$(NP_BUNDLE_ID_PREFIX)
+    "NP_APP_GROUP[sdk=macosx*]": $(TeamIdentifierPrefix)$(NP_BUNDLE_ID_PREFIX)
+    "ENABLE_HARDENED_RUNTIME[sdk=macosx*]": YES
+  configs:
+    debug:
+      SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) DEBUG $(NP_FLAVOUR_CONDITIONS)"
+
+schemes:
+  NetworkPlatform-iOS:
+    build:
+      targets:
+        App_iOS: all
+    run:
+      config: Debug-XrayOnly
+    archive:
+      config: Release-XrayOnly
+  NetworkPlatform-macOS:
+    build:
+      targets:
+        App_macOS: all
+    run:
+      config: Debug-XrayOnly
+    archive:
+      config: Release-XrayOnly
+  NetworkPlatform-tvOS:
+    build:
+      targets:
+        App_tvOS: all
+    run:
+      config: Debug-XrayOnly
+    archive:
+      config: Release-XrayOnly
+  NetworkPlatform-visionOS:
+    build:
+      targets:
+        App_visionOS: all
+    run:
+      config: Debug-XrayOnly
+    archive:
+      config: Release-XrayOnly
 
 targets:
-  App-iOS:
+  App:
     type: application
-    platform: iOS
+    platform: [iOS, macOS, tvOS, visionOS]
     sources:
       - path: SharedApp
         excludes:
@@ -73,84 +127,57 @@ targets:
       base:
         PRODUCT_NAME: NetworkPlatform
         PRODUCT_BUNDLE_IDENTIFIER: $(NP_BUNDLE_ID_PREFIX)
-        NP_APP_GROUP: group.$(NP_BUNDLE_ID_PREFIX)
-        # Info.plist carries only the keys Xcode cannot generate; the rest
-        # is generated and merged into it.
+        # Info.plist carries only the keys Xcode cannot generate; the rest is generated and merged.
         INFOPLIST_FILE: SharedApp/Info.plist
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_CFBundleDisplayName: NetworkPlatform
+        # iPhone and iPad from one target.
+        "TARGETED_DEVICE_FAMILY[sdk=iphone*]": "1,2"
         CODE_SIGN_ENTITLEMENTS: SharedApp/App-iOS.entitlements
+        "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]": SharedApp/App-macOS.entitlements
     dependencies:
-      - target: PacketTunnel-iOS
+      - target: PacketTunnel_${platform}
         embed: true
       - sdk: NetworkExtension.framework
 
-  App-macOS:
-    type: application
-    platform: macOS
-    sources:
-      - path: SharedApp
-        excludes:
-          - "*.entitlements"
-          - "*.plist"
-      - path: ../Extensions/PacketTunnel/Shared
-    settings:
-      base:
-        PRODUCT_NAME: NetworkPlatform
-        PRODUCT_BUNDLE_IDENTIFIER: $(NP_BUNDLE_ID_PREFIX)
-        NP_APP_GROUP: $(TeamIdentifierPrefix)$(NP_BUNDLE_ID_PREFIX)
-        INFOPLIST_FILE: SharedApp/Info.plist
-        GENERATE_INFOPLIST_FILE: YES
-        ENABLE_HARDENED_RUNTIME: YES
-        CODE_SIGN_ENTITLEMENTS: SharedApp/App-macOS.entitlements
-    dependencies:
-      - target: PacketTunnel-macOS
-        embed: true
-      - sdk: NetworkExtension.framework
-
-  PacketTunnel-iOS:
+  PacketTunnel:
     type: app-extension
-    platform: iOS
+    platform: [iOS, macOS, tvOS, visionOS]
     sources:
       - path: ../Extensions/PacketTunnel
         excludes:
           - "*.plist"
           - "*.entitlements"
+    preBuildScripts:
+      - name: Flavour guard
+        basedOnDependencyAnalysis: false
+        script: |
+          case "${NP_FLAVOUR:-}" in
+            XrayOnly) exit 0 ;;
+            MihomoOnly|Dual)
+              echo "error: flavour ${NP_FLAVOUR} is declared but not buildable yet: the Mihomo engine artifact (NPMihomoBridge.xcframework) and the Mihomo Packet Tunnel extension target do not exist (ADR-0007, STATUS.md)."
+              exit 1 ;;
+            *)
+              echo "error: NP_FLAVOUR is not set; build with one of the flavour configurations (Debug-XrayOnly, ...)."
+              exit 1 ;;
+          esac
     settings:
       base:
         PRODUCT_NAME: PacketTunnel
         PRODUCT_BUNDLE_IDENTIFIER: $(NP_BUNDLE_ID_PREFIX).PacketTunnel
-        NP_APP_GROUP: group.$(NP_BUNDLE_ID_PREFIX)
         INFOPLIST_FILE: ../Extensions/PacketTunnel/Info.plist
         GENERATE_INFOPLIST_FILE: NO
         APPLICATION_EXTENSION_API_ONLY: YES
         SKIP_INSTALL: YES
+        "TARGETED_DEVICE_FAMILY[sdk=iphone*]": "1,2"
         CODE_SIGN_ENTITLEMENTS: ../Extensions/PacketTunnel/PacketTunnel-iOS.entitlements
+        "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]": ../Extensions/PacketTunnel/PacketTunnel-macOS.entitlements
     dependencies:
       - package: NetworkPlatform
         product: CoreAbstraction
-      - sdk: NetworkExtension.framework
-
-  PacketTunnel-macOS:
-    type: app-extension
-    platform: macOS
-    sources:
-      - path: ../Extensions/PacketTunnel
-        excludes:
-          - "*.plist"
-          - "*.entitlements"
-    settings:
-      base:
-        PRODUCT_NAME: PacketTunnel
-        PRODUCT_BUNDLE_IDENTIFIER: $(NP_BUNDLE_ID_PREFIX).PacketTunnel
-        NP_APP_GROUP: $(TeamIdentifierPrefix)$(NP_BUNDLE_ID_PREFIX)
-        INFOPLIST_FILE: ../Extensions/PacketTunnel/Info.plist
-        GENERATE_INFOPLIST_FILE: NO
-        APPLICATION_EXTENSION_API_ONLY: YES
-        SKIP_INSTALL: YES
-        ENABLE_HARDENED_RUNTIME: YES
-        CODE_SIGN_ENTITLEMENTS: ../Extensions/PacketTunnel/PacketTunnel-macOS.entitlements
-    dependencies:
-      - package: NetworkPlatform
-        product: CoreAbstraction
+      # Static C archive of the Go bridge (Cores/BuildScripts/bridge-apple-xcframework.sh); not embedded.
+      # Its module map links libresolv, CoreFoundation and Security, which the Go runtime needs.
+      - framework: ../Cores/Bridge/build/apple/NPXrayBridge.xcframework
+        embed: false
       - sdk: NetworkExtension.framework

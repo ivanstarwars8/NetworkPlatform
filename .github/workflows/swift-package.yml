@@ -1,0 +1,59 @@
+# (a) The Swift package (Package.swift, Packages/*) built and tested on macOS and on Linux.
+# A Linux result says nothing about Apple platforms and is reported separately (STATUS.md).
+# The Xcode targets are built by apple.yml. No secrets, no release steps.
+name: Swift package
+
+on:
+  push:
+    branches: [main]
+    paths: &paths
+      - Package.swift
+      - Packages/**
+      - Benchmarks/RoutingBench/**
+      - Extensions/PacketTunnel/Shared/**
+      - Extensions/PacketTunnel/TunnelSession.swift
+      - .github/workflows/swift-package.yml
+  pull_request:
+    paths: *paths
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: swift-package-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos:
+    name: swift build + test (macOS)
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: xcodebuild -version && swift --version
+      - name: Build
+        run: swift build --build-tests
+      - name: Test
+        run: |
+          set -o pipefail
+          swift test --skip-build 2>&1 | tee swift-test.log
+          grep -E "Test Suite 'All tests' (passed|failed)" -A1 swift-test.log | tee -a "$GITHUB_STEP_SUMMARY"
+
+  linux:
+    name: swift build + test (Linux, not Apple)
+    runs-on: ubuntu-latest
+    container: swift:5.10
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: swift --version
+      - name: Build
+        run: swift build --build-tests
+      - name: Test
+        run: |
+          set -o pipefail
+          swift test --skip-build 2>&1 | tee swift-test.log
+          grep -E "Test Suite 'All tests' (passed|failed)" -A1 swift-test.log | tee -a "$GITHUB_STEP_SUMMARY"
