@@ -18,6 +18,11 @@ public final class FakeBridge: BridgeABI, @unchecked Sendable {
     public var stopReply = #"{"code":0}"#
     public var validateReply = #"{"code":0,"data":{"inbounds":[],"outbounds":[],"hasTun":true,"depth":"instance"}}"#
     public var statsReply = #"{"code":0,"data":{"uptimeMs":1500,"inbounds":[{"tag":"tun-in","uplink":100,"downlink":2000}],"outbounds":[{"tag":"proxy","uplink":150,"downlink":2100},{"tag":"direct","uplink":0,"downlink":0}]}}"#
+    /// Reply of `npb_observe` while running.
+    public var observeReply = #"{"code":0,"data":{"groups":[]}}"#
+    /// Reply of `npb_select` while running.
+    public var selectReply = #"{"code":0}"#
+    public private(set) var selectCalls: [(group: String, member: String)] = []
     /// When set, `start` blocks until `stop` is called and then returns this reply.
     public var startBlocksUntilStop = false
     /// A value for every `tunWrite` call instead of the packet count (negative = error code).
@@ -138,6 +143,20 @@ public final class FakeBridge: BridgeABI, @unchecked Sendable {
         condition.lock()
         defer { condition.unlock() }
         return running ? statsReply : #"{"code":11,"error":"not running"}"#
+    }
+
+    public func observe() -> String {
+        condition.lock()
+        defer { condition.unlock() }
+        return running ? observeReply : #"{"code":11,"error":"engine is not running"}"#
+    }
+
+    public func select(group: String, member: String) -> String {
+        condition.lock()
+        defer { condition.unlock() }
+        guard running else { return #"{"code":11,"error":"engine is not running"}"# }
+        selectCalls.append((group, member))
+        return selectReply
     }
 
     public func health() -> String {

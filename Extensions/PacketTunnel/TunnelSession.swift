@@ -226,6 +226,13 @@ enum TunnelRunner {
         )
         let options = CoreStartOptions(tunnelFileDescriptor: nil, mtu: request.network.mtu, memoryLimitBytes: nil)
         try await lifecycle.start(configuration, options: options, timeout: deadlines.engineStart)
+        if let selection = request.groupSelection {
+            // The user's server, pinned before the start completes. A failure fails the start: running on
+            // another server than the one chosen would be a silent change of route.
+            try await CoreDeadline.run(.statistics, timeout: deadlines.statistics) {
+                try await lifecycle.selectGroupMember(group: selection.group, member: selection.member)
+            }
+        }
 
         // The session refuses this when a stop arrived in the meantime; the
         // start then fails and is rolled back.

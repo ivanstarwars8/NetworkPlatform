@@ -27,6 +27,15 @@ public struct CompiledTunnelStart: Sendable, CustomStringConvertible {
     public var report: ConversionReport
     /// Warnings and errors of the compilation (info entries are left out), safe to show.
     public var notices: [ProfileNotice]
+    /// How to switch servers inside the running engine; `nil` for a profile with one server or with groups
+    /// of its own.
+    public var selectionPlan: ServerSelectionPlan?
+    /// The choice the configuration was compiled for.
+    public var choice: ServerChoice
+    /// The engine selection to apply right after start (`TunnelStartRequest.groupSelection`).
+    public var initialSelection: (group: String, member: String?)? {
+        selectionPlan?.initialSelection(for: choice)
+    }
 
     public var coreID: String { engine.rawValue }
     public var format: String { engine.configurationFormat }
@@ -60,11 +69,30 @@ public struct TunnelStartCompiler: Sendable {
         self.dnsServers = dnsServers
     }
 
+    /// Compiles `profile` for `engine`. For a profile with several servers and no groups of its own, all
+    /// servers are compiled with an automatic group, whatever `choice` is: switching later (to another server
+    /// or back to «Авто») then happens inside the running engine. A manual `choice` becomes the initial
+    /// selection; a chosen tag that is not in the profile falls back to «Авто» with a notice.
     public func compile(
         _ profile: Profile,
         for engine: TunnelEngine,
+        choice: ServerChoice = .automatic,
         resolveSecret: @escaping @Sendable (SecretReference) -> String?
     ) throws -> CompiledTunnelStart {
+        var choice = choice
+        var extraNotices: [ProfileNotice] = []
+        let automatic = AutomaticGroup.applies(to: profile)
+        let source: Profile
+        if automatic {
+            source = profile.withAutomaticGroups(for: engine)
+            if case let .server(tag) = choice, profile.outbound(tagged: tag) == nil {
+                choice = .automatic
+                extraNotices.append(ProfileNotice(.warning, "The chosen server is no longer in the profile; «Авто» is used"))
+            }
+        } else {
+            source = profile
+            choice = .automatic
+        }
         let text: String?
         let report: ConversionReport
         let plan: XrayTunnelPlan?
@@ -73,7 +101,7 @@ public struct TunnelStartCompiler: Sendable {
             let compilation = XrayConfigCompiler(
                 options: .packetTunnel(dnsServers: dnsServers, addressing: addressing),
                 resolveSecret: resolveSecret
-            ).compile(profile)
+            ).compile(source)
             // `jsonText` fails only for values JSON cannot carry; reported as a blocked compilation.
             text = try? compilation.jsonText()
             report = compilation.report
@@ -82,12 +110,12 @@ public struct TunnelStartCompiler: Sendable {
             let compilation = MihomoConfigCompiler(
                 options: .packetTunnel(dnsServers: dnsServers, addressing: addressing),
                 resolveSecret: resolveSecret
-            ).compile(profile)
+            ).compile(source)
             text = compilation.yamlText()
             report = compilation.report
             plan = compilation.tunnel
         }
-        let notices = TunnelStartCompiler.notices(of: report)
+        let notices = extraNotices + TunnelStartCompiler.notices(of: report)
         guard report.verdict != .blocked, let text = text, !text.isEmpty, let plan = plan else {
             var failure = notices.filter { $0.severity == .error }
             if failure.isEmpty {
@@ -95,8 +123,19 @@ public struct TunnelStartCompiler: Sendable {
             }
             throw TunnelCompileFailure(notices: failure)
         }
+        var selectionPlan: ServerSelectionPlan?
+        if automatic {
+            selectionPlan = ServerSelectionPlan(engine: engine, profile: profile, engineTags: report.engineTags)
+            if selectionPlan == nil {
+                throw TunnelCompileFailure(notices: [ProfileNotice(.error, "the automatic group could not be compiled")])
+            }
+            if case let .server(tag) = choice, selectionPlan?.members[tag] == nil {
+                throw TunnelCompileFailure(notices: [ProfileNotice(.error, "the chosen server could not be compiled for \(engine.rawValue)")])
+            }
+        }
         return CompiledTunnelStart(
-            engine: engine, configuration: Data(text.utf8), tunnel: plan, report: report, notices: notices
+            engine: engine, configuration: Data(text.utf8), tunnel: plan, report: report, notices: notices,
+            selectionPlan: selectionPlan, choice: choice
         )
     }
 

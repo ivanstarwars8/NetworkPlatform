@@ -249,6 +249,51 @@ package final class BridgeEngineDriver: @unchecked Sendable {
         }
     }
 
+    /// `npb_observe` mapped to the engine-neutral observation; the JSON shape is the same in both bridges.
+    package func groupObservations() throws -> [CoreGroupObservation] {
+        let reply = BridgeReply<BridgeObservation>.decode(bridge.observe())
+        guard reply.code == .ok, let observation = reply.data else {
+            let code = reply.code == .ok ? BridgeCode.internalError : reply.code
+            throw BridgeEngineDriver.coreError(code, message: reply.error, during: .statistics, timeout: nil)
+        }
+        return BridgeEngineDriver.map(observation)
+    }
+
+    /// `npb_select`. A `nil` member is sent as the empty string: the group chooses again.
+    package func selectGroupMember(group: String, member: String?) throws {
+        let reply = BridgeReply<BridgeNoPayload>.decode(bridge.select(group: group, member: member ?? ""))
+        guard reply.code == .ok else {
+            throw BridgeEngineDriver.coreError(reply.code, message: reply.error, during: .statistics, timeout: nil)
+        }
+    }
+
+    package static func map(_ observation: BridgeObservation) -> [CoreGroupObservation] {
+        func date(_ milliseconds: Int64?) -> Date? {
+            guard let milliseconds = milliseconds, milliseconds > 0 else { return nil }
+            return Date(timeIntervalSince1970: TimeInterval(milliseconds) / 1000)
+        }
+        func nonEmpty(_ text: String?) -> String? {
+            guard let text = text, !text.isEmpty else { return nil }
+            return text
+        }
+        return (observation.groups ?? []).map { group in
+            CoreGroupObservation(
+                tag: group.tag,
+                kind: group.kind ?? "",
+                current: nonEmpty(group.now),
+                pinned: nonEmpty(group.fixed),
+                members: (group.members ?? []).map { member in
+                    let alive = member.alive ?? false
+                    let delay = member.delayMs.flatMap { $0 > 0 && alive ? Int(clamping: $0) : nil }
+                    return CoreGroupMember(
+                        tag: member.tag, alive: alive, delayMilliseconds: delay,
+                        lastTry: date(member.lastTryUnixMs), lastSeen: date(member.lastSeenUnixMs)
+                    )
+                }
+            )
+        }
+    }
+
     /// `npb_stats` decoded into the engine's payload type, or the normalised error.
     package func statistics<Payload: Decodable>(_ type: Payload.Type) throws -> Payload {
         let reply = BridgeReply<Payload>.decode(bridge.stats())

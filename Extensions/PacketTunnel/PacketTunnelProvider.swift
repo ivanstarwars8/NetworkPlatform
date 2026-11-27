@@ -312,14 +312,55 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 )
                 return TunnelResponse(version: TunnelIPC.protocolVersion, id: request.id, outcome: .statistics(report))
             } catch {
-                let normalised = CoreError.normalise(error, during: .statistics)
-                return TunnelExchange.failure(
-                    id: request.id,
-                    TunnelIPCError.Code(rawValue: normalised.code),
-                    normalised.description
-                )
+                return engineFailure(error, id: request.id)
+            }
+        case .groups:
+            guard let lifecycle = await session.lifecycle else {
+                return TunnelExchange.failure(id: request.id, .notRunning, "no engine is running")
+            }
+            do {
+                // In-process state of the engine only; bounded like statistics.
+                let groups = try await CoreDeadline.run(.statistics, timeout: deadlines.statistics) {
+                    try await lifecycle.groupObservations()
+                }
+                let report = TunnelGroupReport(groups: groups.map { group in
+                    TunnelGroupReport.Group(
+                        tag: group.tag, kind: group.kind, current: group.current, pinned: group.pinned,
+                        members: group.members.map {
+                            TunnelGroupReport.Member(
+                                tag: $0.tag, alive: $0.alive, delayMilliseconds: $0.delayMilliseconds,
+                                lastTry: $0.lastTry, lastSeen: $0.lastSeen
+                            )
+                        }
+                    )
+                })
+                return TunnelResponse(version: TunnelIPC.protocolVersion, id: request.id, outcome: .groups(report))
+            } catch {
+                return engineFailure(error, id: request.id)
+            }
+        case .selectMember:
+            guard let lifecycle = await session.lifecycle else {
+                return TunnelExchange.failure(id: request.id, .notRunning, "no engine is running")
+            }
+            guard let selection = request.selection else {
+                return TunnelExchange.failure(id: request.id, .malformedRequest, "selectMember without a selection")
+            }
+            do {
+                try await CoreDeadline.run(.statistics, timeout: deadlines.statistics) {
+                    try await lifecycle.selectGroupMember(group: selection.group, member: selection.member)
+                }
+                // Tags are engine names (`proxy-NNNN`), not addresses: safe to log.
+                log.info("group \(selection.group, privacy: .public) member \(selection.member ?? "auto", privacy: .public)")
+                return TunnelResponse(version: TunnelIPC.protocolVersion, id: request.id, outcome: .done)
+            } catch {
+                return engineFailure(error, id: request.id)
             }
         }
+    }
+
+    private func engineFailure(_ error: Error, id: UInt64) -> TunnelResponse {
+        let normalised = CoreError.normalise(error, during: .statistics)
+        return TunnelExchange.failure(id: id, TunnelIPCError.Code(rawValue: normalised.code), normalised.description)
     }
 
     /// Never waits for the engine: the lifecycle actor answers while the

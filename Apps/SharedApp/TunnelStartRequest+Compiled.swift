@@ -21,7 +21,8 @@ extension TunnelStartRequest {
                 addressing: compiled.tunnel.addressing,
                 excludedRoutes: compiled.tunnel.excludedRoutes,
                 remoteAddress: compiled.tunnel.remoteAddress
-            )
+            ),
+            groupSelection: compiled.initialSelection.map { TunnelGroupSelection(group: $0.group, member: $0.member) }
         )
     }
 }

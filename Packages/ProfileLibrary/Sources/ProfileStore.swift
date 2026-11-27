@@ -26,6 +26,9 @@ public final class ProfileStore {
         var version: Int
         var profiles: [Profile]
         var selectedProfileID: UUID?
+        /// Server choice per profile (UUID string → choice). Absent in files written before it existed;
+        /// a missing entry means the default (`ProfileStore.defaultChoice`).
+        var choices: [String: ServerChoice]?
     }
 
     public let directory: URL
@@ -88,14 +91,7 @@ public final class ProfileStore {
         var stored = profile
         var written: [SecretReference] = []
         do {
-            stored.outbounds = try profile.outbounds.enumerated().map { index, outbound in
-                try outbound.replacingInlineSecrets { slot, value in
-                    let reference = SecretReference(identifier: "\(profile.id.uuidString)/\(index)/\(slot.rawValue)")
-                    try secrets.setSecret(value, for: reference)
-                    written.append(reference)
-                    return reference
-                }
-            }
+            stored.outbounds = try storeSecrets(of: profile, prefix: profile.id.uuidString, written: &written)
             library.profiles.removeAll { $0.id == profile.id }
             library.profiles.append(stored)
             if library.selectedProfileID == nil {
@@ -112,10 +108,144 @@ public final class ProfileStore {
         return stored
     }
 
+    /// Moves the inline secrets of `profile` to the secret store under `<prefix>/<outbound index>/<slot>`.
+    private func storeSecrets(of profile: Profile, prefix: String, written: inout [SecretReference]) throws -> [Outbound] {
+        var references: [SecretReference] = []
+        defer { written.append(contentsOf: references) }
+        return try profile.outbounds.enumerated().map { index, outbound in
+            try outbound.replacingInlineSecrets { slot, value in
+                let reference = SecretReference(identifier: "\(prefix)/\(index)/\(slot.rawValue)")
+                try secrets.setSecret(value, for: reference)
+                references.append(reference)
+                return reference
+            }
+        }
+    }
+
+    /// Replaces a stored profile's servers and name with those of `updated` (a refreshed subscription),
+    /// keeping its id, its place in the list and the selection. New secrets are written under a new prefix
+    /// first, so a failure leaves the stored profile and its secrets untouched; the old secrets are removed
+    /// only after the file is saved. Returns the stored form.
+    @discardableResult
+    public func replace(_ updated: Profile) throws -> Profile {
+        guard let index = library.profiles.firstIndex(where: { $0.id == updated.id }) else {
+            throw ProfileStoreError("no such profile")
+        }
+        let previous = library.profiles[index]
+        var stored = updated
+        var written: [SecretReference] = []
+        let prefix = "\(updated.id.uuidString)/r\(UUID().uuidString.prefix(8))"
+        do {
+            stored.outbounds = try storeSecrets(of: updated, prefix: prefix, written: &written)
+            library.profiles[index] = stored
+            if case let .server(tag)? = library.choices?[updated.id.uuidString], stored.outbound(tagged: tag) == nil {
+                library.choices?[updated.id.uuidString] = .automatic
+            }
+            try save()
+        } catch {
+            written.forEach { secrets.removeSecret(for: $0) }
+            library.profiles[index] = previous
+            if let error = error as? ProfileStoreError { throw error }
+            throw ProfileStoreError("storing a secret failed (\(type(of: error)))")
+        }
+        let kept = Set(ProfileStore.secretReferences(of: stored).map(\.identifier))
+        for reference in ProfileStore.secretReferences(of: previous) where !kept.contains(reference.identifier) {
+            secrets.removeSecret(for: reference)
+        }
+        return stored
+    }
+
+    /// The server choice of a profile. Default: «Авто» for a profile the engine can choose in
+    /// (`AutomaticGroup.applies`), otherwise its selected server.
+    public func choice(forProfile id: UUID) -> ServerChoice {
+        guard let profile = library.profiles.first(where: { $0.id == id }) else { return .automatic }
+        return ProfileStore.effectiveChoice(library.choices?[id.uuidString], of: profile)
+    }
+
+    static func effectiveChoice(_ stored: ServerChoice?, of profile: Profile) -> ServerChoice {
+        guard AutomaticGroup.applies(to: profile) else {
+            return .server(tag: profile.selectedTag ?? profile.outbounds.first?.tag ?? "")
+        }
+        switch stored {
+        case let .server(tag)? where profile.outbound(tagged: tag) != nil:
+            return .server(tag: tag)
+        default:
+            return .automatic
+        }
+    }
+
+    /// Stores the server choice of a profile. A server choice also becomes the profile's selected tag.
+    public func setChoice(_ choice: ServerChoice, forProfile id: UUID) throws {
+        guard let index = library.profiles.firstIndex(where: { $0.id == id }) else {
+            throw ProfileStoreError("no such profile")
+        }
+        let previous = library
+        switch choice {
+        case .automatic:
+            guard AutomaticGroup.applies(to: library.profiles[index]) else {
+                throw ProfileStoreError("this profile has a single server")
+            }
+        case let .server(tag):
+            guard library.profiles[index].outbound(tagged: tag) != nil else {
+                throw ProfileStoreError("no such server in the profile")
+            }
+            library.profiles[index].selectedTag = tag
+        }
+        var choices = library.choices ?? [:]
+        choices[id.uuidString] = choice
+        library.choices = choices
+        do {
+            try save()
+        } catch {
+            library = previous
+            throw error
+        }
+    }
+
+    /// Gives a server of a profile another display name. The tag (its key) does not change.
+    public func renameServer(_ tag: String, inProfile id: UUID, to name: String) throws {
+        guard let index = library.profiles.firstIndex(where: { $0.id == id }),
+              let position = library.profiles[index].outbounds.firstIndex(where: { $0.tag == tag }) else {
+            throw ProfileStoreError("no such server in the profile")
+        }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.count <= 200 else {
+            throw ProfileStoreError("the name is empty or too long")
+        }
+        let previous = library
+        library.profiles[index].outbounds[position].name = trimmed
+        do {
+            try save()
+        } catch {
+            library = previous
+            throw error
+        }
+    }
+
+    /// Renames a profile.
+    public func renameProfile(_ id: UUID, to name: String) throws {
+        guard let index = library.profiles.firstIndex(where: { $0.id == id }) else {
+            throw ProfileStoreError("no such profile")
+        }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.count <= 200 else {
+            throw ProfileStoreError("the name is empty or too long")
+        }
+        let previous = library
+        library.profiles[index].name = trimmed
+        do {
+            try save()
+        } catch {
+            library = previous
+            throw error
+        }
+    }
+
     /// Removes a profile and its secrets.
     public func remove(id: UUID) throws {
         guard let profile = library.profiles.first(where: { $0.id == id }) else { return }
         library.profiles.removeAll { $0.id == id }
+        library.choices?[id.uuidString] = nil
         if library.selectedProfileID == id {
             library.selectedProfileID = library.profiles.first?.id
         }

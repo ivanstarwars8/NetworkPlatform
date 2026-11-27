@@ -102,7 +102,7 @@ public actor CoreLifecycle {
     /// The most recent transitions, oldest first (bounded by `historyLimit`).
     public private(set) var history: [CoreLifecycleTransition] = []
 
-    private let core: any NetworkCore
+    let core: any NetworkCore
     private let historyLimit: Int
     private let clock: @Sendable () -> Date
     private var tail: Task<Void, Never>?

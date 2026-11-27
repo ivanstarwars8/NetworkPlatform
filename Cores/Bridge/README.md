@@ -38,6 +38,8 @@ Go-модуль `networkplatform/bridge`: один экземпляр Xray-core 
 | `npb_reload(config)` | см. ниже |
 | `npb_state`, `npb_health` | состояние автомата, последняя ошибка, счётчики очередей |
 | `npb_stats` | трафик по inbound/outbound и счётчики пакетного интерфейса |
+| `npb_observe` | балансировщики конфигурации и замеры обсерватории ядра по их участникам (`engine/observe.go`); только состояние в процессе, без проб |
+| `npb_select` | закрепить участника балансировщика для новых соединений (`SetOverrideTarget` роутера ядра) или вернуть выбор стратегии (пустой участник); без перезапуска |
 | `npb_memory` | снимок памяти Go-рантайма (`runtime/metrics`) |
 | `npb_log_read(buf, cap, timeoutMs)` | записи журнала строками JSON |
 | `npb_tun_write`, `npb_tun_read` | пачки IP-пакетов, режим `flow` |

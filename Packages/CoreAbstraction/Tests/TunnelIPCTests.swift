@@ -210,6 +210,42 @@ final class TunnelExchangeTests: XCTestCase {
         XCTAssertEqual(try TunnelExchange.trafficReport(of: reply(trafficResponse), for: statistics), traffic)
     }
 
+    func testGroupReportAndSelectionRoundTrip() throws {
+        let groups = TunnelRequest(version: TunnelIPC.protocolVersion, id: 9, body: .groups)
+        XCTAssertEqual(TunnelExchange.decodeRequest(try TunnelExchange.encode(groups)), .request(groups))
+        let report = TunnelGroupReport(groups: [TunnelGroupReport.Group(
+            tag: "group-0000", kind: "leastPing", current: "proxy-0001", pinned: nil,
+            members: [TunnelGroupReport.Member(tag: "proxy-0001", alive: true, delayMilliseconds: 87,
+                                               lastTry: Date(timeIntervalSince1970: 1_700_000_000), lastSeen: nil)]
+        )])
+        let response = TunnelResponse(version: TunnelIPC.protocolVersion, id: 9, outcome: .groups(report))
+        XCTAssertEqual(try TunnelExchange.groupReport(of: reply(response), for: groups), report)
+        assertIPCErrorSync(.unexpectedReply) { try TunnelExchange.confirmation(of: self.reply(response), for: groups) }
+
+        let select = TunnelRequest(
+            version: TunnelIPC.protocolVersion, id: 10, body: .selectMember,
+            selection: TunnelGroupSelection(group: "group-0000", member: nil)
+        )
+        XCTAssertEqual(TunnelExchange.decodeRequest(try TunnelExchange.encode(select)), .request(select))
+        let done = TunnelResponse(version: TunnelIPC.protocolVersion, id: 10, outcome: .done)
+        XCTAssertNoThrow(try TunnelExchange.confirmation(of: reply(done), for: select))
+
+        // A selection request without a selection, or with an oversized tag, is refused by the extension.
+        let missing = TunnelRequest(version: TunnelIPC.protocolVersion, id: 11, body: .selectMember)
+        guard case let .rejection(refused) = TunnelExchange.decodeRequest(try TunnelExchange.encode(missing)),
+              case let .failure(error) = refused.outcome else { return XCTFail("accepted") }
+        XCTAssertEqual(error.code, .malformedRequest)
+        XCTAssertEqual(refused.id, 11)
+        let long = TunnelRequest(
+            version: TunnelIPC.protocolVersion, id: 12, body: .selectMember,
+            selection: TunnelGroupSelection(group: String(repeating: "g", count: TunnelGroupSelection.maximumTagBytes + 1), member: nil)
+        )
+        guard case .rejection = TunnelExchange.decodeRequest(try TunnelExchange.encode(long)) else { return XCTFail("accepted") }
+        // Requests of an older app (no selection key) still decode.
+        let old = Data(#"{"version":\#(TunnelIPC.protocolVersion),"id":3,"body":"statistics"}"#.utf8)
+        XCTAssertEqual(TunnelExchange.decodeRequest(old), .request(TunnelRequest(version: TunnelIPC.protocolVersion, id: 3, body: .statistics)))
+    }
+
     func testMissingAndEmptyReplies() {
         assertIPCErrorSync(.noReply) { _ = try TunnelExchange.outcome(of: nil, for: request) }
         assertIPCErrorSync(.noReply) { _ = try TunnelExchange.outcome(of: Data(), for: request) }

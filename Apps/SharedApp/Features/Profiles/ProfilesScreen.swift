@@ -1,9 +1,9 @@
-// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
-// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46073714202 (workflow apple.yml)
-// (Rebuilt from ContentView.swift, compiled on macOS CI in GitHub Actions run 46055850203; same behaviour.)
+// UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode
+// (Changed from the file compiled on macOS CI in GitHub Actions run 46073714202.)
 //
-// Профили (level Обычный): the profiles, which one is in use, its servers; adding a profile from a pasted share
-// link, subscription address or subscription body; the import report; deleting a profile.
+// Профили (level Обычный): the profiles, which one is in use, its choice («Авто» or a server) and subscription
+// state; adding a profile from a pasted share link, subscription address or subscription body; the import
+// report. One profile: ProfileDetailView.swift; subscription settings: SubscriptionSettingsView.swift.
 
 import DesignSystem
 import DomainModels
@@ -37,7 +37,7 @@ struct ProfilesScreen: View {
                         } label: {
                             SelectableRow(
                                 profile.name,
-                                subtitle: ProfilesScreen.serverCount(profile.outbounds.count),
+                                subtitle: subtitle(of: profile),
                                 isSelected: profile.id == library.selectedProfileID
                             )
                         }
@@ -57,6 +57,12 @@ struct ProfilesScreen: View {
             }
         }
         .bykGroupedList()
+        .refreshable {
+            // Pull to refresh: every subscription profile, one after another.
+            for profile in library.profiles where library.isSubscription(profile) {
+                await library.refreshSubscription(profile.id)
+            }
+        }
         .navigationTitle("Профили")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -71,6 +77,25 @@ struct ProfilesScreen: View {
             ImportView(isPresented: $showingImport)
                 .environmentObject(library)
         }
+    }
+
+    /// «12 серверов · Авто · обновлена 2 часа назад»: what the row needs to tell, nothing invented.
+    private func subtitle(of profile: Profile) -> String {
+        var parts = [ProfilesScreen.serverCount(profile.outbounds.count)]
+        if AutomaticGroup.applies(to: profile) {
+            switch library.choice(of: profile.id) {
+            case .automatic:
+                parts.append("Авто")
+            case let .server(tag):
+                parts.append(profile.outbound(tagged: tag).map(ProfileLibraryModel.name(of:)) ?? tag)
+            }
+        }
+        if library.isSubscription(profile) {
+            parts.append(SubscriptionSummaryRow.line(
+                library.subscriptionRecords[profile.id], refreshing: library.refreshingSubscriptions.contains(profile.id)
+            ).lowercasedFirst)
+        }
+        return parts.joined(separator: " · ")
     }
 
     static func serverCount(_ count: Int) -> String {
@@ -109,7 +134,7 @@ struct ImportView: View {
                 } header: {
                     SectionHeader("Ссылка или подписка")
                 } footer: {
-                    Text("Ссылка на сервер (vless://, trojan://, ss:// и другие), адрес подписки https:// или текст подписки целиком. Адрес подписки загружается один раз, без cookies и кэша.")
+                    Text("Ссылка на сервер (vless://, trojan://, ss:// и другие), адрес подписки https:// или текст подписки целиком. Подписка загружается без cookies и кэша и потом обновляется сама — раз в сутки, это можно изменить в настройках подписки.")
                         .font(.bykFootnote)
                         .foregroundStyle(Color.bykSecondaryInk)
                 }
@@ -156,80 +181,6 @@ struct ImportView: View {
     }
 }
 
-/// Servers of one profile: use the profile, choose the server traffic goes to, or delete the profile.
-struct ProfileDetailView: View {
-    @EnvironmentObject private var library: ProfileLibraryModel
-    @EnvironmentObject private var tunnel: TunnelController
-    @Environment(\.dismiss) private var dismiss
-    @State private var confirmingDelete = false
-    let profileID: UUID
-
-    var body: some View {
-        if let profile = library.profiles.first(where: { $0.id == profileID }) {
-            List {
-                if profile.id != library.selectedProfileID {
-                    Section {
-                        Button("Использовать этот профиль") {
-                            library.select(profile.id)
-                        }
-                        .buttonStyle(.bykPrimary)
-                        .disabled(tunnelBusy)
-                        .listRowBackground(Color.clear)
-                        .plainListRow()
-                    } footer: {
-                        if tunnelBusy {
-                            Text("Профиль меняется после отключения.")
-                                .font(.bykFootnote)
-                                .foregroundStyle(Color.bykSecondaryInk)
-                        }
-                    }
-                }
-
-                Section {
-                    ForEach(profile.outbounds, id: \.tag) { outbound in
-                        Button {
-                            library.selectServer(outbound.tag, inProfile: profile.id)
-                        } label: {
-                            SelectableRow(
-                                outbound.name.isEmpty ? outbound.tag : outbound.name,
-                                subtitle: outbound.kind.rawValue,
-                                isSelected: outbound.tag == profile.selectedTag
-                            )
-                        }
-                        .disabled(tunnelBusy && profile.id == library.selectedProfileID)
-                        .bykRow()
-                    }
-                } header: {
-                    SectionHeader(ProfilesScreen.serverCount(profile.outbounds.count).capitalizedFirst)
-                }
-
-                Section {
-                    Button("Удалить профиль", role: .destructive) {
-                        confirmingDelete = true
-                    }
-                    .foregroundStyle(Color.bykAlert)
-                    .bykRow()
-                }
-            }
-            .bykGroupedList()
-            .navigationTitle(profile.name)
-            .confirmationDialog("Удалить профиль «\(profile.name)»?", isPresented: $confirmingDelete, titleVisibility: .visible) {
-                Button("Удалить", role: .destructive) {
-                    library.remove(profile.id)
-                    dismiss()
-                }
-                Button("Отмена", role: .cancel) {}
-            } message: {
-                Text("Серверы и ключи профиля будут удалены с этого устройства.")
-            }
-        } else {
-            EmptyStateView(title: "Профиль удалён", message: "Выберите другой профиль в списке.")
-        }
-    }
-
-    private var tunnelBusy: Bool { tunnel.phase.action != .connect }
-}
-
 /// Notices of an import or a compilation, most severe marked.
 struct NoticeList: View {
     let notices: [ProfileNotice]
@@ -246,5 +197,11 @@ extension String {
     var capitalizedFirst: String {
         guard let first = first else { return self }
         return String(first).uppercased() + dropFirst()
+    }
+
+    /// "Обновлена 2 часа назад" → "обновлена 2 часа назад", inside a line joined with "·".
+    var lowercasedFirst: String {
+        guard let first = first else { return self }
+        return String(first).lowercased() + dropFirst()
     }
 }

@@ -59,6 +59,16 @@ struct CBridgeBinding: BridgeABI {
         Self.take(npb_memory())
     }
 
+    func observe() -> String {
+        Self.take(npb_observe())
+    }
+
+    func select(group: String, member: String) -> String {
+        Self.withCBuffers(Data(group.utf8), Data(member.utf8)) { groupPointer, groupLength, memberPointer, memberLength in
+            Self.take(npb_select(groupPointer, groupLength, memberPointer, memberLength))
+        }
+    }
+
     func state() -> Int32 {
         Int32(npb_state())
     }

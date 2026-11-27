@@ -26,7 +26,7 @@ allTargets += lib("EngineMihomo", deps: ["CoreAbstraction", "EngineBridge", "Con
 // What the app keeps and compiles: import of links and subscriptions, the profile file with secrets in a
 // secret store, compilation for the Packet Tunnel. App-side only, no engine adapters (ADR-0001 rule 2).
 // The tests compile Extensions/PacketTunnel/Shared and the app's start-request mapping through symbolic links.
-allTargets += lib("ProfileLibrary", deps: ["DomainModels", "ConfigurationEngine"], testDeps: ["DomainModels", "ConfigurationEngine"])
+allTargets += lib("ProfileLibrary", deps: ["DomainModels", "ConfigurationEngine", "AdaptiveBalancer"], testDeps: ["DomainModels", "ConfigurationEngine"])
 // Design tokens, the horn connect control and the app's components (Documentation/Design/DESIGN.md). The tokens,
 // state mapping and horn geometry are platform-neutral and tested on Linux; the SwiftUI parts compile only where
 // SwiftUI exists. Bundled fonts (SIL OFL 1.1) are resources. The tests also compile the app's screen registry
