@@ -1,0 +1,37 @@
+File: npmlab
+Build ID: 725b593c7056e90bbeb7835637b8a84687d4f010
+Type: inuse_space
+Time: 2026-11-27 15:03:47 UTC
+Showing nodes accounting for 14184.81kB, 100% of 14184.81kB total
+Showing top 30 nodes out of 131
+      flat  flat%   sum%        cum   cum%
+ 2600.21kB 18.33% 18.33%  2600.21kB 18.33%  github.com/metacubex/mipstack.(*tcpSendBuffer).append
+ 2563.47kB 18.07% 36.40%  2563.47kB 18.07%  runtime.mallocgc
+ 1024.09kB  7.22% 43.62%  1024.09kB  7.22%  reflect.unsafe_New
+  809.97kB  5.71% 49.33%   809.97kB  5.71%  networkplatform/mihomobridge/engine.newPacketQueue
+  525.43kB  3.70% 53.04%   525.43kB  3.70%  github.com/metacubex/gopacket/layers.map.init.1
+  513.12kB  3.62% 56.65%   513.12kB  3.62%  github.com/metacubex/mihomo/tunnel.newPacketSender
+  512.88kB  3.62% 60.27%   512.88kB  3.62%  bytes.growSlice
+  512.75kB  3.61% 63.88%   512.75kB  3.61%  crypto/x509.parseCertificate
+  512.75kB  3.61% 67.50%   512.75kB  3.61%  github.com/metacubex/mipstack.(*packetQueue).acquireBuffer
+  512.75kB  3.61% 71.11%   512.75kB  3.61%  github.com/metacubex/mipstack.newTCPEstablishedState
+  512.38kB  3.61% 74.73%   512.38kB  3.61%  crypto/internal/fips140/aes/gcm.New (inline)
+  512.34kB  3.61% 78.34%   512.34kB  3.61%  github.com/metacubex/mipstack.newTCPConn
+  512.28kB  3.61% 81.95%   512.28kB  3.61%  github.com/metacubex/utls.(*clientHelloMsg).getPublicPtr
+  512.17kB  3.61% 85.56%   512.17kB  3.61%  github.com/metacubex/mihomo/tunnel.(*packetSender).AddMapping
+  512.08kB  3.61% 89.17%   512.08kB  3.61%  github.com/metacubex/utls.BoringGREASEECH (inline)
+  512.07kB  3.61% 92.78%   512.07kB  3.61%  github.com/metacubex/utls.(*GREASEEncryptedClientHelloExtension).randomizePayload
+  512.06kB  3.61% 96.39%   512.06kB  3.61%  github.com/metacubex/utls.KeyShares.ToPrivate (inline)
+  512.01kB  3.61%   100%   512.01kB  3.61%  golang.org/x/crypto/cryptobyte.(*Builder).add (inline)
+         0     0%   100%   512.88kB  3.62%  bufio.(*Writer).Flush
+         0     0%   100%   512.88kB  3.62%  bufio.(*Writer).ReadFrom
+         0     0%   100%   512.88kB  3.62%  bytes.(*Buffer).Write
+         0     0%   100%   512.88kB  3.62%  bytes.(*Buffer).grow
+         0     0%   100%   512.38kB  3.61%  crypto/cipher.NewGCM
+         0     0%   100%   512.38kB  3.61%  crypto/cipher.newGCM
+         0     0%   100%   512.75kB  3.61%  crypto/x509.ParseCertificate
+         0     0%   100%   525.43kB  3.70%  github.com/metacubex/gopacket/layers.init
+         0     0%   100%   512.75kB  3.61%  github.com/metacubex/mihomo/adapter.(*Proxy).DialContext
+         0     0%   100%  4609.84kB 32.50%  github.com/metacubex/mihomo/adapter.(*Proxy).ListenPacketContext
+         0     0%   100%   512.75kB  3.61%  github.com/metacubex/mihomo/adapter/outbound.(*Vless).DialContext
+         0     0%   100%  4609.84kB 32.50%  github.com/metacubex/mihomo/adapter/outbound.(*Vless).ListenPacketContext

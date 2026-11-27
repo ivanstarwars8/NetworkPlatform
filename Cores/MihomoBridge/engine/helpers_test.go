@@ -24,6 +24,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 	"sync"
@@ -230,7 +231,20 @@ func startXray(t testing.TB, config string, waitPort int) {
 	var out bytes.Buffer
 	var mu sync.Mutex
 	cmd := exec.Command(stockXray, "run", "-c", path)
-	w := writerFunc(func(p []byte) (int, error) { mu.Lock(); defer mu.Unlock(); return out.Write(p) })
+	// Only the tail is kept: the server logs at debug level, and an unbounded buffer grew by ~12 MB in a 3-minute
+	// TestSoakRSS (17 % of that process's heap; Mihomo section of memory-budget.md).
+	const keep = 256 << 10
+	w := writerFunc(func(p []byte) (int, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		out.Write(p)
+		if out.Len() > 2*keep {
+			tail := append([]byte(nil), out.Bytes()[out.Len()-keep:]...)
+			out.Reset()
+			out.Write(tail)
+		}
+		return len(p), nil
+	})
 	cmd.Stdout, cmd.Stderr = w, w
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
@@ -365,6 +379,49 @@ func rssKiB() int64 {
 		}
 	}
 	return -1
+}
+
+// rssSplitKiB reads RssAnon and RssFile of this process (Linux).
+func rssSplitKiB() (anon, file int64) {
+	b, err := os.ReadFile("/proc/self/status")
+	if err != nil {
+		return -1, -1
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		f := strings.Fields(line)
+		if len(f) < 2 {
+			continue
+		}
+		switch f[0] {
+		case "RssAnon:":
+			anon, _ = strconv.ParseInt(f[1], 10, 64)
+		case "RssFile:":
+			file, _ = strconv.ParseInt(f[1], 10, 64)
+		}
+	}
+	return anon, file
+}
+
+// writeProfiles writes <dir>/<name>-heap.pprof and <name>-goroutine.txt.
+func writeProfiles(t testing.TB, dir, name string) {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Error(err)
+		return
+	}
+	for _, p := range []struct {
+		profile, file string
+		debug         int
+	}{{"heap", name + "-heap.pprof", 0}, {"goroutine", name + "-goroutine.txt", 1}} {
+		f, err := os.Create(filepath.Join(dir, p.file))
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		if err := pprof.Lookup(p.profile).WriteTo(f, p.debug); err != nil {
+			t.Error(err)
+		}
+		f.Close()
+	}
 }
 
 // ---- the operating system side of the packet interface ----

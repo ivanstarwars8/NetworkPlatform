@@ -1,0 +1,15 @@
+=== RUN   TestSoakRSS
+    unit_test.go:412: RSS before start: 32000 KiB
+    unit_test.go:421: idle RSS after start: 38400 KiB, {Mapped:15093363 Total:18345587 HeapObjects:5361632 HeapLive:2120792 HeapFree:1712128 HeapReleased:3252224 Stacks:589824 Goroutines:28 GCCycles:3 Limit:9223372036854775807 GCPercent:100}
+    unit_test.go:489: t= 30s rss=114600 KiB anon=80968 file=33632 heapLive=30962 KiB mapped=83831 KiB goroutines=705 conns=483 bytes=1932 MiB failures=0
+    unit_test.go:489: t= 60s rss=173404 KiB anon=139712 file=33692 heapLive=55912 KiB mapped=142235 KiB goroutines=1372 conns=1065 bytes=4260 MiB failures=0
+    unit_test.go:489: t= 90s rss=181932 KiB anon=148112 file=33820 heapLive=61027 KiB mapped=150683 KiB goroutines=1457 conns=1605 bytes=6420 MiB failures=0
+    unit_test.go:489: t=120s rss=183872 KiB anon=150052 file=33820 heapLive=58586 KiB mapped=152283 KiB goroutines=1422 conns=2170 bytes=8680 MiB failures=0
+    unit_test.go:489: t=150s rss=187188 KiB anon=153368 file=33820 heapLive=60007 KiB mapped=155459 KiB goroutines=1455 conns=2730 bytes=10920 MiB failures=0
+    unit_test.go:489: t=180s rss=191848 KiB anon=157964 file=33884 heapLive=61920 KiB mapped=160195 KiB goroutines=1514 conns=3347 bytes=13388 MiB failures=0
+    unit_test.go:489: t=210s rss=193052 KiB anon=159168 file=33884 heapLive=62440 KiB mapped=161563 KiB goroutines=1523 conns=3908 bytes=15632 MiB failures=0
+    unit_test.go:489: t=240s rss=191844 KiB anon=157960 file=33884 heapLive=61927 KiB mapped=160283 KiB goroutines=1531 conns=4511 bytes=18044 MiB failures=0
+    unit_test.go:489: t=270s rss=190772 KiB anon=156888 file=33884 heapLive=60776 KiB mapped=159195 KiB goroutines=1513 conns=5078 bytes=20312 MiB failures=0
+    unit_test.go:489: t=300s rss=189516 KiB anon=155568 file=33948 heapLive=61777 KiB mapped=157851 KiB goroutines=1466 conns=5639 bytes=22556 MiB failures=0
+    unit_test.go:501: soak done: peak rss=193052 KiB, conns=5644, 22576 MiB, failures=0, stats {Tag:total Uplink:11836609888 Downlink:11836609888} tun {RxPackets:12406483 RxBytes:12481922595 RxMalformed:0 RxNoStack:0 RxOversize:0 RxDropped:0 RxQueueHighest:139436 TxPackets:12401849 TxBytes:12481676182 TxDropped:0 TxQueueHighest:138416 TxQueueBytes:2097152 FlowsActive:22 FlowsHighest:33 FlowsReject
+--- PASS: TestSoakRSS (303.51s)

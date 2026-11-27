@@ -1,0 +1,32 @@
+File: npmlab
+Build ID: ebab69422522d969586adfe4720e14ec1a29f308
+Type: inuse_space
+Time: 2026-11-27 15:48:22 UTC
+Showing nodes accounting for 14759.45kB, 100% of 14759.45kB total
+Showing top 25 nodes out of 115
+      flat  flat%   sum%        cum   cum%
+ 2080.17kB 14.09% 14.09%  2080.17kB 14.09%  github.com/metacubex/mipstack.(*tcpSendBuffer).append
+ 1025.75kB  6.95% 21.04%  1025.75kB  6.95%  bytes.growSlice
+ 1025.23kB  6.95% 27.99%  1025.23kB  6.95%  runtime.mallocgc
+ 1025.12kB  6.95% 34.94%  1025.12kB  6.95%  github.com/metacubex/utls.UClient
+  809.97kB  5.49% 40.42%   809.97kB  5.49%  networkplatform/mihomobridge/engine.newPacketQueue
+  532.26kB  3.61% 44.03%   532.26kB  3.61%  github.com/metacubex/mipstack.(*TCPForwarder).acceptTCP
+  532.26kB  3.61% 47.64%   532.26kB  3.61%  google.golang.org/protobuf/reflect/protoregistry.(*Files).RegisterFile.func2
+  525.43kB  3.56% 51.20%   525.43kB  3.56%  github.com/metacubex/gopacket/layers.map.init.0
+  525.43kB  3.56% 54.76%   525.43kB  3.56%  github.com/metacubex/gopacket/layers.map.init.1
+  524.09kB  3.55% 58.31%   524.09kB  3.55%  github.com/easytier/easytier/easytier-go/proto/api/instance.init
+  516.01kB  3.50% 61.80%   516.01kB  3.50%  github.com/metacubex/utls/mlkem.NewDecapsulationKey768
+     514kB  3.48% 65.29%      514kB  3.48%  hash/crc32.archInitCastagnoli
+  513.12kB  3.48% 68.76%   513.12kB  3.48%  github.com/metacubex/mihomo/tunnel.newPacketSender
+     513kB  3.48% 72.24%      513kB  3.48%  google.golang.org/protobuf/internal/filedesc.(*Enum).unmarshalSeed
+  512.75kB  3.47% 75.71%   512.75kB  3.47%  github.com/metacubex/mipstack.newTCPEstablishedState
+  512.38kB  3.47% 79.18%   512.38kB  3.47%  crypto/internal/fips140/aes/gcm.New (inline)
+  512.17kB  3.47% 82.65%   512.17kB  3.47%  github.com/metacubex/mihomo/tunnel.(*packetSender).AddMapping
+  512.14kB  3.47% 86.12%   512.14kB  3.47%  github.com/metacubex/utls.utlsIdToSpec
+  512.05kB  3.47% 89.59%   512.05kB  3.47%  github.com/metacubex/mipstack.(*TCPConn).passiveHandshake
+  512.05kB  3.47% 93.06%   512.05kB  3.47%  time.NewTicker
+  512.03kB  3.47% 96.53%   512.03kB  3.47%  github.com/metacubex/mihomo/transport/vless.newConn
+  512.02kB  3.47%   100%   512.02kB  3.47%  github.com/metacubex/utls/internal/tls13.(*MasterSecret).ExporterMasterSecret
+         0     0%   100%  1025.75kB  6.95%  bytes.(*Buffer).Grow
+         0     0%   100%  1025.75kB  6.95%  bytes.(*Buffer).grow
+         0     0%   100%   512.38kB  3.47%  crypto/cipher.NewGCM

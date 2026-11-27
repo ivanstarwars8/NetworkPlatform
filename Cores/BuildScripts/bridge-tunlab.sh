@@ -17,6 +17,10 @@
 #   Cores/BuildScripts/bridge-tunlab.sh compiled DIR     run the Swift compiler's output (DIR/config.json, plan.json, bridge-options.json,
 #                                                       see ConfigurationEngine TunnelExportTests) in flow mode: TCP, UDP, DNS, IPv6, no DNS leak
 #   Cores/BuildScripts/bridge-tunlab.sh teardown         kill lab processes, delete the namespaces
+# ENGINE=mihomo runs the Mihomo bridge (Cores/MihomoBridge/cmd/npmlab, flow mode only) in place of
+# "nplab bridge", with a Mihomo YAML client config for the same server; build, soak, memcmp and profile support
+# it (MOBILE=1 then only selects the bridge's memory.profile=mobile; UDPTIMEOUT / KEEPALIVE add the config keys
+# tun.udp-timeout / keep-alive-idle+interval). Client, targets and the stock xray server are the same.
 # Results go to $NP_LAB_OUT (default Logs/tunlab, git-ignored), one JSON object per line.
 #
 # Topology (documentation-range addresses only):
@@ -65,6 +69,9 @@ do_build() {
 	# the core's own main package, from the module cache at the pinned version; -mod=mod lets go add the
 	# go.sum lines of main's extra imports in this build copy only
 	go build -buildvcs=false -mod=mod -trimpath -ldflags='-s -w' -o "$BIN/xray" github.com/xtls/xray-core/main
+	if [ "${ENGINE:-}" = mihomo ]; then
+		(cd "$ROOT/Cores/MihomoBridge" && go build -buildvcs=false -trimpath -ldflags='-s -w' -o "$BIN/npmlab" ./cmd/npmlab)
+	fi
 	go version >"$BIN/go-version.txt"
 	"$BIN/xray" version | head -1 >>"$BIN/go-version.txt"
 	cat "$BIN/go-version.txt" >&2
@@ -149,6 +156,10 @@ EOF
 
 # client_config KIND MTU -> path. KIND: reality (VLESS+REALITY+Vision) | ss (Shadowsocks 2022). The same file is given to the bridge and to stock xray.
 client_config() {
+	if [ "${ENGINE:-}" = mihomo ]; then
+		client_config_mihomo "$@"
+		return
+	fi
 	local kind=$1 mtu=$2 uuid pub out levels=''
 	# CONNIDLE=<s> sets the core's connIdle for user level 0 (default 300 s), used by the soak comparison.
 	# MOBILE=1: the level the compiler emits for XrayMemoryProfile.mobile (keep in sync with
@@ -182,6 +193,26 @@ EOF
 	echo "$out"
 }
 
+# client_config_mihomo KIND MTU -> path: the same proxy as client_config, as a Mihomo YAML for npmlab.
+client_config_mihomo() {
+	local kind=$1 mtu=$2 out proxy
+	out="$CFG/mihomo-$kind-$mtu${UDPTIMEOUT:+-udp$UDPTIMEOUT}${KEEPALIVE:+-ka$KEEPALIVE}.yaml"
+	if [ "$kind" = reality ]; then
+		proxy="  - {name: p, type: vless, server: $SERVER4, port: 443, uuid: $(cat "$CFG/uuid"), network: tcp, tls: true, udp: true, flow: xtls-rprx-vision, servername: np.test, client-fingerprint: chrome, reality-opts: {public-key: $(cat "$CFG/pub"), short-id: 0123abcd, support-x25519mlkem768: true}}"
+	else
+		proxy="  - {name: p, type: ss, server: $SERVER4, port: 444, cipher: 2022-blake3-aes-128-gcm, password: \"$(cat "$CFG/sskey")\", udp: true}"
+	fi
+	{
+		printf 'mode: rule\nlog-level: warning\nfind-process-mode: off\n'
+		[ -n "${KEEPALIVE:-}" ] && printf 'keep-alive-idle: %s\nkeep-alive-interval: %s\n' "$KEEPALIVE" "$KEEPALIVE"
+		printf 'proxies:\n%s\nrules:\n  - MATCH,p\n' "$proxy"
+		printf 'tun:\n  enable: true\n  stack: mips\n  mtu: %s\n' "$mtu"
+		[ -n "${UDPTIMEOUT:-}" ] && printf '  udp-timeout: %s\n' "$UDPTIMEOUT"
+		true
+	} >"$out"
+	echo "$out"
+}
+
 # ---------------------------------------------------------------------------------------------- processes
 start_far() {
 	ip netns exec "$NS" "$BIN/nplab" target >"$OUT/target.log" 2>&1 &
@@ -201,6 +232,8 @@ start_client() {
 	# ip netns exec execs the command, so $! is the pid of nplab / xray itself (not of a subshell)
 	if [ "$mode" = stock ]; then
 		ip netns exec "$NC" "$BIN/nplab" tunexec -tun nptun0 "$BIN/xray" run -c "$config" >>"$logf" 2>&1 &
+	elif [ "${ENGINE:-}" = mihomo ]; then
+		ip netns exec "$NC" "$BIN/npmlab" bridge -mode "$mode" -config "$config" -ctl $CTL -loop-addrs $SERVER4 "$@" >>"$logf" 2>&1 &
 	else
 		ip netns exec "$NC" "$BIN/nplab" bridge -mode "$mode" -config "$config" -ctl $CTL -loop-addrs $SERVER4 "$@" >>"$logf" 2>&1 &
 	fi
@@ -477,7 +510,7 @@ do_profile() {
 # flow mode, RSS and thread count from /proc for both. CONNIDLE=<s> lowers the core's connIdle.
 do_soak() {
 	local minutes=${1:-30} mode=${2:-flow}
-	local label="$mode${MOBILE:+-mobile}${CONNIDLE:+-idle$CONNIDLE}${BUFSIZE:+-buf$BUFSIZE}${SOAK_TAG:+-$SOAK_TAG}"
+	local label="${ENGINE:+$ENGINE-}$mode${MOBILE:+-mobile}${CONNIDLE:+-idle$CONNIDLE}${BUFSIZE:+-buf$BUFSIZE}${SOAK_TAG:+-$SOAK_TAG}"
 	local flags=()
 	[ -n "${MOBILE:-}" ] && [ "$mode" = flow ] && flags+=(-profile mobile)
 	# BRIDGE_EXTRA: more bridge flags, e.g. "-memlimit 25165824 -gcpercent 100"
@@ -544,7 +577,9 @@ do_memcmp() {
 			WITH_CTL=1
 			if [ "$variant" = mobile ]; then
 				cfg="$(MOBILE=1 client_config reality 1500)"
-				start_client flow "$cfg" -profile mobile
+				# MOBILE_EXTRA: more bridge flags for the mobile variant only, e.g. "-inq 1048576"
+				read -r -a mextra <<<"${MOBILE_EXTRA:-}"
+				start_client flow "$cfg" -profile mobile "${mextra[@]}"
 			else
 				cfg="$(client_config reality 1500)"
 				start_client flow "$cfg"

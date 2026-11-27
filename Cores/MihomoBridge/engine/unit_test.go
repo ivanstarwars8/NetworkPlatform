@@ -130,7 +130,7 @@ func frame(pkts ...[]byte) []byte {
 // goroutine, while writeBatch queues batches.
 func TestFlowDeviceHandoff(t *testing.T) {
 	// a full inbound queue drops (no reader attached to this device)
-	full := newFlowDevice(1500, 128<<10, 128<<10)
+	full := newFlowDevice(1500, 128<<10, 128<<10, 0)
 	full.attached.Store(true)
 	big := frame(make([]byte, 1400), make([]byte, 1400), make([]byte, 1400), make([]byte, 1400))
 	for i := 0; i < 40; i++ {
@@ -142,7 +142,7 @@ func TestFlowDeviceHandoff(t *testing.T) {
 		t.Errorf("full queue counters %+v", c)
 	}
 
-	d := newFlowDevice(100, 128<<10, 128<<10)
+	d := newFlowDevice(100, 128<<10, 128<<10, 0)
 	d.attached.Store(true)
 	got := make(chan []byte, 64)
 	var wg sync.WaitGroup
@@ -391,7 +391,14 @@ func TestStartStopCycles(t *testing.T) {
 // TestSoakRSS (opt-in: NP_SOAK=<duration>) runs the packet path through a stock Xray server with
 // VLESS+REALITY+Vision for the given time with TCP connections opened and closed continuously plus UDP, and
 // samples the RSS of this process (engine + the test's peer stack + client + echo; the Xray server is a
-// separate process). Also reports the idle RSS right after Start.
+// separate process). Also reports the idle RSS right after Start. NP_SOAK_PROF=<dir> writes heap and goroutine
+// profiles at the end of the load.
+//
+// It is a functional soak (no errors, no stuck flows), not the bridge's memory figure: the traffic is unpaced
+// (~75 MB/s), and the peer stack's send buffers and the ~1100 client connections it holds in TIME_WAIT are
+// most of this process's memory (pprof, 3 min: 52 % of the heap in the test client's writes, under 10 % in the
+// engine's relay). The bridge's own memory is measured in a separate process on the lab stand
+// (Cores/BuildScripts/bridge-tunlab.sh with ENGINE=mihomo; Documentation/Performance/memory-budget.md).
 func TestSoakRSS(t *testing.T) {
 	d, err := time.ParseDuration(os.Getenv("NP_SOAK"))
 	if err != nil || d <= 0 {
@@ -478,11 +485,16 @@ func TestSoakRSS(t *testing.T) {
 		peak = max(peak, r)
 		m := ReadMemoryStats()
 		mu.Lock()
-		t.Logf("t=%3.0fs rss=%d KiB heapLive=%d KiB mapped=%d KiB goroutines=%d conns=%d bytes=%d MiB failures=%d",
-			time.Since(began).Seconds(), r, m.HeapLive>>10, m.Mapped>>10, m.Goroutines, conns, bytesMoved>>20, failures)
+		anon, file := rssSplitKiB()
+		t.Logf("t=%3.0fs rss=%d KiB anon=%d file=%d heapLive=%d KiB mapped=%d KiB goroutines=%d conns=%d bytes=%d MiB failures=%d",
+			time.Since(began).Seconds(), r, anon, file, m.HeapLive>>10, m.Mapped>>10, m.Goroutines, conns, bytesMoved>>20, failures)
 		mu.Unlock()
 	}
 	ticker.Stop()
+	if dir := os.Getenv("NP_SOAK_PROF"); dir != "" {
+		// heap and goroutine profiles under load (this process: engine + the test's peer stack and client)
+		writeProfiles(t, dir, "soak-loaded")
+	}
 	close(stop)
 	wg.Wait()
 	st, _ := e.Stats()

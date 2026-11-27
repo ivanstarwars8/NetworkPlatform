@@ -111,6 +111,7 @@ type run struct {
 	flow      *flowListener
 	device    *flowDevice
 	memory    *memoryControl
+	idle      *idleSweeper
 	startedAt time.Time
 }
 
@@ -308,8 +309,13 @@ func (r *run) bringUp() (rerr *Error) {
 		return newError(CodeStartFailed, "port %d did not open (see log)", g.Port)
 	}
 
+	if r.idle = newIdleSweeper(time.Duration(opts.TCPIdleTimeoutMs)*time.Millisecond,
+		time.Duration(opts.UDPIdleTimeoutMs)*time.Millisecond); r.idle != nil {
+		r.idle.start()
+	}
+
 	if prep.tun != nil {
-		r.device = newFlowDevice(int(prep.tun.mtu), opts.Tun.InQueueBytes, opts.Tun.OutQueueBytes)
+		r.device = newFlowDevice(int(prep.tun.mtu), opts.Tun.InQueueBytes, opts.Tun.OutQueueBytes, opts.Tun.MaxFlows)
 		l, err := startFlowListener(prep.tun, r.device)
 		if err != nil {
 			return newError(CodeStartFailed, "packet stack: %v", err)
@@ -322,6 +328,9 @@ func (r *run) bringUp() (rerr *Error) {
 // tearDown releases what bringUp created; see the Engine comment for what can and cannot be released.
 func (r *run) tearDown() {
 	defer guard(&r.stopErr)
+	if r.idle != nil {
+		r.idle.close()
+	}
 	tunnel.OnSuspend()
 	if r.flow != nil {
 		_ = r.flow.Close()
@@ -485,7 +494,10 @@ type Stats struct {
 	UptimeMs    int64          `json:"uptimeMs"`
 	Total       TrafficCounter `json:"total"`
 	Connections int            `json:"connections"`
-	Tun         *TunCounters   `json:"tun,omitempty"`
+	// Connections the bridge closed for tcpIdleTimeoutMs / udpIdleTimeoutMs since Start.
+	IdleClosedTCP uint64       `json:"idleClosedTcp"`
+	IdleClosedUDP uint64       `json:"idleClosedUdp"`
+	Tun           *TunCounters `json:"tun,omitempty"`
 }
 
 func (e *Engine) Stats() (st Stats, rerr *Error) {
@@ -498,6 +510,9 @@ func (e *Engine) Stats() (st Stats, rerr *Error) {
 	up, down := statistic.DefaultManager.Total()
 	st.Total = TrafficCounter{Tag: "total", Uplink: up, Downlink: down}
 	statistic.DefaultManager.Range(func(statistic.Tracker) bool { st.Connections++; return true })
+	if r.idle != nil {
+		st.IdleClosedTCP, st.IdleClosedUDP = r.idle.closedTCP.Load(), r.idle.closedUDP.Load()
+	}
 	if r.device != nil {
 		c := r.device.counters()
 		st.Tun = &c

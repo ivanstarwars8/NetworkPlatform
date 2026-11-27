@@ -1,0 +1,37 @@
+File: npmlab
+Build ID: 725b593c7056e90bbeb7835637b8a84687d4f010
+Type: inuse_space
+Time: 2026-11-27 14:49:42 UTC
+Showing nodes accounting for 16206.63kB, 100% of 16206.63kB total
+Showing top 30 nodes out of 156
+      flat  flat%   sum%        cum   cum%
+ 2086.21kB 12.87% 12.87%  2086.21kB 12.87%  networkplatform/mihomobridge/engine.newPacketQueue
+ 2064.04kB 12.74% 25.61%  2064.04kB 12.74%  github.com/metacubex/utls/mlkem.NewDecapsulationKey768
+ 1560.12kB  9.63% 35.23%  1560.12kB  9.63%  github.com/metacubex/mipstack.(*tcpSendBuffer).append
+ 1056.33kB  6.52% 41.75%  1056.33kB  6.52%  github.com/metacubex/mihomo/common/pool.NewAllocator.func10
+ 1028.32kB  6.35% 48.10%  1028.32kB  6.35%  google.golang.org/protobuf/internal/filedesc.(*File).initDecls (inline)
+ 1025.50kB  6.33% 54.43%  1025.50kB  6.33%  github.com/metacubex/mipstack.(*packetQueue).acquireBuffer
+ 1025.50kB  6.33% 60.75%  1025.50kB  6.33%  github.com/metacubex/mipstack.newTCPEstablishedState
+ 1025.23kB  6.33% 67.08%  1025.23kB  6.33%  runtime.mallocgc
+  650.62kB  4.01% 71.09%   650.62kB  4.01%  main.(*pump).tx
+  583.01kB  3.60% 74.69%   583.01kB  3.60%  reflect.compiledTypelinks
+     514kB  3.17% 77.86%      514kB  3.17%  hash/crc32.archInitCastagnoli
+  513.12kB  3.17% 81.03%   513.12kB  3.17%  github.com/metacubex/mihomo/tunnel.newPacketSender
+  512.88kB  3.16% 84.19%   512.88kB  3.16%  bytes.growSlice
+  512.75kB  3.16% 87.36%   512.75kB  3.16%  github.com/metacubex/mipstack.(*tcpSegmentQueue).enqueueCopy
+  512.38kB  3.16% 90.52%   512.38kB  3.16%  crypto/internal/fips140/aes/gcm.New (inline)
+  512.31kB  3.16% 93.68%   512.31kB  3.16%  encoding/pem.Decode
+  512.28kB  3.16% 96.84%   512.28kB  3.16%  github.com/metacubex/utls.UClient
+  512.02kB  3.16%   100%   512.02kB  3.16%  github.com/metacubex/sing/common/bufio.NewNetPacketWriter
+         0     0%   100%   512.88kB  3.16%  bytes.(*Buffer).Grow
+         0     0%   100%   512.88kB  3.16%  bytes.(*Buffer).grow
+         0     0%   100%   512.38kB  3.16%  crypto/cipher.NewGCM
+         0     0%   100%   512.38kB  3.16%  crypto/cipher.newGCM
+         0     0%   100%   512.31kB  3.16%  crypto/x509.(*CertPool).AppendCertsFromPEM
+         0     0%   100%   512.31kB  3.16%  crypto/x509.SystemCertPool
+         0     0%   100%   512.31kB  3.16%  crypto/x509.initSystemRoots
+         0     0%   100%   512.31kB  3.16%  crypto/x509.loadOnDiskRoots
+         0     0%   100%   512.31kB  3.16%  crypto/x509.loadSystemRoots
+         0     0%   100%   512.31kB  3.16%  crypto/x509.systemRootsPool
+         0     0%   100%      515kB  3.18%  github.com/easytier/easytier/easytier-go/proto/common.file_common_proto_init
+         0     0%   100%      515kB  3.18%  github.com/easytier/easytier/easytier-go/proto/common.init.0
