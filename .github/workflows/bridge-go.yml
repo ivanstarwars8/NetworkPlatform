@@ -45,38 +45,49 @@ jobs:
         run: go test -count=1 -timeout 20m ./...
       - name: Stock xray from the pinned core (server side of the integration tests)
         run: go build -mod=readonly -trimpath -o "$RUNNER_TEMP/xray" github.com/xtls/xray-core/main && "$RUNNER_TEMP/xray" version | head -1
-      - name: race (everything except the known Vision case)
+      # Under -race the pinned Xray-core reports a data race of its own inside Vision (proxy/proxy.go 255/384,
+      # proxy/vless). Every test that sends traffic through VLESS+REALITY+Vision can hit it: on CI both
+      # TestFlowThroughProxyWithDNS and TestProtocolsOverLoopback/VLESS+REALITY+Vision did. Those two cases run
+      # in the KNOWN FAILURE step below; everything else must be race-free.
+      - name: race (all tests except the two Vision cases)
         env:
           NP_STOCK_XRAY: ${{ runner.temp }}/xray
-        run: go test -race -count=1 -timeout 30m -skip '^TestFlowThroughProxyWithDNS$' ./...
+        run: |
+          go test -race -count=1 -timeout 30m -skip '^(TestFlowThroughProxyWithDNS|TestProtocolsOverLoopback)$' ./...
+          go test -race -count=1 -timeout 15m -run '^TestProtocolsOverLoopback$' -skip '^TestProtocolsOverLoopback$/^VLESS\+REALITY\+Vision$' ./engine
       - name: race, flow + DNS over Trojan+TLS (bridge packet path without Vision)
         env:
           NP_STOCK_XRAY: ${{ runner.temp }}/xray
           NP_TEST_FLOW_PROXY: Trojan+TLS
         run: go test -race -count=1 -timeout 10m -run '^TestFlowThroughProxyWithDNS$' ./engine
-      # Known failure, reported, not hidden: under -race the pinned Xray-core reports a data race inside
-      # Vision (proxy/proxy.go, proxy/vless). This step passes only while that exact race is the failure, and
-      # fails when the test fails for any other reason. When the race disappears it says so.
-      - name: KNOWN FAILURE check, race, flow + DNS over VLESS+REALITY+Vision (Xray-core race)
+      # Known failure, reported, not hidden. Passes only while each Vision case either passes or fails with a
+      # data race inside Xray-core with no bridge frame in the report; any other failure fails the step.
+      - name: KNOWN FAILURE check, race, Vision cases (Xray-core data race)
         env:
           NP_STOCK_XRAY: ${{ runner.temp }}/xray
         run: |
-          set +e
-          go test -race -count=1 -timeout 10m -run '^TestFlowThroughProxyWithDNS$' ./engine >"$RUNNER_TEMP/vision-race.log" 2>&1
-          rc=$?
-          set -e
-          if [ "$rc" -eq 0 ]; then
-            echo "::notice::Vision race no longer reproduced: TestFlowThroughProxyWithDNS passes under -race. Update STATUS.md and drop this check."
-            exit 0
-          fi
-          if grep -q 'WARNING: DATA RACE' "$RUNNER_TEMP/vision-race.log" && grep -q 'xtls/xray-core/proxy' "$RUNNER_TEMP/vision-race.log"; then
-            echo "::warning::KNOWN FAILURE: TestFlowThroughProxyWithDNS (Vision) fails under -race with the Xray-core data race (proxy/proxy.go). Not a bridge race; see STATUS.md."
-            grep -A12 'WARNING: DATA RACE' "$RUNNER_TEMP/vision-race.log" | head -40
-            exit 0
-          fi
-          echo "TestFlowThroughProxyWithDNS failed for a reason other than the known Vision race:"
-          tail -n 80 "$RUNNER_TEMP/vision-race.log"
-          exit 1
+          status=0
+          for run in '^TestFlowThroughProxyWithDNS$' '^TestProtocolsOverLoopback$/^VLESS\+REALITY\+Vision$'; do
+            log="$RUNNER_TEMP/vision-race.log"
+            set +e
+            go test -race -count=1 -timeout 10m -v -run "$run" ./engine >"$log" 2>&1
+            rc=$?
+            set -e
+            if [ "$rc" -eq 0 ]; then
+              echo "::notice::$run passes under -race (Vision race not reproduced this time)"
+              continue
+            fi
+            races=$(grep -c 'WARNING: DATA RACE' "$log" || true)
+            if [ "$races" -gt 0 ] && grep -q 'xtls/xray-core.*/proxy/proxy.go' "$log" && ! grep -q 'networkplatform/bridge' <(awk '/WARNING: DATA RACE/,/^==================$/' "$log"); then
+              echo "::warning::KNOWN FAILURE: $run fails under -race with $races Xray-core data race report(s) in Vision (proxy/proxy.go); no bridge frame in the reports. See STATUS.md."
+              grep -A6 'WARNING: DATA RACE' "$log" | head -24
+            else
+              echo "$run failed for a reason other than the known Vision race:"
+              tail -n 80 "$log"
+              status=1
+            fi
+          done
+          exit "$status"
       - name: C ABI smoke test against the c-archive (linux/amd64)
         working-directory: .
         run: Cores/BuildScripts/bridge-linux-cabi-test.sh
