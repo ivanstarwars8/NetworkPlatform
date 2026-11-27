@@ -152,18 +152,19 @@ public final class XrayCore: NetworkCore, @unchecked Sendable {
             )
         }
 
-        lock.lock()
-        guard phase == .idle else {
-            let current = phase
-            lock.unlock()
-            throw CoreError.operationFailed(operation: .start, message: "the adapter is \(current.rawValue)")
+        let claimed: (busy: Phase?, logs: XrayLogReader?) = withLock {
+            guard phase == .idle else { return (phase, nil) }
+            phase = .starting
+            engineGone = nil
+            lastHealthCounters = PacketPumpCounters()
+            let logs = events.log.map { XrayLogReader(bridge: self.bridge, settings: settings, sink: $0) }
+            logReader = logs
+            return (nil, logs)
         }
-        phase = .starting
-        engineGone = nil
-        lastHealthCounters = PacketPumpCounters()
-        let logs = events.log.map { XrayLogReader(bridge: self.bridge, settings: settings, sink: $0) }
-        logReader = logs
-        lock.unlock()
+        if let busy = claimed.busy {
+            throw CoreError.operationFailed(operation: .start, message: "the adapter is \(busy.rawValue)")
+        }
+        let logs = claimed.logs
         logs?.start()
 
         let payload = configuration.payload
@@ -185,10 +186,10 @@ public final class XrayCore: NetworkCore, @unchecked Sendable {
         }
         let reply = XrayBridgeReply<XrayNoPayload>.decode(text)
         guard reply.code == .ok else {
-            lock.lock()
-            phase = .idle
-            logReader = nil
-            lock.unlock()
+            withLock {
+                phase = .idle
+                logReader = nil
+            }
             if let logs = logs {
                 await XrayBlockingCall.run(name: "np.xray.log.stop") { logs.stop() }
             }
@@ -201,20 +202,20 @@ public final class XrayCore: NetworkCore, @unchecked Sendable {
                 self?.packetDeviceGone(code)
             }
         }
-        lock.lock()
-        pump = newPump
-        startedAt = clock()
-        phase = .running
-        lock.unlock()
+        let now = clock()
+        withLock {
+            pump = newPump
+            startedAt = now
+            phase = .running
+        }
         newPump?.start()
     }
 
     public func stop() async throws {
-        lock.lock()
-        let currentPump = pump
-        let logs = logReader
-        phase = .stopping
-        lock.unlock()
+        let (currentPump, logs): (PacketPump?, XrayLogReader?) = withLock {
+            phase = .stopping
+            return (pump, logReader)
+        }
 
         // The pump first, so that the device closing under it is not taken for an engine that died.
         currentPump?.beginStop()
@@ -227,12 +228,12 @@ public final class XrayCore: NetworkCore, @unchecked Sendable {
             return (text, joined)
         }
 
-        lock.lock()
-        pump = nil
-        logReader = nil
-        startedAt = nil
-        phase = .idle
-        lock.unlock()
+        withLock {
+            pump = nil
+            logReader = nil
+            startedAt = nil
+            phase = .idle
+        }
 
         let reply = XrayBridgeReply<XrayNoPayload>.decode(text)
         guard reply.code == .ok else {
@@ -278,12 +279,7 @@ public final class XrayCore: NetworkCore, @unchecked Sendable {
 
     public func health() async -> CoreHealth {
         let now = clock()
-        lock.lock()
-        let currentPhase = phase
-        let currentPump = pump
-        let gone = engineGone
-        let previous = lastHealthCounters
-        lock.unlock()
+        let (currentPhase, currentPump, gone, previous) = withLock { (phase, pump, engineGone, lastHealthCounters) }
 
         guard currentPhase == .running else {
             return CoreHealth(status: .unknown, detail: "the adapter is \(currentPhase.rawValue)", checkedAt: now)
@@ -316,9 +312,7 @@ public final class XrayCore: NetworkCore, @unchecked Sendable {
             return CoreHealth(status: .unhealthy, detail: "packet pump is \(pumpNow.state.rawValue)", checkedAt: now)
         }
         let counters = pumpNow.counters
-        lock.lock()
-        lastHealthCounters = counters
-        lock.unlock()
+        withLock { lastHealthCounters = counters }
         let newRejected = counters.inboundRejected &- previous.inboundRejected
         let newWriteFailures = counters.outboundWriteFailures &- previous.outboundWriteFailures
         let summary = "in \(counters.inboundPackets) packets, out \(counters.outboundPackets) packets"
@@ -331,6 +325,13 @@ public final class XrayCore: NetworkCore, @unchecked Sendable {
             )
         }
         return CoreHealth(status: .healthy, detail: summary, checkedAt: now)
+    }
+
+    /// Synchronous scoped locking, usable from the async methods (NSLock.lock/unlock are not).
+    private func withLock<T>(_ body: () throws -> T) rethrows -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return try body()
     }
 
     // MARK: Errors
