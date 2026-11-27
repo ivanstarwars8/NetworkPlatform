@@ -1,6 +1,18 @@
 import Foundation
 import DomainModels
 
+/// Memory-related shape of the compiled configuration.
+public enum XrayMemoryProfile: String, Codable, Hashable, Sendable {
+    /// Xray's own defaults: no policy section, default QUIC windows.
+    case standard
+    /// For a process with a memory budget of about 50 MiB (an iOS packet tunnel provider):
+    /// short idle timeouts and small per-connection buffers in policy level 0, and capped QUIC
+    /// receive windows for Hysteria2. The bridge's runtime side of the same profile (memory limit,
+    /// GC, flow cap, no geodata files) is the bridge option `memory.profile = "mobile"`.
+    /// Values: `Documentation/Performance/memory-budget.md`; they are project choices, not platform limits.
+    case mobile
+}
+
 /// Inputs of a compilation that are not part of `Profile`.
 /// The model has no routing or DNS section yet; what the compiler can take is listed here.
 public struct XrayCompileOptions: Codable, Hashable, Sendable {
@@ -11,11 +23,32 @@ public struct XrayCompileOptions: Codable, Hashable, Sendable {
     public var localSOCKSPort: UInt16?
     /// DNS servers in Xray notation (`1.1.1.1`, `https://dns.example/dns-query`); empty emits no DNS section.
     public var dnsServers: [String]
+    /// `.standard` unless the configuration is for a memory-limited process.
+    public var memoryProfile: XrayMemoryProfile
 
-    public init(logLevel: String = "warning", localSOCKSPort: UInt16? = nil, dnsServers: [String] = []) {
+    public init(
+        logLevel: String = "warning",
+        localSOCKSPort: UInt16? = nil,
+        dnsServers: [String] = [],
+        memoryProfile: XrayMemoryProfile = .standard
+    ) {
         self.logLevel = logLevel
         self.localSOCKSPort = localSOCKSPort
         self.dnsServers = dnsServers
+        self.memoryProfile = memoryProfile
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case logLevel, localSOCKSPort, dnsServers, memoryProfile
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        logLevel = try container.decode(String.self, forKey: .logLevel)
+        localSOCKSPort = try container.decodeIfPresent(UInt16.self, forKey: .localSOCKSPort)
+        dnsServers = try container.decode([String].self, forKey: .dnsServers)
+        // absent in options encoded before the field existed
+        memoryProfile = try container.decodeIfPresent(XrayMemoryProfile.self, forKey: .memoryProfile) ?? .standard
     }
 }
 
@@ -43,6 +76,22 @@ public struct XrayConfigCompiler: Sendable {
     public static let directTag = "direct"
     public static let blockTag = "block"
     public static let socksInboundTag = "socks-in"
+
+    /// Policy level 0 of `XrayMemoryProfile.mobile` (`infra/conf/policy.go` keys; seconds, `bufferSize` in KiB).
+    /// The tunnel inbound runs at level 0. Xray's defaults: connIdle 300, handshake 60, uplinkOnly 1,
+    /// downlinkOnly 1, bufferSize 512 KiB on amd64 and 4 KiB on arm64 (`features/policy/policy.go`).
+    /// `Cores/BuildScripts/bridge-tunlab.sh` (MOBILE=1) uses the same numbers.
+    public static let mobilePolicy: [String: Int64] = [
+        "connIdle": 30, "handshake": 10, "uplinkOnly": 1, "downlinkOnly": 1, "bufferSize": 4,
+    ]
+
+    /// QUIC receive windows of `XrayMemoryProfile.mobile` for Hysteria2, in bytes (`finalmask.quicParams`).
+    /// Xray's Hysteria2 defaults are 8 MiB per stream and 20 MiB per connection
+    /// (`transport/internet/hysteria/dialer.go`).
+    public static let mobileQUICWindows: [String: Int64] = [
+        "initStreamReceiveWindow": 512 << 10, "maxStreamReceiveWindow": 2 << 20,
+        "initConnectionReceiveWindow": 1 << 20, "maxConnectionReceiveWindow": 4 << 20,
+    ]
 
     public typealias SecretResolver = @Sendable (SecretReference) -> String?
 
@@ -108,6 +157,15 @@ public struct XrayConfigCompiler: Sendable {
         }
         if !options.dnsServers.isEmpty {
             root["dns"] = .object(["servers": .array(options.dnsServers.map { .string($0) })])
+        }
+        if options.memoryProfile == .mobile {
+            root["policy"] = .object(["levels": .object([
+                "0": .object(XrayConfigCompiler.mobilePolicy.mapValues { .integer($0) }),
+            ])])
+            report.add(
+                "options.memoryProfile", .migrated, .info,
+                "Mobile memory profile: connections idle for \(XrayConfigCompiler.mobilePolicy["connIdle"] ?? 0) s are closed and per-connection buffers are \(XrayConfigCompiler.mobilePolicy["bufferSize"] ?? 0) KiB"
+            )
         }
         compiled.append(.object(["tag": .string(XrayConfigCompiler.directTag), "protocol": .string("freedom")]))
         compiled.append(.object(["tag": .string(XrayConfigCompiler.blockTag), "protocol": .string("blackhole")]))
@@ -690,6 +748,17 @@ public struct XrayConfigCompiler: Sendable {
         }
         if !quic.isEmpty {
             quic["congestion"] = .string("brutal")
+        }
+        if options.memoryProfile == .mobile {
+            for (key, value) in XrayConfigCompiler.mobileQUICWindows {
+                quic[key] = .integer(value)
+            }
+            context.note(
+                "stream.quic", .migrated, .info,
+                "Mobile memory profile: QUIC receive windows are capped at \((XrayConfigCompiler.mobileQUICWindows["maxConnectionReceiveWindow"] ?? 0) >> 20) MiB per connection"
+            )
+        }
+        if !quic.isEmpty {
             preset.quicParams = quic
         }
 

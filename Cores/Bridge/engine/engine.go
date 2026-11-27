@@ -341,7 +341,7 @@ func (r *run) bringUp() (rerr *Error) {
 	r.instance = instance
 
 	if prep.tun != nil {
-		r.device = newFlowDevice(opts.Tun.OutQueueBytes)
+		r.device = newFlowDevice(opts.Tun.OutQueueBytes, opts.Tun.MaxFlows)
 		ctx := instanceContext(instance)
 		h, err := newFlowInbound(ctx, instance, prep.tun, r.device)
 		if err != nil {

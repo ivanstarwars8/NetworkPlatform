@@ -36,6 +36,10 @@ type TunCounters struct {
 	TxDropped      uint64 `json:"txDropped"`      // tail drops: the host did not read fast enough
 	TxQueueHighest int    `json:"txQueueHighest"` // high-water mark of the queue in bytes
 	TxQueueBytes   int    `json:"txQueueBytes"`   // capacity
+	// Flows handed to the core: TCP connections and UDP flows of the bridge's stack.
+	FlowsActive   int64  `json:"flowsActive"`
+	FlowsHighest  int64  `json:"flowsHighest"`
+	FlowsRejected uint64 `json:"flowsRejected"` // closed at once because tun.maxFlows was reached
 }
 
 // flowDevice is the packet interface of one engine run in TunFlow mode. It implements the core's tun.Tun so
@@ -49,11 +53,33 @@ type flowDevice struct {
 	stack tun.Stack
 
 	rxPackets, rxBytes, rxMalformed, rxNoStack atomic.Uint64
+
+	maxFlows                  int64 // 0 = no cap
+	flowsActive, flowsHighest atomic.Int64
+	flowsRejected             atomic.Uint64
 }
 
-func newFlowDevice(outQueueBytes int) *flowDevice {
-	return &flowDevice{out: newPacketQueue(outQueueBytes)}
+func newFlowDevice(outQueueBytes, maxFlows int) *flowDevice {
+	return &flowDevice{out: newPacketQueue(outQueueBytes), maxFlows: int64(maxFlows)}
 }
+
+// acquireFlow admits one flow unless the cap is reached. Every admitted flow is released with releaseFlow.
+func (d *flowDevice) acquireFlow() bool {
+	n := d.flowsActive.Add(1)
+	if d.maxFlows > 0 && n > d.maxFlows {
+		d.flowsActive.Add(-1)
+		d.flowsRejected.Add(1)
+		return false
+	}
+	for {
+		old := d.flowsHighest.Load()
+		if n <= old || d.flowsHighest.CompareAndSwap(old, n) {
+			return true
+		}
+	}
+}
+
+func (d *flowDevice) releaseFlow() { d.flowsActive.Add(-1) }
 
 var _ tun.Tun = (*flowDevice)(nil)
 
@@ -134,6 +160,7 @@ func (d *flowDevice) counters() TunCounters {
 	q.mu.Unlock()
 	c.RxPackets, c.RxBytes = d.rxPackets.Load(), d.rxBytes.Load()
 	c.RxMalformed, c.RxNoStack = d.rxMalformed.Load(), d.rxNoStack.Load()
+	c.FlowsActive, c.FlowsHighest, c.FlowsRejected = d.flowsActive.Load(), d.flowsHighest.Load(), d.flowsRejected.Load()
 	return c
 }
 
@@ -221,6 +248,11 @@ func (w *countingWriter) WriteMultiBuffer(mb buf.MultiBuffer) error {
 // TCP connection and every new UDP flow.
 func (h *flowInbound) HandleConnection(conn xnet.Conn, destination xnet.Destination) {
 	defer conn.Close()
+	if !h.device.acquireFlow() {
+		// Over tun.maxFlows: the accepted connection or UDP flow is closed without being dispatched.
+		return
+	}
+	defer h.device.releaseFlow()
 
 	ctx, cancel := context.WithCancel(h.ctx)
 	defer cancel()

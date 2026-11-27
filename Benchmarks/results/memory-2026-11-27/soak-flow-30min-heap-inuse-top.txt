@@ -1,0 +1,32 @@
+File: nplab
+Build ID: c5002584bb2ce7aa6406ea848bbdfe1a1aa5f3eb
+Type: inuse_space
+Time: 2026-11-27 11:05:48 UTC
+Showing nodes accounting for 43.75MB, 86.20% of 50.75MB total
+Showing top 25 nodes out of 195
+      flat  flat%   sum%        cum   cum%
+    5.04MB  9.93%  9.93%     5.04MB  9.93%  github.com/xtls/xray-core/common/bytespool.createAllocFunc.func1
+    5.01MB  9.87% 19.80%     5.01MB  9.87%  bytes.growSlice
+    4.54MB  8.94% 28.74%     4.54MB  8.94%  crypto/internal/fips140/mlkem.NewDecapsulationKey768 (inline)
+    4.50MB  8.87% 37.61%     4.50MB  8.87%  runtime.mallocgc
+    2.50MB  4.93% 42.54%    11.54MB 22.74%  github.com/refraction-networking/utls.(*UConn).ApplyPreset
+    2.04MB  4.01% 46.56%     2.04MB  4.01%  networkplatform/bridge/engine.newPacketQueue
+       2MB  3.95% 50.51%        2MB  3.95%  crypto/x509.parseCertificate
+       2MB  3.94% 54.45%        2MB  3.94%  github.com/refraction-networking/utls.UClient
+       2MB  3.94% 58.39%        2MB  3.94%  reflect.unsafe_NewArray
+    1.50MB  2.96% 61.35%     1.50MB  2.96%  github.com/refraction-networking/utls.(*Conn).unmarshalHandshakeMessage
+    1.50MB  2.96% 64.31%     1.50MB  2.96%  context.WithValue
+    1.50MB  2.96% 67.26%     1.50MB  2.96%  reflect.unsafe_New
+       1MB  1.97% 69.24%        1MB  1.97%  crypto/internal/fips140/aes/gcm.New (inline)
+       1MB  1.97% 71.21%        1MB  1.97%  github.com/refraction-networking/utls.chrome155TrustAnchorIDs
+       1MB  1.97% 73.18%        1MB  1.97%  github.com/refraction-networking/utls.(*PubClientHelloMsg).getPrivatePtr
+       1MB  1.97% 75.15%        1MB  1.97%  github.com/refraction-networking/utls.(*clientHelloMsg).getPublicPtr
+       1MB  1.97% 77.12%        1MB  1.97%  crypto/ecdh.(*PublicKey).Bytes (inline)
+       1MB  1.97% 79.09%     1.50MB  2.96%  github.com/xtls/xray-core/common/task.Run
+    0.55MB  1.09% 80.18%     0.55MB  1.09%  reflect.compiledTypelinks
+    0.55MB  1.08% 81.26%     1.05MB  2.07%  main.(*pump).rx
+    0.51MB     1% 82.26%     0.51MB     1%  google.golang.org/protobuf/types/descriptorpb.init
+    0.50MB  0.99% 83.25%     0.50MB  0.99%  bufio.NewWriterSize
+    0.50MB  0.99% 84.23%     0.50MB  0.99%  google.golang.org/protobuf/internal/filedesc.(*Message).unmarshalFull
+    0.50MB  0.99% 85.22%    30.06MB 59.23%  github.com/xtls/xray-core/transport/internet/reality.UClient
+    0.50MB  0.99% 86.20%     0.50MB  0.99%  github.com/refraction-networking/utls.(*serverHelloMsg).getPublicPtr

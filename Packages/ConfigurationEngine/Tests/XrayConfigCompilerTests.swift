@@ -346,6 +346,47 @@ final class XrayConfigCompilerTests: XCTestCase {
 
     // MARK: - Profile level
 
+    func testMobileMemoryProfile() throws {
+        let node = try outbound("trojan://pw@a.example.com:443#my node")
+        let profile = Profile(name: "p", outbounds: [node], selectedTag: "my node")
+        let mobile = XrayConfigCompiler(options: XrayCompileOptions(memoryProfile: .mobile)).compile(profile)
+        // an informational note only: the profile itself is compiled exactly
+        XCTAssertEqual(mobile.report.verdict, .exact)
+        XCTAssertTrue(mobile.report.issues.contains { $0.path == "options.memoryProfile" && $0.severity == .info })
+        XCTAssertEqual(mobile.config?["policy"], .object(["levels": .object(["0": .object([
+            "connIdle": .integer(30), "handshake": .integer(10), "uplinkOnly": .integer(1),
+            "downlinkOnly": .integer(1), "bufferSize": .integer(4),
+        ])])]))
+        XCTAssertNil(XrayConfigCompiler().compile(profile).config?["policy"])
+
+        let hysteria = try outbound("hysteria2://auth@hy.example.com:443/?sni=hy.example.com&up=100mbps#h")
+        let mobileHy = XrayConfigCompiler(options: XrayCompileOptions(memoryProfile: .mobile))
+            .compileOutbound(hysteria, engineTag: "proxy-0000")
+        XCTAssertEqual(mobileHy.json?["streamSettings"]?["finalmask"]?["quicParams"], .object([
+            "congestion": .string("brutal"), "brutalUp": .string("100mbps"),
+            "initStreamReceiveWindow": .integer(524_288), "maxStreamReceiveWindow": .integer(2_097_152),
+            "initConnectionReceiveWindow": .integer(1_048_576), "maxConnectionReceiveWindow": .integer(4_194_304),
+        ]))
+        // windows alone do not switch the congestion control
+        let plainHy = try outbound("hysteria2://auth@hy.example.com:443/?sni=hy.example.com#h")
+        let windowsOnly = XrayConfigCompiler(options: XrayCompileOptions(memoryProfile: .mobile))
+            .compileOutbound(plainHy, engineTag: "proxy-0000")
+        XCTAssertNil(windowsOnly.json?["streamSettings"]?["finalmask"]?["quicParams"]?["congestion"])
+        XCTAssertNotNil(windowsOnly.json?["streamSettings"]?["finalmask"]?["quicParams"]?["maxStreamReceiveWindow"])
+        XCTAssertNil(compiler.compileOutbound(plainHy, engineTag: "proxy-0000").json?["streamSettings"]?["finalmask"])
+    }
+
+    func testCompileOptionsDecodeWithoutMemoryProfile() throws {
+        let old = #"{"logLevel":"info","dnsServers":[]}"#.data(using: .utf8)!
+        let options = try JSONDecoder().decode(XrayCompileOptions.self, from: old)
+        XCTAssertEqual(options.memoryProfile, .standard)
+        let roundTrip = try JSONDecoder().decode(
+            XrayCompileOptions.self,
+            from: JSONEncoder().encode(XrayCompileOptions(memoryProfile: .mobile))
+        )
+        XCTAssertEqual(roundTrip.memoryProfile, .mobile)
+    }
+
     func testSingleOutboundProfile() throws {
         let node = try outbound("trojan://pw@a.example.com:443#my node")
         let profile = Profile(name: "p", outbounds: [node], selectedTag: "my node")

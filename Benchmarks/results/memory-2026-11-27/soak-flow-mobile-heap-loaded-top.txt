@@ -1,0 +1,32 @@
+File: nplab
+Build ID: 599ddedaccb7ff0ed6692619b347bb4cddba8448
+Type: inuse_space
+Time: 2026-11-27 12:29:43 UTC
+Showing nodes accounting for 8962.69kB, 100% of 8962.69kB total
+Showing top 25 nodes out of 112
+      flat  flat%   sum%        cum   cum%
+ 2050.47kB 22.88% 22.88%  2050.47kB 22.88%  runtime.mallocgc
+ 1548.03kB 17.27% 40.15%  1548.03kB 17.27%  github.com/xtls/xray-core/common/bytespool.createAllocFunc.func1
+  650.62kB  7.26% 47.41%   650.62kB  7.26%  main.(*pump).tx
+  565.76kB  6.31% 53.72%   565.76kB  6.31%  reflect.compiledTypelinks
+  561.50kB  6.26% 59.99%  1077.51kB 12.02%  main.(*pump).rx
+  513.50kB  5.73% 65.72%   513.50kB  5.73%  google.golang.org/protobuf/internal/filedesc.(*Message).unmarshalFull
+  512.38kB  5.72% 71.43%   512.38kB  5.72%  crypto/internal/fips140/aes/gcm.New (inline)
+  512.31kB  5.72% 77.15%   512.31kB  5.72%  github.com/refraction-networking/utls.(*PubClientHelloMsg).getPrivatePtr
+  512.09kB  5.71% 82.86%   512.09kB  5.71%  github.com/refraction-networking/utls.(*GREASEEncryptedClientHelloExtension).randomizePayload
+  512.02kB  5.71% 88.57%  1024.39kB 11.43%  github.com/refraction-networking/utls.aeadAESGCMTLS13
+  512.01kB  5.71% 94.29%   512.01kB  5.71%  google.golang.org/protobuf/internal/filedesc.init
+  512.01kB  5.71%   100%   512.01kB  5.71%  github.com/refraction-networking/utls.chrome155TrustAnchorIDs
+         0     0%   100%   512.38kB  5.72%  crypto/cipher.NewGCM
+         0     0%   100%   512.38kB  5.72%  crypto/cipher.newGCM
+         0     0%   100%   565.76kB  6.31%  encoding/gob.buildTypeInfo
+         0     0%   100%   565.76kB  6.31%  encoding/gob.getBaseType
+         0     0%   100%   565.76kB  6.31%  encoding/gob.getType
+         0     0%   100%   565.76kB  6.31%  encoding/gob.getTypeInfo
+         0     0%   100%   565.76kB  6.31%  encoding/gob.implementsInterface
+         0     0%   100%   565.76kB  6.31%  encoding/gob.init
+         0     0%   100%   565.76kB  6.31%  encoding/gob.mustGetTypeInfo
+         0     0%   100%   565.76kB  6.31%  encoding/gob.newTypeObject
+         0     0%   100%   565.76kB  6.31%  encoding/gob.userType
+         0     0%   100%   565.76kB  6.31%  encoding/gob.validUserType
+         0     0%   100%   512.38kB  5.72%  github.com/refraction-networking/utls.(*Conn).setReadTrafficSecret

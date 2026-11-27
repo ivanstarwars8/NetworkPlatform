@@ -51,8 +51,33 @@ type Options struct {
 	Tun    TunOptions    `json:"tun"`
 }
 
+// MemoryProfile selects a set of defaults for memory-related options.
+type MemoryProfile string
+
+const (
+	// MemoryProfileDefault leaves every unset option at its ordinary default.
+	MemoryProfileDefault MemoryProfile = ""
+	// MemoryProfileMobile fills unset options with the values measured for a process with a memory budget of
+	// about 50 MiB (an iOS packet tunnel provider; Documentation/Performance/memory-budget.md) and refuses
+	// geodata files. Options set explicitly are kept. It does not change the configuration: the policy levels
+	// (connIdle, bufferSize) and QUIC windows of the mobile profile are emitted by the configuration compiler.
+	MemoryProfileMobile MemoryProfile = "mobile"
+)
+
+// Defaults of the mobile profile. Project choices from measurements on Linux, not platform limits.
+const (
+	MobileMemoryLimitBytes = 40 << 20
+	MobileGCPercent        = 25
+	MobileOutQueueBytes    = 512 << 10
+	MobileMaxFlows         = 512
+	MobileLogQueueSize     = 128
+)
+
 // MemoryOptions are process-wide Go runtime settings applied on Start and restored on Stop.
 type MemoryOptions struct {
+	// Profile fills the options below (and tun.outQueueBytes, tun.maxFlows, logQueueSize) that are left at
+	// zero. See MemoryProfileMobile.
+	Profile MemoryProfile `json:"profile"`
 	// LimitBytes is passed to debug.SetMemoryLimit. 0 = leave the runtime's setting unchanged.
 	LimitBytes int64 `json:"limitBytes"`
 	// GCPercent is passed to debug.SetGCPercent. 0 = leave unchanged; negative disables the percent-based GC
@@ -71,6 +96,10 @@ type TunOptions struct {
 	MTU int `json:"mtu"`
 	// OutQueueBytes bounds the queue of packets waiting for TunRead (TunFlow). Default 2 MiB.
 	OutQueueBytes int `json:"outQueueBytes"`
+	// MaxFlows caps the TCP connections and UDP flows the bridge's stack hands to the core at once (TunFlow).
+	// A flow beyond the cap is closed at once (TCP: reset) and counted in TunCounters.FlowsRejected.
+	// 0 = no cap; the mobile profile sets MobileMaxFlows.
+	MaxFlows int `json:"maxFlows"`
 }
 
 // ParseOptions decodes an options document. Empty input yields defaults. Unknown fields are rejected so that
@@ -107,6 +136,30 @@ func (o *Options) Normalize() *Error {
 	if o.StartTimeoutMs < 0 || o.StopTimeoutMs < 0 {
 		return newError(CodeInvalidArgument, "negative timeout")
 	}
+	switch o.Memory.Profile {
+	case MemoryProfileDefault:
+	case MemoryProfileMobile:
+		if o.AssetDir != "" {
+			return newError(CodeInvalidArgument, "memory.profile=mobile does not load geodata files: assetDir must be empty")
+		}
+		if o.Memory.LimitBytes == 0 {
+			o.Memory.LimitBytes = MobileMemoryLimitBytes
+		}
+		if o.Memory.GCPercent == 0 {
+			o.Memory.GCPercent = MobileGCPercent
+		}
+		if o.Tun.OutQueueBytes == 0 {
+			o.Tun.OutQueueBytes = MobileOutQueueBytes
+		}
+		if o.Tun.MaxFlows == 0 {
+			o.Tun.MaxFlows = MobileMaxFlows
+		}
+		if o.LogQueueSize == 0 {
+			o.LogQueueSize = MobileLogQueueSize
+		}
+	default:
+		return newError(CodeInvalidArgument, "unknown memory.profile %q", o.Memory.Profile)
+	}
 	if o.LogQueueSize == 0 {
 		o.LogQueueSize = 512
 	}
@@ -132,6 +185,9 @@ func (o *Options) Normalize() *Error {
 	}
 	if o.Tun.MTU != 0 && (o.Tun.MTU < 576 || o.Tun.MTU > 65535) {
 		return newError(CodeInvalidArgument, "tun.mtu out of range [576, 65535]")
+	}
+	if o.Tun.MaxFlows < 0 || o.Tun.MaxFlows > 1<<20 {
+		return newError(CodeInvalidArgument, "tun.maxFlows out of range [0, 1048576]")
 	}
 	if o.Tun.OutQueueBytes == 0 {
 		o.Tun.OutQueueBytes = 2 << 20

@@ -66,6 +66,10 @@ type procDelta struct {
 	RSSStart uint64  `json:"rssStart"`
 	RSSPeak  uint64  `json:"rssPeak"`
 	RSSEnd   uint64  `json:"rssEnd"`
+	// private (anonymous) resident memory, the closer analogue of the iOS phys_footprint
+	RSSAnonStart uint64 `json:"rssAnonStart"`
+	RSSAnonPeak  uint64 `json:"rssAnonPeak"`
+	RSSAnonEnd   uint64 `json:"rssAnonEnd"`
 }
 
 type bridgeDelta struct {
@@ -91,7 +95,7 @@ type bridgeDelta struct {
 func runClient(args []string) error {
 	var f clientFlags
 	fs := flag.NewFlagSet("client", flag.ExitOnError)
-	fs.StringVar(&f.test, "test", "", "tcp-up|tcp-down|tcp-echo|tcp-halfclose|tcp-rr|tcp-setup|udp-rr|udp-echo|pmtu|dns|mix")
+	fs.StringVar(&f.test, "test", "", "tcp-up|tcp-down|tcp-echo|tcp-halfclose|tcp-rr|tcp-setup|udp-rr|udp-echo|pmtu|dns|mix|burst")
 	fs.StringVar(&f.addr, "addr", "", "target host:port")
 	fs.Int64Var(&f.bytes, "bytes", 64<<20, "bytes to transfer (total over all connections)")
 	fs.IntVar(&f.conns, "conns", 1, "parallel connections")
@@ -117,13 +121,15 @@ func runClient(args []string) error {
 	}
 	var cpu0 float64
 	var rssStop chan struct{}
-	var rssPeak atomic.Uint64
+	var rssPeak, anonPeak atomic.Uint64
 	var rssWG sync.WaitGroup
 	if f.pid > 0 {
 		cpu0 = procCPU(f.pid)
 		rssStart := procRSS(f.pid)
-		res.Proc = &procDelta{RSSStart: rssStart}
+		anonStart, _ := procRSSSplit(f.pid)
+		res.Proc = &procDelta{RSSStart: rssStart, RSSAnonStart: anonStart}
 		rssPeak.Store(rssStart)
+		anonPeak.Store(anonStart)
 		rssStop = make(chan struct{})
 		rssWG.Add(1)
 		go func() {
@@ -134,6 +140,8 @@ func runClient(args []string) error {
 				select {
 				case <-t.C:
 					storeMax(&rssPeak, procRSS(f.pid))
+					a, _ := procRSSSplit(f.pid)
+					storeMax(&anonPeak, a)
 				case <-rssStop:
 					return
 				}
@@ -165,6 +173,8 @@ func runClient(args []string) error {
 		err = testDNS(&f, res.Values)
 	case "mix":
 		err = testMix(&f, res.Values)
+	case "burst":
+		err = testBurst(&f, res.Values)
 	default:
 		err = fmt.Errorf("unknown test %q", f.test)
 	}
@@ -180,6 +190,9 @@ func runClient(args []string) error {
 		res.Proc.RSSEnd = procRSS(f.pid)
 		storeMax(&rssPeak, res.Proc.RSSEnd)
 		res.Proc.RSSPeak = rssPeak.Load()
+		res.Proc.RSSAnonEnd, _ = procRSSSplit(f.pid)
+		storeMax(&anonPeak, res.Proc.RSSAnonEnd)
+		res.Proc.RSSAnonPeak = anonPeak.Load()
 	}
 	if before != nil {
 		if after, aerr := fetchSample(f.ctl); aerr == nil {
@@ -867,6 +880,79 @@ func testMix(f *clientFlags, v map[string]any) error {
 	}
 	if errs.Load() > conns.Load()/100+1 {
 		return fmt.Errorf("%d errors in %d connections", errs.Load(), conns.Load())
+	}
+	return nil
+}
+
+// testBurst opens -conns TCP connections and as many UDP sockets to addr at once; every worker echoes
+// -bytes/-conns bytes over TCP and 5 UDP datagrams, and all of them stay open until the last one is done, so
+// the core holds -conns TCP connections and -conns UDP sessions at the same time.
+func testBurst(f *clientFlags, v map[string]any) error {
+	per := max(f.bytes/int64(f.conns), 1)
+	var errs, udpOK, udpLost atomic.Int64
+	var lastErr atomic.Value
+	var done, release sync.WaitGroup
+	done.Add(f.conns)
+	release.Add(1)
+	var finished sync.WaitGroup
+	finished.Add(f.conns)
+	t0 := time.Now()
+	for w := 0; w < f.conns; w++ {
+		go func() {
+			defer finished.Done()
+			fail := func(err error) { errs.Add(1); lastErr.Store(err.Error()) }
+			var conns []net.Conn
+			defer func() {
+				release.Wait()
+				for _, c := range conns {
+					c.Close()
+				}
+			}()
+			defer done.Done()
+			c, err := net.DialTimeout("tcp", net.JoinHostPort(f.addr, fmt.Sprint(portEcho)), 20*time.Second)
+			if err != nil {
+				fail(err)
+				return
+			}
+			conns = append(conns, c)
+			_ = c.SetDeadline(time.Now().Add(f.timeout))
+			out := make([]byte, per)
+			werr := make(chan error, 1)
+			go func() { _, err := c.Write(out); werr <- err }()
+			if _, err := io.ReadFull(c, make([]byte, per)); err != nil {
+				fail(err)
+				return
+			}
+			if err := <-werr; err != nil {
+				fail(err)
+				return
+			}
+			u, err := net.Dial("udp", net.JoinHostPort(f.addr, fmt.Sprint(portEcho)))
+			if err != nil {
+				fail(err)
+				return
+			}
+			conns = append(conns, u)
+			for i := 0; i < 5; i++ {
+				if udpOnce(u.(*net.UDPConn), 512, 2) == "ok" {
+					udpOK.Add(1)
+				} else {
+					udpLost.Add(1)
+				}
+			}
+		}()
+	}
+	done.Wait()
+	elapsed := time.Since(t0)
+	release.Done()
+	finished.Wait()
+	v["workers"], v["bytesPerWorker"], v["seconds"] = f.conns, per, elapsed.Seconds()
+	v["errors"], v["udpOK"], v["udpLost"] = errs.Load(), udpOK.Load(), udpLost.Load()
+	if s, ok := lastErr.Load().(string); ok {
+		v["lastError"] = s
+	}
+	if errs.Load() > 0 {
+		return fmt.Errorf("%d of %d workers failed", errs.Load(), f.conns)
 	}
 	return nil
 }

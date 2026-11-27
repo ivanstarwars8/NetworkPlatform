@@ -86,7 +86,7 @@
 6.2. Нагрузка 30 мин: 3.1 в цикле + 50 параллельных UDP-потоков к своему серверу. Строить footprint раз в 10 с (CSV из Instruments). Найти плато.
 6.3. Давление памяти: в журнале строки `memory pressure warning/critical`. Записать footprint в момент каждой.
 6.4. Если расширение убито системой: в Console искать `jetsam`/`EXC_RESOURCE` с `PacketTunnel`; в «Настройки → Конфиденциальность → Аналитика» — отчёт `JetsamEvent`. Записать footprint последней точки перед убийством. Это и есть наблюдённый предел для модели устройства.
-6.5. Повторить 6.2 с опциями памяти моста (`memory.limitBytes` 24/32/40 МиБ, `gcPercent` 50) и с `connIdle` 30 с в конфиге ядра. Сравнить плато.
+6.5. Повторить 6.2 с профилем `mobile`: опция моста `memory.profile = "mobile"` и конфиг, скомпилированный с `XrayMemoryProfile.mobile` (`connIdle` 30 с, `bufferSize` 4 КиБ). Затем — с `memory.limitBytes` 32/48 МиБ поверх профиля. Сравнить плато footprint и CPU расширения; ожидание по Linux — `Documentation/Performance/memory-budget.md` (RssAnon ~20 МиБ на плато). Записать `phys_footprint` на холостом старте: на Linux RSS 32 МиБ, из них 26 МиБ — страницы бинарника (не грязные).
 
 ## 7. 100 циклов переподключения
 

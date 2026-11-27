@@ -1,0 +1,32 @@
+File: nplab
+Build ID: a52f8cb6d719d0c81b4f7fb49d57161bd474e77f
+Type: inuse_space
+Time: 2026-11-27 11:20:40 UTC
+Showing nodes accounting for 20679.40kB, 100% of 20679.40kB total
+Showing top 25 nodes out of 158
+      flat  flat%   sum%        cum   cum%
+ 3096.06kB 14.97% 14.97%  3096.06kB 14.97%  crypto/internal/fips140/mlkem.NewDecapsulationKey768 (inline)
+ 3096.06kB 14.97% 29.94%  3096.06kB 14.97%  github.com/xtls/xray-core/common/bytespool.createAllocFunc.func1
+ 2086.21kB 10.09% 40.03%  2086.21kB 10.09%  networkplatform/bridge/engine.newPacketQueue
+ 2051.88kB  9.92% 49.95%  2051.88kB  9.92%  bytes.growSlice
+ 1025.25kB  4.96% 54.91%  1025.25kB  4.96%  github.com/refraction-networking/utls.(*Conn).unmarshalHandshakeMessage
+ 1024.10kB  4.95% 59.86% 10783.30kB 52.15%  networkplatform/bridge/engine.(*flowInbound).HandleConnection
+  565.76kB  2.74% 62.60%   565.76kB  2.74%  reflect.compiledTypelinks
+  561.50kB  2.72% 65.32%  1589.56kB  7.69%  main.(*pump).rx
+     513kB  2.48% 67.80%      513kB  2.48%  runtime.mallocgc
+  512.88kB  2.48% 70.28%  4121.28kB 19.93%  github.com/refraction-networking/utls.(*UConn).ApplyPreset
+  512.69kB  2.48% 72.76%   512.69kB  2.48%  encoding/json/v2.makeStructFields
+  512.69kB  2.48% 75.23%   512.69kB  2.48%  regexp/syntax.(*compiler).inst
+  512.38kB  2.48% 77.71%   512.38kB  2.48%  crypto/internal/fips140/aes/gcm.New (inline)
+  512.34kB  2.48% 80.19%   512.34kB  2.48%  reflect.unsafe_NewArray
+  512.28kB  2.48% 82.67%   512.28kB  2.48%  github.com/refraction-networking/utls.UClient
+  512.07kB  2.48% 85.14%   512.07kB  2.48%  crypto/ecdh.(*PublicKey).Bytes (inline)
+  512.07kB  2.48% 87.62%   512.07kB  2.48%  google.golang.org/protobuf/internal/impl.fieldInfoForScalar
+  512.05kB  2.48% 90.10%   512.05kB  2.48%  github.com/xtls/xray-core/proxy/tun.newPacketQueue (inline)
+  512.05kB  2.48% 92.57%   512.05kB  2.48%  github.com/xtls/xray-core/common/session.SubContextFromMuxInbound
+  512.05kB  2.48% 95.05%   512.05kB  2.48%  time.Sleep
+  512.02kB  2.48% 97.52%   512.02kB  2.48%  context.(*cancelCtx).propagateCancel
+  512.02kB  2.48%   100%   512.02kB  2.48%  github.com/xtls/xray-core/common/xudp.NewPacketReader
+         0     0%   100%     1539kB  7.44%  bufio.(*Writer).Flush
+         0     0%   100%     1539kB  7.44%  bufio.(*Writer).ReadFrom
+         0     0%   100%   512.88kB  2.48%  bytes.(*Buffer).Grow (inline)
