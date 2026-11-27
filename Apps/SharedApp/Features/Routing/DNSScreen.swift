@@ -1,4 +1,5 @@
-// UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode
+// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
+// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46077240856 (workflow apple.yml)
 //
 // DNS (level Расширенный, area Настройки): resolver servers (UDP, TCP, DoH, DoT), servers for single domains,
 // IPv6 answers and leak protection (on by default). Compiled into both engines' DNS sections by

@@ -1,4 +1,5 @@
-// UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode
+// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
+// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46077240856 (workflow apple.yml)
 //
 // Маршрут (level Профи, area Инструменты): enter a domain, an address, a port and a protocol and see where the
 // connection goes, which rule decided and why. The answer comes from RoutingPolicy's RouteExplainer over the

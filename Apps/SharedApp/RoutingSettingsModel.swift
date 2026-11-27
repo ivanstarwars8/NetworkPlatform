@@ -1,4 +1,5 @@
-// UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode
+// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
+// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46077240856 (workflow apple.yml)
 //
 // The app's side of routing and DNS (main actor): the settings file (`RoutingSettingsStore`), downloads of
 // lists by address, and the compiler the next connection uses. Settings apply at the next connection; the

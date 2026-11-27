@@ -1,4 +1,5 @@
-// UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode
+// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
+// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46077240856 (workflow apple.yml)
 //
 // Правила (level Расширенный, area Настройки): the preset, own rules (order, on/off, edit, delete) and lists
 // downloaded by address. Everything is compiled by Packages/RoutingPolicy into the routing table both engines

@@ -1,7 +1,5 @@
 // compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
-// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46073714202 (workflow apple.yml)
-//
-// (Links to the other Настройки screens added; this file not yet recompiled on macOS CI.)
+// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46077240856 (workflow apple.yml)
 //
 // Настройки: the level (which screens are shown), the engine of a build with two engines, and about the app
 // (version, engines in this build, bundled fonts and their licences).

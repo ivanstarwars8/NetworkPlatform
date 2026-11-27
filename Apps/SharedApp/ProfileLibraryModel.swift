@@ -1,8 +1,6 @@
 // compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
-// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46073714202 (workflow apple.yml)
+// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46077240856 (workflow apple.yml)
 // (User-facing messages translated to Russian; otherwise as compiled on macOS CI in GitHub Actions run 46055850203.)
-//
-// (Routing and DNS settings added to the compilation; this file not yet recompiled on macOS CI.)
 //
 // The app's side of profiles (main actor): import of pasted share links and subscriptions (a subscription
 // address is downloaded here), the profile file with secrets in the Keychain (`ProfileStore`,
