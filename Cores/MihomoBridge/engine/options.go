@@ -75,7 +75,6 @@ const (
 	MobileMemoryLimitBytes = 40 << 20
 	MobileGCPercent        = 25
 	MobileOutQueueBytes    = 512 << 10
-	MobileInQueueBytes     = 256 << 10
 	MobileMaxFlows         = 512
 	MobileLogQueueSize     = 128
 	MobileUDPIdleTimeoutMs = 30_000
@@ -84,8 +83,10 @@ const (
 
 // MemoryOptions are process-wide Go runtime settings applied on Start and restored on Stop.
 type MemoryOptions struct {
-	// Profile fills the options below (and tun.outQueueBytes, tun.inQueueBytes, tun.maxFlows, logQueueSize)
-	// that are left at zero. See MemoryProfileMobile.
+	// Profile fills the options below (and tun.outQueueBytes, tun.maxFlows, logQueueSize, tcpIdleTimeoutMs,
+	// udpIdleTimeoutMs) that are left at zero. See MemoryProfileMobile. tun.inQueueBytes keeps its 1 MiB
+	// default: 256 and 512 KiB cut upload throughput by 38-54 % on the lab stand with GOGC 25 (the stack's
+	// single reader falls behind and the queue tail-drops).
 	Profile MemoryProfile `json:"profile"`
 	// LimitBytes is passed to debug.SetMemoryLimit. 0 = leave the runtime's setting unchanged.
 	LimitBytes int64 `json:"limitBytes"`
@@ -160,9 +161,6 @@ func (o *Options) Normalize() *Error {
 		}
 		if o.Tun.OutQueueBytes == 0 {
 			o.Tun.OutQueueBytes = MobileOutQueueBytes
-		}
-		if o.Tun.InQueueBytes == 0 {
-			o.Tun.InQueueBytes = MobileInQueueBytes
 		}
 		if o.Tun.MaxFlows == 0 {
 			o.Tun.MaxFlows = MobileMaxFlows

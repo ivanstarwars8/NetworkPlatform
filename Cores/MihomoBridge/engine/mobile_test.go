@@ -18,7 +18,7 @@ func TestMobileProfileOptions(t *testing.T) {
 		t.Fatal(err)
 	}
 	if o.Memory.LimitBytes != MobileMemoryLimitBytes || o.Memory.GCPercent != MobileGCPercent ||
-		o.Tun.OutQueueBytes != MobileOutQueueBytes || o.Tun.InQueueBytes != MobileInQueueBytes ||
+		o.Tun.OutQueueBytes != MobileOutQueueBytes || o.Tun.InQueueBytes != 1<<20 ||
 		o.Tun.MaxFlows != MobileMaxFlows || o.LogQueueSize != MobileLogQueueSize ||
 		o.TCPIdleTimeoutMs != MobileTCPIdleTimeoutMs || o.UDPIdleTimeoutMs != MobileUDPIdleTimeoutMs {
 		t.Fatalf("mobile defaults not applied: %+v", o)
@@ -54,8 +54,8 @@ func TestMobileProfileOptions(t *testing.T) {
 	if s := newIdleSweeper(0, 0); s != nil {
 		t.Error("sweeper without timeouts")
 	}
-	if s := newIdleSweeper(300*time.Second, 30*time.Second); s.every != 5*time.Second {
-		t.Errorf("check interval %v, want 5s", s.every)
+	if s := newIdleSweeper(300*time.Second, 30*time.Second); s.every != time.Second {
+		t.Errorf("check interval %v, want 1s", s.every)
 	}
 	if s := newIdleSweeper(0, time.Second); s.every != 250*time.Millisecond {
 		t.Errorf("check interval %v, want 250ms", s.every)

@@ -572,7 +572,9 @@ do_memcmp() {
 			WITH_CTL=1
 			if [ "$variant" = mobile ]; then
 				cfg="$(MOBILE=1 client_config reality 1500)"
-				start_client flow "$cfg" -profile mobile
+				# MOBILE_EXTRA: more bridge flags for the mobile variant only, e.g. "-inq 1048576"
+				read -r -a mextra <<<"${MOBILE_EXTRA:-}"
+				start_client flow "$cfg" -profile mobile "${mextra[@]}"
 			else
 				cfg="$(client_config reality 1500)"
 				start_client flow "$cfg"

@@ -231,7 +231,20 @@ func startXray(t testing.TB, config string, waitPort int) {
 	var out bytes.Buffer
 	var mu sync.Mutex
 	cmd := exec.Command(stockXray, "run", "-c", path)
-	w := writerFunc(func(p []byte) (int, error) { mu.Lock(); defer mu.Unlock(); return out.Write(p) })
+	// Only the tail is kept: the server logs at debug level, and an unbounded buffer grew by ~12 MB in a 3-minute
+	// TestSoakRSS (17 % of that process's heap; Mihomo section of memory-budget.md).
+	const keep = 256 << 10
+	w := writerFunc(func(p []byte) (int, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		out.Write(p)
+		if out.Len() > 2*keep {
+			tail := append([]byte(nil), out.Bytes()[out.Len()-keep:]...)
+			out.Reset()
+			out.Write(tail)
+		}
+		return len(p), nil
+	})
 	cmd.Stdout, cmd.Stderr = w, w
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)

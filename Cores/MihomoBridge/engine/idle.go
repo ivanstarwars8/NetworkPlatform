@@ -33,8 +33,10 @@ type idleSeen struct {
 	since    time.Time // last time the counters moved (or the tracker first appeared)
 }
 
-// newIdleSweeper returns nil when both timeouts are off. The check interval is a quarter of the shorter
-// timeout, between 250 ms and 5 s, so a connection is closed between timeout and timeout + interval.
+// newIdleSweeper returns nil when both timeouts are off. The check interval is a tenth of the shorter timeout,
+// between 250 ms and 1 s. A connection is closed between timeout and timeout + 2 intervals after its last data
+// (its counters are compared once per interval). A first version checked every 5 s: UDP sessions then lived
+// 30-40 s instead of 30, ~10 % more of them at once on the lab soak (Mihomo section of memory-budget.md).
 func newIdleSweeper(tcp, udp time.Duration) *idleSweeper {
 	if tcp <= 0 && udp <= 0 {
 		return nil
@@ -43,7 +45,7 @@ func newIdleSweeper(tcp, udp time.Duration) *idleSweeper {
 	if shortest <= 0 || (udp > 0 && udp < shortest) {
 		shortest = udp
 	}
-	every := min(max(shortest/4, 250*time.Millisecond), 5*time.Second)
+	every := min(max(shortest/10, 250*time.Millisecond), time.Second)
 	return &idleSweeper{tcp: tcp, udp: udp, every: every, seen: map[string]idleSeen{},
 		stop: make(chan struct{}), done: make(chan struct{})}
 }
