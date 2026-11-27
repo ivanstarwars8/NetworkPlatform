@@ -153,6 +153,17 @@ jobs:
           NP_BRIDGE_ENGINE: xray
         run: Cores/BuildScripts/bridge-apple-verify.sh
 
+      # App Store Connect accepts iOS uploads only from the current major SDK (iOS 26 SDK / Xcode 26 since 2026);
+      # pick the newest Xcode 26+ on the image.
+      - name: Select Xcode 26 or later
+        run: |
+          ls -d /Applications/Xcode*.app
+          x="$(ls -d /Applications/Xcode_2[6-9]*.app 2>/dev/null | grep -v -i beta | sort -V | tail -n 1 || true)"
+          [ -n "$x" ] || { echo "error: no Xcode 26 or later on this runner image"; exit 1; }
+          sudo xcode-select -s "$x/Contents/Developer"
+          xcodebuild -version
+          xcodebuild -showsdks | grep -i iphoneos
+
       - name: XcodeGen
         run: |
           curl -fsSL -o "$RUNNER_TEMP/xcodegen.zip" "$XCODEGEN_URL"
