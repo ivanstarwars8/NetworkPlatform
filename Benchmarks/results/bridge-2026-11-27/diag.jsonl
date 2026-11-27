@@ -1,0 +1,3 @@
+{"label":"diag-stock","test":"tcp-down","addr":"198.18.0.10:19","ok":true,"values":{"bytes":67108864,"mbps":194.05545817757934,"seconds":2.76658496},"proc":{"cpuSec":0.86,"rssStart":34291712,"rssPeak":37597184,"rssEnd":37277696}}
+{"label":"diag-stock-quickack","test":"tcp-down","addr":"198.18.0.10:19","ok":true,"values":{"bytes":67108864,"mbps":180.99639435782748,"seconds":2.966196724},"proc":{"cpuSec":1.34,"rssStart":37277696,"rssPeak":38203392,"rssEnd":37953536}}
+{"label":"diag-stock-quickack-4c","test":"tcp-down","addr":"198.18.0.10:19","ok":true,"values":{"bytes":67108864,"mbps":201.43644400504218,"seconds":2.665212418},"proc":{"cpuSec":1.27,"rssStart":37953536,"rssPeak":40235008,"rssEnd":40235008}}

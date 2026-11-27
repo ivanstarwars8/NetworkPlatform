@@ -1,0 +1,101 @@
+goroutine profile: total 3185
+1059 @ 0x49366a 0x41e68e 0x41e1b2 0xf1f7a5 0xf1edf7 0x98683c 0x98683c 0x98637b 0x98659b 0x1116a7e 0x983b68 0x49af21
+#	0xf1f7a4	github.com/xtls/xray-core/proxy/tun.(*packetQueue).pop+0x24				github.com/xtls/xray-core@v1.260327.1-0.20261109052709-676eaf66f8f0/proxy/tun/udp_fullcone.go:219
+#	0xf1edf6	github.com/xtls/xray-core/proxy/tun.(*udpConn).ReadMultiBuffer+0x16			github.com/xtls/xray-core@v1.260327.1-0.20261109052709-676eaf66f8f0/proxy/tun/udp_fullcone.go:89
+#	0x98683b	github.com/xtls/xray-core/common/buf.(*TimeoutWrapperReader).ReadMultiBuffer+0x9b	github.com/xtls/xray-core@v1.260327.1-0.20261109052709-676eaf66f8f0/common/buf/io.go:48
+#	0x98683b	github.com/xtls/xray-core/common/buf.(*TimeoutWrapperReader).ReadMultiBuffer+0x9b	github.com/xtls/xray-core@v1.260327.1-0.20261109052709-676eaf66f8f0/common/buf/io.go:48
+#	0x98637a	github.com/xtls/xray-core/common/buf.copyInternal+0x5a					github.com/xtls/xray-core@v1.260327.1-0.20261109052709-676eaf66f8f0/common/buf/copy.go:93
+#	0x98659a	github.com/xtls/xray-core/common/buf.Copy+0x9a						github.com/xtls/xray-core@v1.260327.1-0.20261109052709-676eaf66f8f0/common/buf/copy.go:116
+#	0x1116a7d	github.com/xtls/xray-core/proxy/vless/outbound.(*Handler).Process.func4+0xb5d		github.com/xtls/xray-core@v1.260327.1-0.20261109052709-676eaf66f8f0/proxy/vless/outbound/outbound.go:357
+#	0x983b67	github.com/xtls/xray-core/common/task.Run.func1+0x27					github.com/xtls/xray-core@v1.260327.1-0.20261109052709-676eaf66f8f0/common/task/task.go:28
+
+1059 @ 0x49366a 0x451ad7 0x492865 0x510327 0x5113a8 0x511396 0x5e28e5 0x5f5165 0xb8f2b4 0xb8c31b 0xbc7379 0xbc737a 0x984ba5 0x9896c6 0x98968e 0x989f7d 0xce4d32 0x9898bc 0x4cdf63 0xf9fd8f 0xf9fd6a 0x1105aaf 0x1105c65 0x1115b1e 0x983be2 0x983b68 0x49af21
+#	0x492864	internal/poll.runtime_pollWait+0x84							runtime/netpoll.go:351
+#	0x510326	internal/poll.(*pollDesc).wait+0x26							internal/poll/fd_poll_runtime.go:84
+#	0x5113a7	internal/poll.(*pollDesc).waitRead+0x2a7						internal/poll/fd_poll_runtime.go:89
+#	0x511395	internal/poll.(*FD).Read+0x295								internal/poll/fd_unix.go:170
+#	0x5e28e4	net.(*netFD).Read+0x24									net/fd_posix.go:68
+#	0x5f5164	net.(*conn).Read+0x44									net/net.go:196
+#	0xb8f2b3	github.com/refraction-networking/utls.(*Conn).readFromUntil+0xf3			github.com/refraction-networking/utls@v1.8.3-0.20261108164504-a13c59ffe98b/conn.go:823
+#	0xb8c31a	github.com/refraction-networking/utls.(*Conn).readRecordOrCCS+0x3fa			github.com/refraction-networking/utls@v1.8.3-0.20261108164504-a13c59ffe98b/conn.go:629
+#	0xbc7378	github.com/refraction-networking/utls.(*Conn).readRecord+0x158				github.com/refraction-networking/utls@v1.8.3-0.20261108164504-a13c59ffe98b/conn.go:591
+#	0xbc7379	github.com/refraction-networking/utls.(*UConn).Read+0x159				github.com/refraction-networking/utls@v1.8.3-0.20261108164504-a13c59ffe98b/u_conn.go:875
+#	0x984ba4	github.com/xtls/xray-core/transport/internet/stat.(*CounterConnection).Read+0x24	github.com/xtls/xray-core@v1.260327.1-0.20261109052709-676eaf66f8f0/transport/internet/stat/connection.go:20
+#	0x9896c5	github.com/xtls/xray-core/common/buf.(*Buffer).ReadFrom+0x65				github.com/xtls/xray-core@v1.260327.1-0.20261109052709-676eaf66f8f0/common/buf/buffer.go:328
+#	0x98968d	github.com/xtls/xray-core/common/buf.ReadBuffer+0x2d					github.com/xtls/xray-core@v1.260327.1-0.20261109052709-676eaf66f8f0/common/buf/reader.go:30
+#	0x989f7c	github.com/xtls/xray-core/common/buf.(*SingleReader).ReadMultiBuffer+0x1c		github.com/xtls/xray-core@v1.260327.1-0.20261109052709-676eaf66f8f0/common/buf/reader.go:158
+#	0xce4d31	github.com/xtls/xray-core/proxy.(*VisionReader).ReadMultiBuffer+0x31			github.com/xtls/xray-core@v1.260327.1-0.20261109052709-676eaf66f8f0/proxy/proxy.go:204
+#	0x9898bb	github.com/xtls/xray-core/common/buf.(*BufferedReader).Read+0xdb			github.com/xtls/xray-core@v1.260327.1-0.20261109052709-676eaf66f8f0/common/buf/reader.go:76
+#	0x4cdf62	io.ReadAtLeast+0x82									io/io.go:335
+#	0xf9fd8e	io.ReadFull+0x4e									io/io.go:354
+#	0xf9fd69	github.com/xtls/xray-core/common/xudp.(*PacketReader).ReadMultiBuffer+0x29		github.com/xtls/xray-core@v1.260327.1-0.20261109052709-676eaf66f8f0/common/xudp/xudp.go:152
+#	0x1105aae	github.com/xtls/xray-core/proxy/vless/encoding.XtlsRead.func1+0xce			github.com/xtls/xray-core@v1.260327.1-0.20261109052709-676eaf66f8f0/proxy/vless/encoding/encoding.go:188
+#	0x1105c64	github.com/xtls/xray-core/proxy/vless/encoding.XtlsRead+0x284				github.com/xtls/xray-core@v1.260327.1-0.20261109052709-676eaf66f8f0/proxy/vless/encoding/encoding.go:199
+#	0x1115b1d	github.com/xtls/xray-core/proxy/vless/outbound.(*Handler).Process.func5+0x63d		github.com/xtls/xray-core@v1.260327.1-0.20261109052709-676eaf66f8f0/proxy/vless/outbound/outbound.go:391
+#	0x983be1	github.com/xtls/xray-core/common/task.OnSuccess.func1+0x21				github.com/xtls/xray-core@v1.260327.1-0.20261109052709-676eaf66f8f0/common/task/task.go:12
+#	0x983b67	github.com/xtls/xray-core/common/task.Run.func1+0x27					github.com/xtls/xray-core@v1.260327.1-0.20261109052709-676eaf66f8f0/common/task/task.go:28
+
+1059 @ 0x49366a 0x46b397 0x9838e5 0x11146ef 0x110f41d 0xb255d2 0xb23d70 0x11c639b 0x49af21
+#	0x9838e4	github.com/xtls/xray-core/common/task.Run+0x284						github.com/xtls/xray-core@v1.260327.1-0.20261109052709-676eaf66f8f0/common/task/task.go:48
+#	0x11146ee	github.com/xtls/xray-core/proxy/vless/outbound.(*Handler).Process+0x154e		github.com/xtls/xray-core@v1.260327.1-0.20261109052709-676eaf66f8f0/proxy/vless/outbound/outbound.go:408
+#	0x110f41c	github.com/xtls/xray-core/app/proxyman/outbound.(*Handler).Dispatch+0x93c		github.com/xtls/xray-core@v1.260327.1-0.20261109052709-676eaf66f8f0/app/proxyman/outbound/handler.go:239
+#	0xb255d1	github.com/xtls/xray-core/app/dispatcher.(*DefaultDispatcher).routedDispatch+0xbd1	github.com/xtls/xray-core@v1.260327.1-0.20261109052709-676eaf66f8f0/app/dispatcher/default.go:507
+#	0xb23d6f	github.com/xtls/xray-core/app/dispatcher.(*DefaultDispatcher).DispatchLink+0x3af	github.com/xtls/xray-core@v1.260327.1-0.20261109052709-676eaf66f8f0/app/dispatcher/default.go:344
+#	0x11c639a	networkplatform/bridge/engine.(*flowInbound).HandleConnection+0x71a			networkplatform/bridge/engine/flowtun.go:253
+
+1 @ 0x424549 0x495ff8 0x832cb3 0x49af21
+#	0x495ff7	os/signal.signal_recv+0x97	runtime/sigqueue.go:152
+#	0x832cb2	os/signal.loop+0x12		os/signal/signal_unix.go:23
+
+1 @ 0x44e351 0x49243d 0x815c91 0x815965 0x8128c9 0x82da94 0x82e4dc 0x7b2089 0x7b3c6f 0x7d504e 0x7b03bc 0x49af21
+#	0x815c90	runtime/pprof.writeRuntimeProfile+0xb0	runtime/pprof/pprof.go:848
+#	0x815964	runtime/pprof.writeGoroutine+0x44	runtime/pprof/pprof.go:781
+#	0x8128c8	runtime/pprof.(*Profile).WriteTo+0x148	runtime/pprof/pprof.go:405
+#	0x82da93	net/http/pprof.handler.ServeHTTP+0x553	net/http/pprof/pprof.go:272
+#	0x82e4db	net/http/pprof.Index+0xdb		net/http/pprof/pprof.go:391
+#	0x7b2088	net/http.HandlerFunc.ServeHTTP+0x28	net/http/server.go:2362
+#	0x7b3c6e	net/http.(*ServeMux).ServeHTTP+0x1ce	net/http/server.go:2927
+#	0x7d504d	net/http.serverHandler.ServeHTTP+0x8d	net/http/server.go:3440
+#	0x7b03bb	net/http.(*conn).serve+0x6db		net/http/server.go:2161
+
+1 @ 0x49366a 0x41e68e 0x41e1b2 0x11cbf25 0x11d30e5 0x458b87 0x49af21
+#	0x11cbf24	main.runBridge+0xdc4	networkplatform/bridge/cmd/nplab/bridge.go:398
+#	0x11d30e4	main.main+0x84		networkplatform/bridge/cmd/nplab/main.go:29
+#	0x458b86	runtime.main+0x426	runtime/proc.go:302
+
+1 @ 0x49366a 0x451ad7 0x492865 0x510327 0x5113a8 0x511396 0x5e28e5 0x5f5165 0x7a9e72 0x49af21
+#	0x492864	internal/poll.runtime_pollWait+0x84		runtime/netpoll.go:351
+#	0x510326	internal/poll.(*pollDesc).wait+0x26		internal/poll/fd_poll_runtime.go:84
+#	0x5113a7	internal/poll.(*pollDesc).waitRead+0x2a7	internal/poll/fd_poll_runtime.go:89
+#	0x511395	internal/poll.(*FD).Read+0x295			internal/poll/fd_unix.go:170
+#	0x5e28e4	net.(*netFD).Read+0x24				net/fd_posix.go:68
+#	0x5f5164	net.(*conn).Read+0x44				net/net.go:196
+#	0x7a9e71	net/http.(*connReader).backgroundRead+0x31	net/http/server.go:742
+
+1 @ 0x49366a 0x451ad7 0x492865 0x510327 0x514dbd 0x514dab 0x5e4589 0x5fea5b 0x5fdd70 0x7b5559 0x11d5a1f 0x49af21
+#	0x492864	internal/poll.runtime_pollWait+0x84		runtime/netpoll.go:351
+#	0x510326	internal/poll.(*pollDesc).wait+0x26		internal/poll/fd_poll_runtime.go:84
+#	0x514dbc	internal/poll.(*pollDesc).waitRead+0x27c	internal/poll/fd_poll_runtime.go:89
+#	0x514daa	internal/poll.(*FD).Accept+0x26a		internal/poll/fd_unix.go:618
+#	0x5e4588	net.(*netFD).accept+0x28			net/fd_unix.go:149
+#	0x5fea5a	net.(*TCPListener).accept+0x1a			net/tcpsock_posix.go:159
+#	0x5fdd6f	net.(*TCPListener).Accept+0x2f			net/tcpsock.go:387
+#	0x7b5558	net/http.(*Server).Serve+0x378			net/http/server.go:3578
+#	0x11d5a1e	main.runBridge.func3+0x1e			networkplatform/bridge/cmd/nplab/bridge.go:393
+
+1 @ 0x49366a 0x46b397 0x11c8246 0x11c49b8 0x11ca425 0x49af21
+#	0x11c8245	networkplatform/bridge/engine.(*packetQueue).read+0x1e5	networkplatform/bridge/engine/packetqueue.go:132
+#	0x11c49b7	networkplatform/bridge/engine.(*Engine).TunRead+0x57	networkplatform/bridge/engine/engine.go:634
+#	0x11ca424	main.(*pump).tx+0x144					networkplatform/bridge/cmd/nplab/bridge.go:179
+
+1 @ 0x49366a 0x497e25 0xfa9109 0x49af21
+#	0x497e24	time.Sleep+0x164					runtime/time.go:368
+#	0xfa9108	github.com/xtls/xray-core/common/mux.init.0.func1+0x28	github.com/xtls/xray-core@v1.260327.1-0.20261109052709-676eaf66f8f0/common/mux/session.go:241
+
+1 @ 0x4b4479 0x836492 0x833ab8 0x833b8a 0x11c9d25 0x49af21
+#	0x4b4478	syscall.Syscall6+0x38			syscall/syscall_linux.go:96
+#	0x836491	golang.org/x/sys/unix.ppoll+0x51	golang.org/x/sys@v0.49.0/unix/zsyscall_linux.go:138
+#	0x833ab7	golang.org/x/sys/unix.Ppoll+0x37	golang.org/x/sys@v0.49.0/unix/syscall_linux.go:158
+#	0x833b89	golang.org/x/sys/unix.Poll+0x89		golang.org/x/sys@v0.49.0/unix/syscall_linux.go:167
+#	0x11c9d24	main.(*pump).rx+0xe4			networkplatform/bridge/cmd/nplab/bridge.go:103
+

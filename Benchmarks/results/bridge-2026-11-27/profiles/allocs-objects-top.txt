@@ -1,0 +1,38 @@
+File: nplab
+Build ID: c5002584bb2ce7aa6406ea848bbdfe1a1aa5f3eb
+Type: alloc_objects
+Time: 2026-11-27 06:54:05 UTC
+Showing nodes accounting for 748116, 99.48% of 752031 total
+Dropped 92 nodes (cum <= 3760)
+Showing top 30 nodes out of 51
+      flat  flat%   sum%        cum   cum%
+    469579 62.44% 62.44%     469579 62.44%  github.com/xtls/xray-core/proxy/tun.(*tcpConn).WriteMultiBuffer
+    131075 17.43% 79.87%     131075 17.43%  github.com/xtls/xray-core/common/buf.(*Buffer).Release
+     65536  8.71% 88.59%     109357 14.54%  github.com/xtls/xray-core/common/buf.(*SingleReader).ReadMultiBuffer
+     43692  5.81% 94.40%      43821  5.83%  github.com/xtls/xray-core/common/buf.New
+     32768  4.36% 98.75%      32768  4.36%  google.golang.org/protobuf/internal/impl.consumeStringValidateUTF8
+      5461  0.73% 99.48%       5461  0.73%  google.golang.org/protobuf/internal/filedesc.(*Message).unmarshalFull
+         5 0.00066% 99.48%     131080 17.43%  main.(*pump).rx
+         0     0% 99.48%      43821  5.83%  github.com/xtls/xray-core/common/buf.ReadBuffer
+         0     0% 99.48%      32768  4.36%  github.com/xtls/xray-core/common/serial.(*TypedMessage).GetInstance
+         0     0% 99.48%     578936 76.98%  github.com/xtls/xray-core/common/task.OnSuccess.func1
+         0     0% 99.48%     579448 77.05%  github.com/xtls/xray-core/common/task.Run.func1
+         0     0% 99.48%      32768  4.36%  github.com/xtls/xray-core/core.NewWithContext
+         0     0% 99.48%      32768  4.36%  github.com/xtls/xray-core/core.initInstanceWithConfig
+         0     0% 99.48%     109357 14.54%  github.com/xtls/xray-core/proxy.(*VisionReader).ReadMultiBuffer
+         0     0% 99.48%     469579 62.44%  github.com/xtls/xray-core/proxy/tun.(*TCPWriter).WriteMultiBuffer
+         0     0% 99.48%     131075 17.43%  github.com/xtls/xray-core/proxy/tun.(*stack).Input
+         0     0% 99.48%     131075 17.43%  github.com/xtls/xray-core/proxy/tun.(*stack).handleTCP
+         0     0% 99.48%     131075 17.43%  github.com/xtls/xray-core/proxy/tun.(*stack).input
+         0     0% 99.48%     131075 17.43%  github.com/xtls/xray-core/proxy/tun.(*tcpConn).acknowledge
+         0     0% 99.48%     131075 17.43%  github.com/xtls/xray-core/proxy/tun.(*tcpConn).input
+         0     0% 99.48%     131075 17.43%  github.com/xtls/xray-core/proxy/tun.(*tcpConn).release
+         0     0% 99.48%     578936 76.98%  github.com/xtls/xray-core/proxy/vless/encoding.XtlsRead
+         0     0% 99.48%     578936 76.98%  github.com/xtls/xray-core/proxy/vless/encoding.XtlsRead.func1 (inline)
+         0     0% 99.48%     578936 76.98%  github.com/xtls/xray-core/proxy/vless/outbound.(*Handler).Process.func5
+         0     0% 99.48%       5461  0.73%  google.golang.org/protobuf/internal/filedesc.(*File).lazyInit (inline)
+         0     0% 99.48%       5461  0.73%  google.golang.org/protobuf/internal/filedesc.(*File).lazyInitOnce
+         0     0% 99.48%       5461  0.73%  google.golang.org/protobuf/internal/filedesc.(*File).lazyRawInit
+         0     0% 99.48%       5461  0.73%  google.golang.org/protobuf/internal/filedesc.(*File).unmarshalFull
+         0     0% 99.48%       5461  0.73%  google.golang.org/protobuf/internal/filedesc.(*Message).Fields
+         0     0% 99.48%       5461  0.73%  google.golang.org/protobuf/internal/filedesc.(*Message).lazyInit (inline)

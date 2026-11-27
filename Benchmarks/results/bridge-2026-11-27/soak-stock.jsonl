@@ -1,0 +1,1 @@
+{"label":"soak-stock","test":"mix","addr":"198.18.0.10","ok":true,"values":{"bytes":1937768448,"connections":1848,"errors":0,"udpLost":0,"udpOK":4620},"proc":{"cpuSec":55.029999999999994,"rssStart":33419264,"rssPeak":143806464,"rssEnd":143806464}}
