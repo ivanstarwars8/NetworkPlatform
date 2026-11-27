@@ -15,6 +15,17 @@ work="$(mktemp -d)"; trap 'rm -rf "$work"' EXIT
 unzip -q "$ipa" -d "$work"
 app="$(ls -d "$work"/Payload/*.app)"
 fail() { echo "VERIFY FAILED: $*" >&2; exit 1; }
+# pv FILE KEY [KEY...]: prints the value at that key path as JSON (or nothing). Keys may contain dots, which
+# plutil -extract would treat as path separators.
+pv() {
+  python3 -I -c 'import json, plistlib, sys
+v = plistlib.load(open(sys.argv[1], "rb"))
+for k in sys.argv[2:]:
+    v = v.get(k) if isinstance(v, dict) else None
+if v is not None:
+    print(json.dumps(v, default=str, ensure_ascii=False))' "$@"
+}
+has() { pv "$@" | grep -qF -- "\"$VALUE\""; } # VALUE=x has FILE KEY...: the array or string at KEY contains x
 
 check_bundle() { # bundle expected-id kind
   local b="$1" id="$2" kind="$3" ent prof got
@@ -28,22 +39,18 @@ check_bundle() { # bundle expected-id kind
   ent="$work/$kind.entitlements.plist"
   codesign -d --entitlements - --xml "$b" >"$ent" 2>/dev/null
   echo "  signed entitlements:"; plutil -p "$ent" | sed 's/^/    /'
-  plutil -extract com.apple.developer.networking.networkextension xml1 -o - "$ent" | grep -q '<string>packet-tunnel-provider</string>' \
-    || fail "$kind entitlements lack packet-tunnel-provider"
-  plutil -extract com.apple.security.application-groups xml1 -o - "$ent" | grep -q "<string>$group</string>" \
-    || fail "$kind entitlements lack the App Group $group"
-  if plutil -extract get-task-allow raw "$ent" 2>/dev/null | grep -q true; then fail "$kind has get-task-allow"; fi
+  VALUE=packet-tunnel-provider has "$ent" com.apple.developer.networking.networkextension || fail "$kind entitlements lack packet-tunnel-provider"
+  VALUE="$group" has "$ent" com.apple.security.application-groups || fail "$kind entitlements lack the App Group $group"
+  [ "$(pv "$ent" get-task-allow)" != true ] || fail "$kind has get-task-allow"
   prof="$work/$kind.profile.plist"
   [ -f "$b/embedded.mobileprovision" ] || fail "$kind has no embedded.mobileprovision"
   security cms -D -i "$b/embedded.mobileprovision" >"$prof"
   echo "  profile: $(plutil -extract Name raw "$prof"), expires $(plutil -extract ExpirationDate raw "$prof")"
-  if plutil -extract ProvisionedDevices xml1 -o - "$prof" >/dev/null 2>&1; then fail "$kind profile lists devices (not an App Store profile)"; fi
-  plutil -extract Entitlements.beta-reports-active raw "$prof" | grep -q true || fail "$kind profile lacks beta-reports-active"
-  plutil -extract Entitlements.com.apple.developer.networking.networkextension xml1 -o - "$prof" | grep -q '<string>packet-tunnel-provider</string>' \
-    || fail "$kind profile does not allow packet-tunnel-provider"
-  plutil -extract Entitlements.com.apple.security.application-groups xml1 -o - "$prof" | grep -q "<string>$group</string>" \
-    || fail "$kind profile does not allow the App Group $group"
-  plutil -extract Entitlements.application-identifier raw "$prof" | grep -q "\.$id\$" || fail "$kind profile is not for $id"
+  [ -z "$(pv "$prof" ProvisionedDevices)" ] || fail "$kind profile lists devices (not an App Store profile)"
+  [ "$(pv "$prof" Entitlements beta-reports-active)" = true ] || fail "$kind profile lacks beta-reports-active"
+  VALUE=packet-tunnel-provider has "$prof" Entitlements com.apple.developer.networking.networkextension || fail "$kind profile does not allow packet-tunnel-provider"
+  VALUE="$group" has "$prof" Entitlements com.apple.security.application-groups || fail "$kind profile does not allow the App Group $group"
+  pv "$prof" Entitlements application-identifier | grep -q "\.$id\"\$" || fail "$kind profile is not for $id"
 }
 
 check_bundle "$app" "$app_id" app
