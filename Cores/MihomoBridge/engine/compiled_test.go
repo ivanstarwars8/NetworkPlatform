@@ -12,6 +12,7 @@ import (
 // changes nothing in it (Documentation/Architecture/mihomo-config.md §2: anything the bridge rewrites the
 // compiler should not have written). The tun section must give the bridge's stack the addresses of
 // DomainModels.TunnelAddressing.standard and hijack port 53 of any address.
+// (MihomoConfigCompilerTests.testTunnelAndDNSShape checks the emitted inet6-address itself.)
 func TestCompiledFixturesNeedNoOverride(t *testing.T) {
 	files, err := filepath.Glob(filepath.Join("..", "..", "..", "Tests", "Fixtures", "*", "*.mihomo.yaml"))
 	if err != nil {
@@ -40,7 +41,15 @@ func TestCompiledFixturesNeedNoOverride(t *testing.T) {
 		if p.tun.mtu != 1500 {
 			t.Errorf("%s: mtu %d", file, p.tun.mtu)
 		}
-		want := map[string]bool{"198.18.0.2": false, "fd66:6e70::2": false}
+		want := map[string]bool{"198.18.0.2": false}
+		// The core keeps the tun's IPv6 address only when the host has a global IPv6 address (verifyIP6);
+		// GitHub runners have none, so the IPv6 resolver is checked only when the address survived parsing.
+		if len(p.tun.inet6) > 0 {
+			if p.tun.inet6[0] != netip.MustParsePrefix("fd66:6e70::1/126") {
+				t.Errorf("%s: inet6 %v", file, p.tun.inet6)
+			}
+			want["fd66:6e70::2"] = false
+		}
 		for _, ip := range p.tun.dnsServerIPs {
 			if _, ok := want[ip]; ok {
 				want[ip] = true
