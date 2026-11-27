@@ -31,6 +31,11 @@ func TestCompiledFixturesNeedNoOverride(t *testing.T) {
 			t.Errorf("%s: %v", file, perr)
 			continue
 		}
+		// The parsed proxies close themselves from a finalizer that logs; a finalizer running during a later
+		// test's Stop races with the core's log.SetLevel (a known core race). Close them here instead.
+		for _, proxy := range p.cfg.Proxies {
+			_ = proxy.Close()
+		}
 		if len(p.summary.Overridden) != 0 {
 			t.Errorf("%s: bridge overrode %v", file, p.summary.Overridden)
 		}
