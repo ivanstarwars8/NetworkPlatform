@@ -117,7 +117,7 @@ Tools/remote-go.sh 'cd Benchmarks/RoutingParity && PARITY_OUT=parity-result.json
 
 ## 6. Результаты
 
-Прогон 2026-11-25 **[V, запуск]**.
+Прогон 2026-11-25 **[V, запуск]**. Повтор 2026-11-27 после оптимизации индекса (якоря запасных правил, обязательная подстрока шаблонов; `Documentation/Performance/routing-benchmarks.md`): `swift test --filter RoutingEngineTests` — **110 тестов, 0 падений**, сохранённый корпус совпал со свежим решением Swift; `TestParity` и `TestCompactDomainMatcherAgrees` — те же цифры, что ниже **[V, запуск]**. Корневой `Package.swift` в контейнере 2026-11-27 не прошёл проверку типов по времени; Swift-тесты собраны временным манифестом вне git с теми же целями и путями.
 
 Swift (контейнер `swift:5.10`, Swift 5.10.1, Linux x86_64, отладочная сборка): `swift test --filter RoutingEngineTests` — **104 теста, 0 падений** (94 прежних и 10 новых в `EngineParityTests`).
 
