@@ -1,4 +1,4 @@
-// Verified on Linux only (Swift 5.10.1, swift test, 2026-11-24). Not yet built or run on Apple platforms.
+// Verified on Linux only (Swift 5.10.1, swift test, 2026-11-27). Not yet built or run on Apple platforms.
 import Foundation
 
 // MARK: - Resolved conditions
@@ -500,12 +500,17 @@ struct IndexCandidates: Equatable, Sendable {
 /// - CIDR prefixes live in path-compressed binary tries (IPv4 and IPv6).
 /// - Port ranges are flattened into disjoint segments with binary search.
 /// - Network conditions are two slots.
-/// - Only rules that need it (keyword, regex, `and`, `not`, and `or` parts
-///   containing those) are kept in an ordered fallback list.
+/// - Rules that need more (keyword, regex, `and`, `not`, and `or` parts
+///   containing those) are fallback rules. A fallback piece with an anchor -
+///   a necessary condition on the domain, a keyword, an address prefix, a
+///   user or a narrow port range - is filed in a bucket and evaluated only
+///   for requests that fit the anchor (`FallbackAnchors`). Pieces without an
+///   anchor (`not`, patterns without a usable literal, ...) form an
+///   ordered list.
 ///
 /// Every index stores rule priorities, and the winner is the lowest index
 /// among all matches, so the result is identical to scanning the rules in
-/// order. The fallback list is scanned only up to the best indexed match.
+/// order. The ordered list is scanned only up to the best match found.
 public struct CompiledRouter: Sendable {
     /// Sizes of the compiled structures.
     public struct Statistics: Hashable, Sendable {
@@ -515,7 +520,13 @@ public struct CompiledRouter: Sendable {
         public let cidrEntries: Int
         public let cidrTrieNodes: Int
         public let portSegments: Int
+        /// Rules that no index answers alone (keyword, regex, AND, NOT, ...).
         public let fallbackRules: Int
+        /// Pieces of fallback rules reachable through an anchor bucket.
+        public let anchoredFallbackEntries: Int
+        /// Pieces of fallback rules that are scanned in order on every
+        /// lookup: the part of the table whose cost grows with its size.
+        public let unanchoredFallbackEntries: Int
     }
 
     struct FallbackEntry: Sendable {
@@ -529,7 +540,12 @@ public struct CompiledRouter: Sendable {
     private let portIndex: PortIndex
     private let tcpIndex: Int
     private let udpIndex: Int
-    private let fallback: [FallbackEntry]
+    /// Fallback pieces without an anchor, in priority order.
+    private let unanchored: [FallbackEntry]
+    /// Fallback pieces with an anchor, in priority order; `anchors` refers
+    /// to them by position.
+    private let anchored: [FallbackEntry]
+    private let anchors: FallbackAnchors
 
     public let statistics: Statistics
 
@@ -557,7 +573,10 @@ public struct CompiledRouter: Sendable {
         var portEntries: [(range: PortRange, ruleIndex: Int)] = []
         var tcpIndex = noRuleIndex
         var udpIndex = noRuleIndex
-        var fallback: [FallbackEntry] = []
+        var unanchored: [FallbackEntry] = []
+        var anchored: [FallbackEntry] = []
+        var anchors = FallbackAnchors()
+        var fallbackRules = 0
         var enabled = 0
 
         for (ruleIndex, resolved) in reference.resolved.enumerated() {
@@ -590,12 +609,20 @@ public struct CompiledRouter: Sendable {
                 }
             }
 
-            if residual.count == 1 {
-                fallback.append(FallbackEntry(ruleIndex: ruleIndex, condition: residual[0]))
-            } else if residual.count > 1 {
-                fallback.append(FallbackEntry(ruleIndex: ruleIndex, condition: .anyOf(residual)))
+            // The rule matches when any residual piece does, so every piece
+            // is filed on its own: under its anchor when it has one.
+            if !residual.isEmpty { fallbackRules += 1 }
+            for piece in residual {
+                let entry = FallbackEntry(ruleIndex: ruleIndex, condition: piece)
+                if let anchor = FallbackAnchors.anchor(of: piece), anchored.count < Int(Int32.max) {
+                    anchors.insert(anchor, id: Int32(anchored.count))
+                    anchored.append(entry)
+                } else {
+                    unanchored.append(entry)
+                }
             }
         }
+        anchors.finish()
 
         let portIndex = PortIndex(entries: portEntries)
 
@@ -605,7 +632,9 @@ public struct CompiledRouter: Sendable {
         self.portIndex = portIndex
         self.tcpIndex = tcpIndex
         self.udpIndex = udpIndex
-        self.fallback = fallback
+        self.unanchored = unanchored
+        self.anchored = anchored
+        self.anchors = anchors
         self.statistics = Statistics(
             ruleCount: table.rules.count,
             enabledRuleCount: enabled,
@@ -613,7 +642,9 @@ public struct CompiledRouter: Sendable {
             cidrEntries: cidrIndex.entryCount,
             cidrTrieNodes: cidrIndex.nodeCount,
             portSegments: portIndex.segmentCount,
-            fallbackRules: fallback.count
+            fallbackRules: fallbackRules,
+            anchoredFallbackEntries: anchored.count,
+            unanchoredFallbackEntries: unanchored.count
         )
     }
 
@@ -670,15 +701,32 @@ public struct CompiledRouter: Sendable {
             case .udp: result.network = udpIndex
             }
         }
-        // Fallback rules are in priority order; none past the best indexed
-        // match can win.
+        // Fallback pieces are in priority order; none past the best match
+        // found so far can win.
         let indexedBest = result.best
-        for entry in fallback {
-            if entry.ruleIndex >= indexedBest { break }
+        var best = indexedBest
+        for entry in unanchored {
+            if entry.ruleIndex >= best { break }
             if entry.condition.matches(input) {
-                result.fallback = entry.ruleIndex
+                best = entry.ruleIndex
                 break
             }
+        }
+        if anchors.entryCount > 0 {
+            var found: [Int32] = []
+            anchors.collect(input, into: &found)
+            if found.count > 1 { found.sort() }
+            for id in found {
+                let entry = anchored[Int(id)]
+                if entry.ruleIndex >= best { break }
+                if entry.condition.matches(input) {
+                    best = entry.ruleIndex
+                    break
+                }
+            }
+        }
+        if best < indexedBest {
+            result.fallback = best
         }
         return result
     }

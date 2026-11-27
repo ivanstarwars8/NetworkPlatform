@@ -1,4 +1,4 @@
-// Verified on Linux only (Swift 5.10.1, swift test, 2026-11-24). Not yet built or run on Apple platforms.
+// Verified on Linux only (Swift 5.10.1, swift test, 2026-11-27). Not yet built or run on Apple platforms.
 import Foundation
 
 /// Sentinel used by every index for "no rule".
@@ -258,6 +258,22 @@ struct CIDRTrie: Sendable {
         }
         return result
     }
+
+    /// Calls `body` with the value of every stored prefix that contains
+    /// `key`, shortest prefix first.
+    func forEachContaining(key: IPBits, _ body: (Int) -> Void) {
+        var current = 0
+        while true {
+            let value = values[current]
+            let length = lengths[current]
+            if value != noRuleIndex { body(value) }
+            if length >= maximumBits { break }
+            let next = child(of: current, bit: key.bit(at: length))
+            if next < 0 { break }
+            if key.commonPrefixLength(with: keys[next]) < lengths[next] { break }
+            current = next
+        }
+    }
 }
 
 /// IPv4 and IPv6 tries behind one interface.
@@ -364,5 +380,255 @@ struct PortIndex: Sendable {
             }
         }
         return values[low]
+    }
+}
+
+// MARK: - Keyword automaton
+
+/// An Aho-Corasick automaton over keyword bytes. One pass over a host name
+/// reports every stored keyword that occurs in it, however many keywords
+/// there are.
+struct KeywordAutomaton: Sendable {
+    /// Transitions, keyed by `node << 8 | byte`.
+    private var edges: [UInt64: Int32] = [:]
+    /// Longest proper suffix of the node's string that is also a node.
+    private var failure: [Int32] = [0]
+    /// Nearest node on the failure chain that ends a keyword, or -1.
+    private var outputLink: [Int32] = [-1]
+    /// Identifiers of the keywords that end exactly at the node.
+    private var outputs: [[Int32]] = [[]]
+    private(set) var keywordCount = 0
+
+    var isEmpty: Bool { keywordCount == 0 }
+    var nodeCount: Int { failure.count }
+
+    private static func key(_ node: Int32, _ byte: UInt8) -> UInt64 {
+        (UInt64(UInt32(bitPattern: node)) << 8) | UInt64(byte)
+    }
+
+    init() {}
+
+    /// `keywords` must not contain empty byte strings.
+    init(keywords: [(bytes: [UInt8], id: Int32)]) {
+        guard !keywords.isEmpty else { return }
+        var children: [[(byte: UInt8, node: Int32)]] = [[]]
+        for keyword in keywords where !keyword.bytes.isEmpty {
+            var node: Int32 = 0
+            for byte in keyword.bytes {
+                let edge = KeywordAutomaton.key(node, byte)
+                if let next = edges[edge] {
+                    node = next
+                } else {
+                    let created = Int32(failure.count)
+                    failure.append(0)
+                    outputLink.append(-1)
+                    outputs.append([])
+                    children.append([])
+                    edges[edge] = created
+                    children[Int(node)].append((byte, created))
+                    node = created
+                }
+            }
+            outputs[Int(node)].append(keyword.id)
+            keywordCount += 1
+        }
+        // Breadth-first: a node's failure link only depends on shallower nodes.
+        var queue: [Int32] = children[0].map { $0.node }
+        var head = 0
+        while head < queue.count {
+            let node = queue[head]
+            head += 1
+            for child in children[Int(node)] {
+                var fallback = failure[Int(node)]
+                var target: Int32 = 0
+                while true {
+                    if let next = edges[KeywordAutomaton.key(fallback, child.byte)] {
+                        target = next
+                        break
+                    }
+                    if fallback == 0 { break }
+                    fallback = failure[Int(fallback)]
+                }
+                failure[Int(child.node)] = target
+                outputLink[Int(child.node)] = outputs[Int(target)].isEmpty ? outputLink[Int(target)] : target
+                queue.append(child.node)
+            }
+        }
+    }
+
+    /// Appends the identifiers of all keywords occurring in `text`.
+    func collect(_ text: [UInt8], into found: inout [Int32]) {
+        guard keywordCount > 0 else { return }
+        var node: Int32 = 0
+        for byte in text {
+            while true {
+                if let next = edges[KeywordAutomaton.key(node, byte)] {
+                    node = next
+                    break
+                }
+                if node == 0 { break }
+                node = failure[Int(node)]
+            }
+            var output = outputs[Int(node)].isEmpty ? outputLink[Int(node)] : node
+            while output > 0 {
+                found.append(contentsOf: outputs[Int(output)])
+                output = outputLink[Int(output)]
+            }
+        }
+    }
+}
+
+// MARK: - Fallback anchors
+
+/// Buckets for fallback rules. A fallback rule (keyword, AND, ...) cannot be
+/// answered by an index alone, but most of them have a necessary condition
+/// an index can test - their anchor: a domain name, a keyword, an address
+/// prefix, a user, a narrow port range, or the literal every match of a
+/// pattern contains. Only the rules whose anchor fits
+/// the request are evaluated; a rule without an anchor stays in the ordered
+/// list that is scanned linearly.
+struct FallbackAnchors: Sendable {
+    enum Anchor {
+        case domain([UInt8])
+        case keyword([UInt8])
+        case prefix(IPCIDR)
+        case user(String)
+        case port(PortRange)
+
+        /// Lower is more selective.
+        var rank: Int {
+            switch self {
+            case .domain: return 0
+            case .prefix: return 1
+            case .user: return 2
+            case .keyword: return 3
+            case .port: return 4
+            }
+        }
+    }
+
+    /// Port ranges wider than this are not used as anchors.
+    static let maximumAnchorPorts = 32
+
+    /// Patterns whose required literal is shorter than this stay in the
+    /// ordered list.
+    static let minimumRegexLiteral = 3
+
+    /// Keyed by a name: the request name must equal it or end with
+    /// `"." + name` for any rule in the bucket to match.
+    private var byDomain: [String: [Int32]] = [:]
+    private var byUser: [String: [Int32]] = [:]
+    private var byPort: [UInt16: [Int32]] = [:]
+    private var v4 = CIDRTrie(maximumBits: 32)
+    private var v6 = CIDRTrie(maximumBits: 128)
+    private var prefixSlots: [IPCIDR: Int] = [:]
+    private var prefixBuckets: [[Int32]] = []
+    private var pendingKeywords: [(bytes: [UInt8], id: Int32)] = []
+    private var keywords = KeywordAutomaton()
+    private(set) var entryCount = 0
+
+    /// A necessary condition of `condition` that a bucket can test, or
+    /// `nil`.
+    static func anchor(of condition: ResolvedCondition) -> Anchor? {
+        switch condition {
+        case let .domainExact(name): return .domain(name)
+        case let .domainSuffix(name, _): return .domain(name)
+        case let .domainKeyword(keyword): return .keyword(keyword)
+        case let .ipCIDR(cidr): return .prefix(cidr)
+        case let .user(name): return .user(name)
+        case let .port(range):
+            return Int(range.upper) - Int(range.lower) < maximumAnchorPorts ? .port(range) : nil
+        case let .allOf(items):
+            var best: Anchor?
+            for item in items {
+                if let candidate = anchor(of: item), candidate.rank < (best?.rank ?? Int.max) {
+                    best = candidate
+                }
+            }
+            return best
+        case let .domainRegex(regex):
+            // Every match contains the pattern's required literal, so the
+            // pattern only needs evaluating when the literal occurs. Short
+            // literals ("." and the like) would fit almost every name.
+            let literal = regex.requiredLiteral
+            return literal.count >= minimumRegexLiteral ? .keyword(literal) : nil
+        case .ipNotIn, .network, .sourceCIDR, .sourcePort, .inboundTag, .sniffedProtocol,
+             .anyOf, .not:
+            return nil
+        }
+    }
+
+    mutating func insert(_ anchor: Anchor, id: Int32) {
+        entryCount += 1
+        switch anchor {
+        case let .domain(name):
+            byDomain[ByteText.string(name), default: []].append(id)
+        case let .keyword(keyword):
+            pendingKeywords.append((keyword, id))
+        case let .prefix(cidr):
+            let slot: Int
+            if let existing = prefixSlots[cidr] {
+                slot = existing
+            } else {
+                slot = prefixBuckets.count
+                prefixSlots[cidr] = slot
+                prefixBuckets.append([])
+                let key = IPBits.key(for: cidr.network)
+                if cidr.network.isIPv4 {
+                    v4.insert(key: key, length: cidr.prefixLength, ruleIndex: slot)
+                } else {
+                    v6.insert(key: key, length: cidr.prefixLength, ruleIndex: slot)
+                }
+            }
+            prefixBuckets[slot].append(id)
+        case let .user(name):
+            byUser[name, default: []].append(id)
+        case let .port(range):
+            for port in range.lower...range.upper {
+                byPort[port, default: []].append(id)
+            }
+        }
+    }
+
+    /// Call once after the last `insert`.
+    mutating func finish() {
+        keywords = KeywordAutomaton(keywords: pendingKeywords)
+        pendingKeywords = []
+        prefixSlots = [:]
+    }
+
+    /// Appends the identifiers of every entry whose anchor fits the request.
+    /// An identifier may appear more than once.
+    func collect(_ input: EvaluationInput, into found: inout [Int32]) {
+        if let domain = input.domain {
+            if !byDomain.isEmpty {
+                var start = 0
+                while true {
+                    if let bucket = byDomain[String(decoding: domain[start...], as: UTF8.self)] {
+                        found.append(contentsOf: bucket)
+                    }
+                    guard let dot = domain[start...].firstIndex(of: 0x2E) else { break }
+                    start = dot + 1
+                    if start >= domain.count { break }
+                }
+            }
+            keywords.collect(domain, into: &found)
+        }
+        if !prefixBuckets.isEmpty {
+            for ip in input.targetIPs {
+                let key = IPBits.key(for: ip)
+                if ip.isIPv4 {
+                    v4.forEachContaining(key: key) { found.append(contentsOf: prefixBuckets[$0]) }
+                } else {
+                    v6.forEachContaining(key: key) { found.append(contentsOf: prefixBuckets[$0]) }
+                }
+            }
+        }
+        if let user = input.user, let bucket = byUser[user] {
+            found.append(contentsOf: bucket)
+        }
+        if let bucket = byPort[input.port] {
+            found.append(contentsOf: bucket)
+        }
     }
 }
