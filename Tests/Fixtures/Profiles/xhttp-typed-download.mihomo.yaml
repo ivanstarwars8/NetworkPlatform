@@ -1,0 +1,71 @@
+mode: rule
+log-level: warning
+ipv6: true
+allow-lan: false
+find-process-mode: "off"
+profile:
+  store-selected: false
+  store-fake-ip: false
+unified-delay: true
+tcp-concurrent: false
+geo-auto-update: false
+tun:
+  enable: true
+  stack: mips
+  mtu: 1500
+  dns-hijack:
+    - "any:53"
+    - "tcp://any:53"
+  inet6-address:
+    - "fd66:6e70::1/126"
+  auto-route: false
+  auto-detect-interface: false
+dns:
+  enable: true
+  ipv6: true
+  use-system-hosts: false
+  enhanced-mode: redir-host
+  fake-ip-range: "198.18.0.1/30"
+  default-nameserver:
+    - "1.1.1.1#proxy-0000"
+    - "8.8.8.8#proxy-0000"
+  nameserver:
+    - "1.1.1.1#proxy-0000"
+    - "8.8.8.8#proxy-0000"
+proxies:
+  - name: proxy-0000
+    type: vless
+    server: "192.0.2.82"
+    port: 443
+    uuid: "1cc9207f-5dda-4274-bb0d-9d105c95c6e8"
+    packet-encoding: xudp
+    udp: true
+    tls: true
+    servername: www.example.org
+    client-fingerprint: chrome
+    reality-opts:
+      public-key: VZhM7y7_-UFCl2zNHcAGmpbH_cJyhFV3yXneqhjbwC4
+      short-id: "65466826"
+      support-x25519mlkem768: true
+    network: xhttp
+    xhttp-opts:
+      path: /up
+      mode: stream-up
+      download-settings:
+        path: /down
+        server: dl.example.net
+        port: 8443
+        tls: true
+        alpn:
+          - h2
+rules:
+  - "IP-CIDR,192.0.2.82/32,DIRECT,no-resolve"
+  - "IP-CIDR,10.0.0.0/8,DIRECT,no-resolve"
+  - "IP-CIDR,172.16.0.0/12,DIRECT,no-resolve"
+  - "IP-CIDR,192.168.0.0/16,DIRECT,no-resolve"
+  - "IP-CIDR,169.254.0.0/16,DIRECT,no-resolve"
+  - "IP-CIDR,224.0.0.0/4,DIRECT,no-resolve"
+  - "IP-CIDR,255.255.255.255/32,DIRECT,no-resolve"
+  - "IP-CIDR6,fe80::/10,DIRECT,no-resolve"
+  - "IP-CIDR6,ff00::/8,DIRECT,no-resolve"
+  - "MATCH,proxy-0000"

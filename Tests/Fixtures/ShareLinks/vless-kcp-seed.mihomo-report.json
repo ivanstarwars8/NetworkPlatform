@@ -1,0 +1,25 @@
+{
+  "engine" : "mihomo",
+  "engineTags" : {
+
+  },
+  "engineVersion" : "1.19.34",
+  "excludedOutbounds" : [
+    "kcp-legacy"
+  ],
+  "issues" : [
+    {
+      "detail" : "Mihomo has no mKCP transport for vless as compiled from the model",
+      "kind" : "unsupported",
+      "path" : "outbounds[0].stream.transport",
+      "severity" : "error"
+    },
+    {
+      "detail" : "The selected outbound or group could not be compiled",
+      "kind" : "unsupported",
+      "path" : "profile.selectedTag",
+      "severity" : "error"
+    }
+  ],
+  "verdict" : "blocked"
+}

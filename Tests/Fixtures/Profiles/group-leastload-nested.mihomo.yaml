@@ -1,0 +1,105 @@
+mode: rule
+log-level: warning
+ipv6: true
+allow-lan: false
+find-process-mode: "off"
+profile:
+  store-selected: false
+  store-fake-ip: false
+unified-delay: true
+tcp-concurrent: false
+geo-auto-update: false
+tun:
+  enable: true
+  stack: mips
+  mtu: 1500
+  dns-hijack:
+    - "any:53"
+    - "tcp://any:53"
+  inet6-address:
+    - "fd66:6e70::1/126"
+  auto-route: false
+  auto-detect-interface: false
+dns:
+  enable: true
+  ipv6: true
+  use-system-hosts: false
+  enhanced-mode: redir-host
+  fake-ip-range: "198.18.0.1/30"
+  default-nameserver:
+    - "1.1.1.1#group-0001"
+    - "8.8.8.8#group-0001"
+  nameserver:
+    - "1.1.1.1#group-0001"
+    - "8.8.8.8#group-0001"
+  proxy-server-nameserver:
+    - "1.1.1.1"
+    - "8.8.8.8"
+proxies:
+  - name: proxy-0000
+    type: vless
+    server: "192.0.2.80"
+    port: 443
+    uuid: "1cc9207f-5dda-4274-bb0d-9d105c95c6e8"
+    flow: xtls-rprx-vision
+    packet-encoding: xudp
+    udp: true
+    tls: true
+    servername: www.example.org
+    client-fingerprint: chrome
+    reality-opts:
+      public-key: VZhM7y7_-UFCl2zNHcAGmpbH_cJyhFV3yXneqhjbwC4
+      short-id: "65466826"
+      support-x25519mlkem768: true
+  - name: proxy-0001
+    type: vless
+    server: "192.0.2.81"
+    port: 443
+    uuid: "7d7ea5d0-9ec2-432e-82e7-141bada6fc01"
+    flow: xtls-rprx-vision
+    packet-encoding: xudp
+    udp: true
+    tls: true
+    servername: www.example.org
+    client-fingerprint: chrome
+    reality-opts:
+      public-key: VZhM7y7_-UFCl2zNHcAGmpbH_cJyhFV3yXneqhjbwC4
+      short-id: "65466826"
+      support-x25519mlkem768: true
+  - name: proxy-0002
+    type: trojan
+    server: t.example.com
+    port: 443
+    password: udihPqDumwBiY6PSt26Nqr9G
+    udp: true
+    sni: t.example.com
+proxy-groups:
+  - name: group-0000
+    type: fallback
+    proxies:
+      - proxy-0001
+      - proxy-0002
+    url: "https://www.gstatic.com/generate_204"
+    interval: 600
+    lazy: true
+  - name: group-0001
+    type: url-test
+    proxies:
+      - proxy-0000
+      - group-0000
+    url: "https://www.gstatic.com/generate_204"
+    interval: 60
+    timeout: 3000
+    lazy: true
+rules:
+  - "IP-CIDR,192.0.2.80/32,DIRECT,no-resolve"
+  - "IP-CIDR,192.0.2.81/32,DIRECT,no-resolve"
+  - "IP-CIDR,10.0.0.0/8,DIRECT,no-resolve"
+  - "IP-CIDR,172.16.0.0/12,DIRECT,no-resolve"
+  - "IP-CIDR,192.168.0.0/16,DIRECT,no-resolve"
+  - "IP-CIDR,169.254.0.0/16,DIRECT,no-resolve"
+  - "IP-CIDR,224.0.0.0/4,DIRECT,no-resolve"
+  - "IP-CIDR,255.255.255.255/32,DIRECT,no-resolve"
+  - "IP-CIDR6,fe80::/10,DIRECT,no-resolve"
+  - "IP-CIDR6,ff00::/8,DIRECT,no-resolve"
+  - "MATCH,group-0001"

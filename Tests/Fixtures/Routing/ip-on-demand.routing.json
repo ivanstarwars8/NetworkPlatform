@@ -1,0 +1,187 @@
+{
+  "domainStrategy" : "ipOnDemand",
+  "finalAction" : {
+    "group" : {
+      "_0" : "main"
+    }
+  },
+  "ruleSets" : [
+
+  ],
+  "rules" : [
+    {
+      "action" : {
+        "reject" : {
+
+        }
+      },
+      "condition" : {
+        "or" : {
+          "_0" : [
+            {
+              "domainSuffix" : {
+                "_0" : "ads.example"
+              }
+            },
+            {
+              "domainKeyword" : {
+                "_0" : "tracker"
+              }
+            },
+            {
+              "domainRegex" : {
+                "_0" : "^ad[0-9]+\\.example\\.net$"
+              }
+            }
+          ]
+        }
+      },
+      "id" : "ads",
+      "isEnabled" : true
+    },
+    {
+      "action" : {
+        "direct" : {
+
+        }
+      },
+      "condition" : {
+        "or" : {
+          "_0" : [
+            {
+              "ipCIDR" : {
+                "_0" : "10.0.0.0/8"
+              }
+            },
+            {
+              "ipCIDR" : {
+                "_0" : "192.168.0.0/16"
+              }
+            },
+            {
+              "ipCIDR" : {
+                "_0" : "fc00::/7"
+              }
+            }
+          ]
+        }
+      },
+      "id" : "lan",
+      "isEnabled" : true
+    },
+    {
+      "action" : {
+        "reject" : {
+
+        }
+      },
+      "condition" : {
+        "and" : {
+          "_0" : [
+            {
+              "network" : {
+                "_0" : "udp"
+              }
+            },
+            {
+              "port" : {
+                "_0" : {
+                  "lower" : 443,
+                  "upper" : 443
+                }
+              }
+            }
+          ]
+        }
+      },
+      "id" : "quic",
+      "isEnabled" : true
+    },
+    {
+      "action" : {
+        "proxy" : {
+          "_0" : "t"
+        }
+      },
+      "condition" : {
+        "and" : {
+          "_0" : [
+            {
+              "domainSuffix" : {
+                "_0" : "video.example"
+              }
+            },
+            {
+              "or" : {
+                "_0" : [
+                  {
+                    "port" : {
+                      "_0" : {
+                        "lower" : 443,
+                        "upper" : 443
+                      }
+                    }
+                  },
+                  {
+                    "port" : {
+                      "_0" : {
+                        "lower" : 8000,
+                        "upper" : 8999
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "id" : "video",
+      "isEnabled" : true
+    },
+    {
+      "action" : {
+        "group" : {
+          "_0" : "auto"
+        }
+      },
+      "condition" : {
+        "ipNotIn" : {
+          "_0" : [
+            "198.51.100.0/24"
+          ]
+        }
+      },
+      "id" : "abroad",
+      "isEnabled" : true
+    },
+    {
+      "action" : {
+        "group" : {
+          "_0" : "main"
+        }
+      },
+      "condition" : {
+        "and" : {
+          "_0" : [
+            {
+              "sourceCIDR" : {
+                "_0" : "198.18.0.0/30"
+              }
+            },
+            {
+              "sourcePort" : {
+                "_0" : {
+                  "lower" : 1024,
+                  "upper" : 65535
+                }
+              }
+            }
+          ]
+        }
+      },
+      "id" : "src",
+      "isEnabled" : true
+    }
+  ]
+}

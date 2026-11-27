@@ -14,7 +14,7 @@ var allTargets: [Target] = []
 allTargets += lib("DomainModels")
 // The tests compile Extensions/PacketTunnel/Shared through a symbolic link; Shared/ uses DomainModels.
 allTargets += lib("CoreAbstraction", testDeps: ["DomainModels"])
-allTargets += lib("ConfigurationEngine", deps: ["DomainModels"])
+allTargets += lib("ConfigurationEngine", deps: ["DomainModels", "RoutingEngine"])
 allTargets += lib("RoutingEngine")
 allTargets += lib("AdaptiveBalancer")
 allTargets += lib("EngineXray", deps: ["CoreAbstraction"], testDeps: ["DomainModels"])

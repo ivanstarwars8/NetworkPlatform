@@ -10,6 +10,7 @@ public struct EngineID: RawRepresentable, Codable, Hashable, Sendable {
 
     public static let xray = EngineID(rawValue: "xray")
     public static let singBox = EngineID(rawValue: "sing-box")
+    public static let mihomo = EngineID(rawValue: "mihomo")
 }
 
 /// Untranslatable remainder bound to the engine it came from (ADR-0002 §3).

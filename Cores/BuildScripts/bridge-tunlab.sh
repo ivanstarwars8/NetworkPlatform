@@ -14,8 +14,10 @@
 # MOBILE=1 runs the bridge with memory.profile=mobile and gives the client config the policy level of the
 # compiler's mobile profile (XrayMemoryProfile.mobile); CONNIDLE / BUFSIZE override its connIdle / bufferSize.
 #   Cores/BuildScripts/bridge-tunlab.sh compiled-link    server keys for `compiled` (kept in $NP_LAB_OUT/cfg) + the share link of the lab server
+#                                                       (ENGINE=mihomo: also SS-2022, Trojan+TLS and Hysteria2 links, one per line)
 #   Cores/BuildScripts/bridge-tunlab.sh compiled DIR     run the Swift compiler's output (DIR/config.json, plan.json, bridge-options.json,
-#                                                       see ConfigurationEngine TunnelExportTests) in flow mode: TCP, UDP, DNS, IPv6, no DNS leak
+#                                                       see ConfigurationEngine TunnelExportTests) in flow mode: TCP, UDP, DNS, IPv6, no DNS leak;
+#                                                       ENGINE=mihomo takes DIR/config.yaml (MihomoConfigCompilerTests export) and runs npmlab
 #   Cores/BuildScripts/bridge-tunlab.sh teardown         kill lab processes, delete the namespaces
 # ENGINE=mihomo runs the Mihomo bridge (Cores/MihomoBridge/cmd/npmlab, flow mode only) in place of
 # "nplab bridge", with a Mihomo YAML client config for the same server; build, soak, memcmp and profile support
@@ -71,6 +73,12 @@ do_build() {
 	go build -buildvcs=false -mod=mod -trimpath -ldflags='-s -w' -o "$BIN/xray" github.com/xtls/xray-core/main
 	if [ "${ENGINE:-}" = mihomo ]; then
 		(cd "$ROOT/Cores/MihomoBridge" && go build -buildvcs=false -trimpath -ldflags='-s -w' -o "$BIN/npmlab" ./cmd/npmlab)
+		# the core's own binary at the pinned version, for `mihomo -t` in Tools/validate-fixtures.sh; main's extra
+		# imports are resolved in a throw-away copy of go.mod/go.sum (-modfile), the module files stay untouched
+		(cd "$ROOT/Cores/MihomoBridge" && cp go.mod "$BIN/mihomo-main.mod" && cp go.sum "$BIN/mihomo-main.sum" &&
+			v=$(go list -m -f '{{.Version}}' github.com/metacubex/mihomo) &&
+			go build -buildvcs=false -mod=mod -modfile="$BIN/mihomo-main.mod" -trimpath \
+				-ldflags="-s -w -X github.com/metacubex/mihomo/constant.Version=$v" -o "$BIN/mihomo" github.com/metacubex/mihomo)
 	fi
 	go version >"$BIN/go-version.txt"
 	"$BIN/xray" version | head -1 >>"$BIN/go-version.txt"
@@ -138,6 +146,13 @@ gen_configs() {
 	uuid="$("$BIN/xray" uuid)"
 	sskey="$(head -c 16 /dev/urandom | base64)"
 	[ -n "$priv" ] && [ -n "$pub" ] || { echo "cannot parse xray x25519 output: $keys" >&2; exit 1; }
+	# TLS server for Trojan and Hysteria2: self-signed for np.test, pinned by the clients (SHA-256 of the DER).
+	openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 30 -subj /CN=np.test \
+		-addext subjectAltName=DNS:np.test -keyout "$CFG/tls.key" -out "$CFG/tls.crt" 2>/dev/null
+	openssl x509 -in "$CFG/tls.crt" -outform der | sha256sum | cut -d' ' -f1 >"$CFG/tlspin"
+	# Trojan password with YAML/URL special characters: the compiled YAML must quote it exactly.
+	printf '%s' "tr#j: 'q' %x $(head -c 6 /dev/urandom | base64 | tr -d '/+=')" >"$CFG/trojanpass"
+	head -c 12 /dev/urandom | base64 | tr -d '\n' >"$CFG/hy2pass"
 	cat >"$CFG/server.json" <<EOF
 {"log":{"loglevel":"warning"},
  "inbounds":[
@@ -146,7 +161,13 @@ gen_configs() {
    "streamSettings":{"network":"raw","security":"reality","realitySettings":{
      "target":"127.0.0.1:8443","serverNames":["np.test"],"privateKey":"$priv","shortIds":["0123abcd"]}}},
   {"tag":"ss","listen":"$SERVER4","port":444,"protocol":"shadowsocks",
-   "settings":{"method":"2022-blake3-aes-128-gcm","password":"$sskey","network":"tcp,udp"}}],
+   "settings":{"method":"2022-blake3-aes-128-gcm","password":"$sskey","network":"tcp,udp"}},
+  {"tag":"trojan","listen":"$SERVER4","port":445,"protocol":"trojan",
+   "settings":{"clients":[{"password":"$(cat "$CFG/trojanpass")"}]},
+   "streamSettings":{"network":"raw","security":"tls","tlsSettings":{"certificates":[{"certificateFile":"$CFG/tls.crt","keyFile":"$CFG/tls.key"}]}}},
+  {"tag":"hy2","listen":"$SERVER4","port":446,"protocol":"hysteria","settings":{"version":2,"users":[{"auth":"$(cat "$CFG/hy2pass")"}]},
+   "streamSettings":{"network":"hysteria","security":"tls","hysteriaSettings":{"version":2},
+     "tlsSettings":{"alpn":["h3"],"certificates":[{"certificateFile":"$CFG/tls.crt","keyFile":"$CFG/tls.key"}]}}}],
  "outbounds":[{"tag":"direct","protocol":"freedom","settings":{"finalRules":[{"action":"allow"}]}}]}
 EOF
 	printf '%s' "$uuid" >"$CFG/uuid"
@@ -642,6 +663,13 @@ do_compiled_link() {
 	gen_configs
 	printf 'vless://%s@%s:443?type=tcp&security=reality&sni=np.test&fp=chrome&pbk=%s&sid=0123abcd&flow=xtls-rprx-vision#lab\n' \
 		"$(cat "$CFG/uuid")" "$SERVER4" "$(cat "$CFG/pub")"
+	# ENGINE=mihomo: the other three protocols of the lab server as well (one link per line, named by the fragment)
+	[ "${ENGINE:-}" = mihomo ] || return 0
+	enc() { python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$1"; }
+	printf 'ss://2022-blake3-aes-128-gcm:%s@%s:444#lab-ss\n' "$(enc "$(cat "$CFG/sskey")")" "$SERVER4"
+	printf 'trojan://%s@%s:445?security=tls&sni=np.test&type=tcp&pcs=%s#lab-trojan\n' \
+		"$(enc "$(cat "$CFG/trojanpass")")" "$SERVER4" "$(cat "$CFG/tlspin")"
+	printf 'hysteria2://%s@%s:446/?sni=np.test&pinSHA256=%s#lab-hy2\n' "$(enc "$(cat "$CFG/hy2pass")")" "$SERVER4" "$(cat "$CFG/tlspin")"
 }
 
 # The interface is configured from the plan the compiler exported (the analogue of NEPacketTunnelNetworkSettings),
@@ -649,8 +677,10 @@ do_compiled_link() {
 do_compiled() {
 	local dir=${1:?usage: compiled DIR}
 	local cfg="$dir/config.json" plan="$dir/plan.json" opts="$dir/bridge-options.json"
+	# ENGINE=mihomo: the Mihomo compiler's output (MihomoConfigCompilerTests.testExportCompiledMihomoConfiguration)
+	[ "${ENGINE:-}" = mihomo ] && cfg="$dir/config.yaml"
 	for f in "$cfg" "$plan" "$opts"; do [ -s "$f" ] || { echo "missing $f" >&2; exit 2; }; done
-	RES="$OUT/compiled.jsonl"
+	RES="$OUT/compiled${ENGINE:+-$ENGINE}-$(basename "$dir").jsonl"
 	: >"$RES"
 	KEEP_KEYS=1 setup
 	trap 'stop_client; teardown' EXIT
@@ -704,7 +734,7 @@ do_compiled() {
 	echo "{\"label\":\"compiled\",\"test\":\"dns-leak\",\"ok\":$([ "$leaks" = 0 ] && echo true || echo false),\"values\":{\"port53PacketsOutsideTunnel\":$leaks}}" | tee -a "$RES"
 	# no configuration value in the core's log (bridge redaction)
 	local secrets_found=0 s
-	for s in "$(cat "$CFG/uuid")" "$(cat "$CFG/pub")"; do grep -qF "$s" "$OUT/compiled-core.log" "$OUT/client-flow.log" && secrets_found=$((secrets_found + 1)); done
+	for s in "$(cat "$CFG/uuid")" "$(cat "$CFG/pub")" "$(cat "$CFG/sskey")" "$(cat "$CFG/trojanpass")" "$(cat "$CFG/hy2pass")"; do grep -qF "$s" "$OUT/compiled-core.log" "$OUT/client-flow.log" && secrets_found=$((secrets_found + 1)); done
 	echo "{\"label\":\"compiled\",\"test\":\"log-redaction\",\"ok\":$([ $secrets_found = 0 ] && echo true || echo false),\"values\":{\"coreLogLines\":$(wc -l <"$OUT/compiled-core.log"),\"valuesFound\":$secrets_found}}" | tee -a "$RES"
 	stop_client
 	unset WITH_CTL

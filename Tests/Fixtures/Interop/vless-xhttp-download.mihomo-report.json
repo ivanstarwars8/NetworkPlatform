@@ -1,0 +1,37 @@
+{
+  "engine" : "mihomo",
+  "engineTags" : {
+    "i-vless-xhttp-dl" : "proxy-0000"
+  },
+  "engineVersion" : "1.19.34",
+  "excludedOutbounds" : [
+
+  ],
+  "issues" : [
+    {
+      "detail" : "Extra bound to another engine is not used by Mihomo",
+      "kind" : "dropped",
+      "path" : "outbounds[0].extras.xray.xhttp.extra",
+      "severity" : "warning"
+    },
+    {
+      "detail" : "XHTTP with Mihomo against Xray has no interoperability test",
+      "kind" : "untested",
+      "path" : "outbounds[0].stream.transport",
+      "severity" : "info"
+    },
+    {
+      "detail" : "Mobile memory profile: QUIC receive windows capped, group health checks lazy every 600 s unless the model sets an interval",
+      "kind" : "migrated",
+      "path" : "options.memoryProfile",
+      "severity" : "info"
+    },
+    {
+      "detail" : "No DNS servers given; the tunnel resolves through 2 default public resolvers, queried through the proxy",
+      "kind" : "migrated",
+      "path" : "options.dnsServers",
+      "severity" : "info"
+    }
+  ],
+  "verdict" : "degraded"
+}
