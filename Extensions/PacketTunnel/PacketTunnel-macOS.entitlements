@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode -->
+<!-- UNVERIFIED: never used for signing. The macOS CI builds are unsigned (CODE_SIGNING_ALLOWED=NO), so
+     these entitlements were not applied or checked against a provisioning profile. -->
 <!-- macOS app extension (Mac App Store packaging, used for development, ADR-0005 §3).
      The Developer ID system-extension variant needs a different file and is not written. -->
 <plist version="1.0">

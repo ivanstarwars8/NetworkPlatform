@@ -9,8 +9,9 @@
 # run. MihomoOnly and Dual are declared but stop at the "Flavour guard" build phase (see below).
 # The generated NetworkPlatform.xcodeproj is not stored in git.
 #
-# Before a signed build replace (Documentation/Apple/BUILD_ON_MAC.md):
-#   NP_BUNDLE_ID_PREFIX  - a bundle identifier owned by the signing team
+# Before a signed build set, in Configurations/Local.xcconfig (git-ignored) or on the command line
+# (Documentation/Apple/BUILD_ON_MAC.md):
+#   NP_BUNDLE_ID_PREFIX  - a bundle identifier owned by the signing team (default: a placeholder)
 #   DEVELOPMENT_TEAM     - the Apple Developer team identifier
 # and register the App Group and the Network Extension capability for both identifiers.
 #
@@ -62,8 +63,6 @@ packages:
 
 settings:
   base:
-    NP_BUNDLE_ID_PREFIX: org.example.networkplatform
-    DEVELOPMENT_TEAM: ""
     CODE_SIGN_STYLE: Automatic
     MARKETING_VERSION: "0.0.1"
     CURRENT_PROJECT_VERSION: "1"

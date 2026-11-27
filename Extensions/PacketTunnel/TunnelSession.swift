@@ -1,11 +1,11 @@
-// UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode
+// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS,
+// visionOS, unsigned (CODE_SIGNING_ALLOWED=NO), https://github.com/ivanstarwars8/NetworkPlatform/actions/runs/45966628451
 //
-// Status of that mark for this file: it imports only Foundation and
-// CoreAbstraction and IS compiled and unit-tested on Linux, through a
-// symbolic link in Packages/CoreAbstraction/Tests (Swift 5.10.1, 2026-11-25),
-// against a mock engine and a fake interface. It has not been compiled for an
-// Apple platform or run inside an extension. It is meant to move into the
-// `TunnelHost` package module (ADR-0004 §2.3).
+// It imports only Foundation and CoreAbstraction and is also unit-tested,
+// through a symbolic link in Packages/CoreAbstraction/Tests, on Linux and on
+// the macOS CI runner (`swift test`), against a mock engine and a fake
+// interface. It has never run inside an extension. It is meant to move into
+// the `TunnelHost` package module (ADR-0004 §2.3).
 //
 // The order of operations of one tunnel process, without Network Extension:
 // what happens to the engine and to the interface settings on start, on a

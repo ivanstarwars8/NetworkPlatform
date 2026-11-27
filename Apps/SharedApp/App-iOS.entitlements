@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode -->
+<!-- UNVERIFIED: never used for signing. The macOS CI builds are unsigned (CODE_SIGNING_ALLOWED=NO), so
+     these entitlements were not applied or checked against a provisioning profile. -->
 <plist version="1.0">
 <dict>
 	<key>com.apple.developer.networking.networkextension</key>

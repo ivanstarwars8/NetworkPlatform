@@ -1,4 +1,8 @@
+#include "Base.xcconfig"
 // Build flavour XrayOnly (ADR-0001 §3, ADR-0007): one Packet Tunnel extension with the Xray bridge.
 // No GPL code in any process. The only flavour that can be built today.
 NP_FLAVOUR = XrayOnly
 NP_FLAVOUR_CONDITIONS = NP_ENGINE_XRAY
+
+// Developer identity, never committed.
+#include? "Local.xcconfig"

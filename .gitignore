@@ -6,3 +6,5 @@ DerivedData/
 *.xcframework/
 Logs/
 Cores/Bridge/build/
+Apps/Configurations/Local.xcconfig
+Apps/NetworkPlatform.xcodeproj/

@@ -1,5 +1,9 @@
+#include "Base.xcconfig"
 // Build flavour MihomoOnly (ADR-0007): one Packet Tunnel extension with the Mihomo engine (GPL-3.0).
 // NOT BUILDABLE YET: the Mihomo bridge artifact (NPMihomoBridge.xcframework) and the Mihomo extension target
 // do not exist. The extension's "Flavour guard" build phase stops the build with that reason.
 NP_FLAVOUR = MihomoOnly
 NP_FLAVOUR_CONDITIONS = NP_ENGINE_MIHOMO
+
+// Developer identity, never committed.
+#include? "Local.xcconfig"

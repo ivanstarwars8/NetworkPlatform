@@ -1,4 +1,5 @@
-// compiled on macOS CI, never run
+// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS,
+// visionOS, unsigned (CODE_SIGNING_ALLOWED=NO), https://github.com/ivanstarwars8/NetworkPlatform/actions/runs/45966628451
 //
 // The one place where this extension calls the Go bridge today: it reads the
 // bridge's ABI and version at start and logs them. It proves that the C

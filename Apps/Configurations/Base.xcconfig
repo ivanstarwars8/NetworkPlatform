@@ -1,0 +1,4 @@
+// Shared by every flavour. Identity values are placeholders: put your own into Local.xcconfig (git-ignored,
+// optional; see Documentation/Apple/BUILD_ON_MAC.md) or pass them on the xcodebuild command line.
+NP_BUNDLE_ID_PREFIX = org.example.networkplatform
+DEVELOPMENT_TEAM =

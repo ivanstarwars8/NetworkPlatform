@@ -120,6 +120,11 @@ jobs:
           if [ -d "$app/Contents" ]; then appex="$app/Contents/PlugIns/PacketTunnel.appex"; bin="$appex/Contents/MacOS/PacketTunnel"
           else appex="$app/PlugIns/PacketTunnel.appex"; bin="$appex/PacketTunnel"; fi
           test -d "$appex" && echo "embedded: $appex"
+          plist="$appex/Info.plist"; [ -f "$plist" ] || plist="$appex/Contents/Info.plist"
+          for k in CFBundleIdentifier NPAppGroupIdentifier NSExtension.NSExtensionPointIdentifier NSExtension.NSExtensionPrincipalClass; do
+            echo "appex $k = $(plutil -extract "$k" raw "$plist")"
+          done
+          test "$(plutil -extract CFBundleIdentifier raw "$plist")" = "org.example.networkplatform.PacketTunnel"
           file "$bin"
           # Debug builds put the code into PacketTunnel.debug.dylib next to a small launcher (ENABLE_DEBUG_DYLIB).
           : > "$RUNNER_TEMP/syms"

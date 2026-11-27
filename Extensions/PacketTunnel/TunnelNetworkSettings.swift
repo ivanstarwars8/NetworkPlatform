@@ -1,4 +1,5 @@
-// UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode
+// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS,
+// visionOS, unsigned (CODE_SIGNING_ALLOWED=NO), https://github.com/ivanstarwars8/NetworkPlatform/actions/runs/45966628451
 //
 // Builds the system description of the tunnel interface from the plan sent
 // by the control plane. Packets never pass through Swift: the engine reads
