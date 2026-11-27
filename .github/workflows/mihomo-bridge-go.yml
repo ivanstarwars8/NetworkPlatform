@@ -1,0 +1,109 @@
+# The Mihomo bridge (Cores/MihomoBridge) on Linux: gofmt, vet, unit and integration tests, race detector,
+# the C ABI smoke test against the c-archive and the Linux-side check of the Apple patch. Linux only: no
+# Apple slices of this bridge are built yet. Integration tests use a stock xray built from the core pinned
+# by Cores/Bridge as the server side.
+name: Mihomo bridge (Go, Linux)
+
+on:
+  push:
+    branches: [main]
+    paths: &paths
+      - Cores/MihomoBridge/**
+      - Cores/Bridge/cabi/main.go
+      - Cores/Bridge/go.mod
+      - Cores/BuildScripts/mihomo-*.sh
+      - .github/workflows/mihomo-bridge-go.yml
+  pull_request:
+    paths: *paths
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mihomo-bridge-go-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: Cores/MihomoBridge
+
+jobs:
+  linux:
+    name: vet + test + race (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: Cores/MihomoBridge/go.mod
+          cache-dependency-path: |
+            Cores/MihomoBridge/go.sum
+            Cores/Bridge/go.sum
+      - name: Toolchain
+        run: go version && go list -m github.com/metacubex/mihomo
+      - name: gofmt
+        run: test -z "$(gofmt -l . | tee /dev/stderr)"
+      - name: vet
+        run: go vet ./...
+      - name: Stock xray from the core pinned by Cores/Bridge (server side of the integration tests)
+        working-directory: Cores/Bridge
+        run: go build -mod=readonly -trimpath -o "$RUNNER_TEMP/xray" github.com/xtls/xray-core/main && "$RUNNER_TEMP/xray" version | head -1
+      - name: test
+        env:
+          NP_STOCK_XRAY: ${{ runner.temp }}/xray
+        run: go test -count=1 -timeout 20m ./...
+      # Under -race the pinned Mihomo core reports data races of its own: in its Vision code
+      # (transport/vless/vision) during TestProtocolsOverLoopback/VLESS+REALITY+Vision, and log.SetLevel
+      # against log.print during TestStartStopCycles. Those two cases run in the KNOWN FAILURE step below;
+      # everything else must be race-free.
+      - name: race (all tests except the two known cases)
+        env:
+          NP_STOCK_XRAY: ${{ runner.temp }}/xray
+        run: |
+          go test -race -count=1 -timeout 30m -skip '^(TestProtocolsOverLoopback|TestStartStopCycles)$' ./...
+          go test -race -count=1 -timeout 15m -run '^TestProtocolsOverLoopback$' -skip '^TestProtocolsOverLoopback$/^VLESS\+REALITY\+Vision$' ./engine
+      # Known failure, reported, not hidden. Passes only while each case either passes or fails with data
+      # races whose conflicting accesses all happen in Mihomo code (the innermost frame of every access stack
+      # is in github.com/metacubex/mihomo); a race whose access is in the bridge fails. Functional failures of
+      # the same cases are caught by the plain "test" step above.
+      - name: KNOWN FAILURE check, race, Mihomo-core races (Vision, log level)
+        env:
+          NP_STOCK_XRAY: ${{ runner.temp }}/xray
+        run: |
+          # True when the innermost frame of some access stack (Read/Write/Previous ... at) is outside the core.
+          foreign_access() {
+            awk '
+              /^(Read|Write|Previous read|Previous write|Atomic)/ { want = 1; next }
+              want && /^  [^ ]/ { if ($0 !~ /github\.com\/metacubex\/mihomo\//) found = 1; want = 0 }
+              END { exit !found }' "$1"
+          }
+          status=0
+          for run in '^TestProtocolsOverLoopback$/^VLESS\+REALITY\+Vision$' '^TestStartStopCycles$'; do
+            log="$RUNNER_TEMP/mihomo-race.log"
+            set +e
+            go test -race -count=1 -timeout 10m -v -run "$run" ./engine >"$log" 2>&1
+            rc=$?
+            set -e
+            if [ "$rc" -eq 0 ]; then
+              echo "::notice::$run passes under -race (core race not reproduced this time)"
+              continue
+            fi
+            races=$(grep -c 'WARNING: DATA RACE' "$log" || true)
+            if [ "$races" -gt 0 ] && ! foreign_access "$log"; then
+              echo "::warning::KNOWN FAILURE: $run fails under -race with $races Mihomo-core data race report(s); every conflicting access is in github.com/metacubex/mihomo. See STATUS.md."
+              grep -A6 'WARNING: DATA RACE' "$log" | head -24
+            else
+              echo "$run failed for a reason other than the known core races:"
+              tail -n 80 "$log"
+              status=1
+            fi
+          done
+          exit "$status"
+      - name: C ABI smoke test against the c-archive (linux/amd64)
+        working-directory: .
+        run: Cores/BuildScripts/mihomo-linux-cabi-test.sh
+      - name: Apple patch check (compile for ios/darwin, proc_pidinfo gone; no SDK)
+        working-directory: .
+        run: Cores/BuildScripts/mihomo-apple-check.sh
