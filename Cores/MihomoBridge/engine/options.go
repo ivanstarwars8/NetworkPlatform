@@ -46,12 +46,47 @@ type Options struct {
 	// LogQueueSize is the capacity of the bounded log queue in records. Default 512.
 	LogQueueSize int `json:"logQueueSize"`
 
+	// TCPIdleTimeoutMs / UDPIdleTimeoutMs: the bridge closes a TCP connection / UDP session of any inbound after
+	// this long without data in either direction (idle.go). The core itself has no TCP idle timeout and ends
+	// a UDP session 60 s after its last packet without a configuration key for it. Counted in
+	// Stats.IdleClosedTCP/UDP. 0 = off (UDP: the core's 60 s still applies); the mobile profile sets
+	// MobileTCPIdleTimeoutMs / MobileUDPIdleTimeoutMs.
+	TCPIdleTimeoutMs int `json:"tcpIdleTimeoutMs"`
+	UDPIdleTimeoutMs int `json:"udpIdleTimeoutMs"`
+
 	Memory MemoryOptions `json:"memory"`
 	Tun    TunOptions    `json:"tun"`
 }
 
+// MemoryProfile selects a set of defaults for memory-related options (same names as the Xray bridge).
+type MemoryProfile string
+
+const (
+	// MemoryProfileDefault leaves every unset option at its ordinary default.
+	MemoryProfileDefault MemoryProfile = ""
+	// MemoryProfileMobile fills unset options with the values measured for a process with a memory budget of
+	// about 50 MiB (an iOS packet tunnel provider; Documentation/Performance/memory-budget.md, Mihomo section).
+	// Options set explicitly are kept. It does not change the configuration document.
+	MemoryProfileMobile MemoryProfile = "mobile"
+)
+
+// Defaults of the mobile profile. Project choices from measurements on Linux, not platform limits.
+const (
+	MobileMemoryLimitBytes = 40 << 20
+	MobileGCPercent        = 25
+	MobileOutQueueBytes    = 512 << 10
+	MobileInQueueBytes     = 256 << 10
+	MobileMaxFlows         = 512
+	MobileLogQueueSize     = 128
+	MobileUDPIdleTimeoutMs = 30_000
+	MobileTCPIdleTimeoutMs = 300_000
+)
+
 // MemoryOptions are process-wide Go runtime settings applied on Start and restored on Stop.
 type MemoryOptions struct {
+	// Profile fills the options below (and tun.outQueueBytes, tun.inQueueBytes, tun.maxFlows, logQueueSize)
+	// that are left at zero. See MemoryProfileMobile.
+	Profile MemoryProfile `json:"profile"`
 	// LimitBytes is passed to debug.SetMemoryLimit. 0 = leave the runtime's setting unchanged.
 	LimitBytes int64 `json:"limitBytes"`
 	// GCPercent is passed to debug.SetGCPercent. 0 = leave unchanged; negative disables the percent-based GC
@@ -72,6 +107,12 @@ type TunOptions struct {
 	// InQueueBytes bounds the queue of packets from TunWrite waiting for the stack (TunFlow; the Xray
 	// bridge has no such queue). Default 1 MiB.
 	InQueueBytes int `json:"inQueueBytes"`
+	// MaxFlows caps the TCP connections the bridge's stack hands to the core at once (TunFlow). A connection
+	// beyond the cap is closed at once (TCP reset) and counted in TunCounters.FlowsRejected. UDP is not
+	// capped here: the stack hands UDP to the core packet by packet, and the core's UDP sessions end 60 s
+	// after the last packet from the remote side (tunnel/tunnel.go udpTimeout). 0 = no cap; the mobile
+	// profile sets MobileMaxFlows.
+	MaxFlows int `json:"maxFlows"`
 }
 
 // ParseOptions decodes an options document. Empty input yields defaults. Unknown fields are rejected so that
@@ -108,6 +149,36 @@ func (o *Options) Normalize() *Error {
 	if o.StartTimeoutMs < 0 || o.StopTimeoutMs < 0 {
 		return newError(CodeInvalidArgument, "negative timeout")
 	}
+	switch o.Memory.Profile {
+	case MemoryProfileDefault:
+	case MemoryProfileMobile:
+		if o.Memory.LimitBytes == 0 {
+			o.Memory.LimitBytes = MobileMemoryLimitBytes
+		}
+		if o.Memory.GCPercent == 0 {
+			o.Memory.GCPercent = MobileGCPercent
+		}
+		if o.Tun.OutQueueBytes == 0 {
+			o.Tun.OutQueueBytes = MobileOutQueueBytes
+		}
+		if o.Tun.InQueueBytes == 0 {
+			o.Tun.InQueueBytes = MobileInQueueBytes
+		}
+		if o.Tun.MaxFlows == 0 {
+			o.Tun.MaxFlows = MobileMaxFlows
+		}
+		if o.TCPIdleTimeoutMs == 0 {
+			o.TCPIdleTimeoutMs = MobileTCPIdleTimeoutMs
+		}
+		if o.UDPIdleTimeoutMs == 0 {
+			o.UDPIdleTimeoutMs = MobileUDPIdleTimeoutMs
+		}
+		if o.LogQueueSize == 0 {
+			o.LogQueueSize = MobileLogQueueSize
+		}
+	default:
+		return newError(CodeInvalidArgument, "unknown memory.profile %q", o.Memory.Profile)
+	}
 	if o.LogQueueSize == 0 {
 		o.LogQueueSize = 512
 	}
@@ -143,6 +214,16 @@ func (o *Options) Normalize() *Error {
 	}
 	if o.Tun.InQueueBytes < 128<<10 || o.Tun.InQueueBytes > 64<<20 {
 		return newError(CodeInvalidArgument, "tun.inQueueBytes out of range [128 KiB, 64 MiB]")
+	}
+	if o.Tun.MaxFlows < 0 || o.Tun.MaxFlows > 1<<20 {
+		return newError(CodeInvalidArgument, "tun.maxFlows out of range [0, 1048576]")
+	}
+	// The lower bounds keep a typo (seconds given as milliseconds) from closing every connection at once.
+	if o.TCPIdleTimeoutMs != 0 && (o.TCPIdleTimeoutMs < 1000 || o.TCPIdleTimeoutMs > 86_400_000) {
+		return newError(CodeInvalidArgument, "tcpIdleTimeoutMs out of range [1000, 86400000] (0 = off)")
+	}
+	if o.UDPIdleTimeoutMs != 0 && (o.UDPIdleTimeoutMs < 1000 || o.UDPIdleTimeoutMs > 86_400_000) {
+		return newError(CodeInvalidArgument, "udpIdleTimeoutMs out of range [1000, 86400000] (0 = off)")
 	}
 	return nil
 }

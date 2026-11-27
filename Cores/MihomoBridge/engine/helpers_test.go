@@ -24,6 +24,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 	"sync"
@@ -365,6 +366,49 @@ func rssKiB() int64 {
 		}
 	}
 	return -1
+}
+
+// rssSplitKiB reads RssAnon and RssFile of this process (Linux).
+func rssSplitKiB() (anon, file int64) {
+	b, err := os.ReadFile("/proc/self/status")
+	if err != nil {
+		return -1, -1
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		f := strings.Fields(line)
+		if len(f) < 2 {
+			continue
+		}
+		switch f[0] {
+		case "RssAnon:":
+			anon, _ = strconv.ParseInt(f[1], 10, 64)
+		case "RssFile:":
+			file, _ = strconv.ParseInt(f[1], 10, 64)
+		}
+	}
+	return anon, file
+}
+
+// writeProfiles writes <dir>/<name>-heap.pprof and <name>-goroutine.txt.
+func writeProfiles(t testing.TB, dir, name string) {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Error(err)
+		return
+	}
+	for _, p := range []struct {
+		profile, file string
+		debug         int
+	}{{"heap", name + "-heap.pprof", 0}, {"goroutine", name + "-goroutine.txt", 1}} {
+		f, err := os.Create(filepath.Join(dir, p.file))
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		if err := pprof.Lookup(p.profile).WriteTo(f, p.debug); err != nil {
+			t.Error(err)
+		}
+		f.Close()
+	}
 }
 
 // ---- the operating system side of the packet interface ----

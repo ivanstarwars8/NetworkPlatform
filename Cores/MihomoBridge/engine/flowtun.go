@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"io"
+	"net"
 	"net/netip"
 	"sync"
 	"sync/atomic"
@@ -17,6 +18,7 @@ import (
 	"github.com/metacubex/mihomo/tunnel"
 	tun "github.com/metacubex/sing-tun"
 	"github.com/metacubex/sing/common"
+	M "github.com/metacubex/sing/common/metadata"
 )
 
 // TunCounters describe the packet interface of TunFlow mode. Same fields as the Xray bridge, plus
@@ -37,6 +39,10 @@ type TunCounters struct {
 	TxDropped      uint64 `json:"txDropped"`      // tail drops: the host did not read fast enough
 	TxQueueHighest int    `json:"txQueueHighest"` // high-water mark of the queue in bytes
 	TxQueueBytes   int    `json:"txQueueBytes"`   // capacity
+	// TCP connections handed to the core (tun.maxFlows counts these; UDP is not capped, see TunOptions).
+	FlowsActive   int64  `json:"flowsActive"`
+	FlowsHighest  int64  `json:"flowsHighest"`
+	FlowsRejected uint64 `json:"flowsRejected"` // closed at once because tun.maxFlows was reached
 }
 
 // How packets reach the core without a utun descriptor
@@ -70,13 +76,51 @@ type flowDevice struct {
 	attached atomic.Bool
 
 	rxMalformed, rxNoStack, rxOversize atomic.Uint64
+
+	maxFlows                  int64 // 0 = no cap
+	flowsActive, flowsHighest atomic.Int64
+	flowsRejected             atomic.Uint64
 }
 
-func newFlowDevice(mtu, inQueueBytes, outQueueBytes int) *flowDevice {
+func newFlowDevice(mtu, inQueueBytes, outQueueBytes, maxFlows int) *flowDevice {
 	return &flowDevice{
 		mtu: mtu, in: newPacketQueue(inQueueBytes), out: newPacketQueue(outQueueBytes),
-		closed: make(chan struct{}),
+		closed: make(chan struct{}), maxFlows: int64(maxFlows),
 	}
+}
+
+// acquireFlow admits one TCP connection unless tun.maxFlows is reached. Every admitted one is released with
+// releaseFlow. Same accounting as the Xray bridge.
+func (d *flowDevice) acquireFlow() bool {
+	n := d.flowsActive.Add(1)
+	if d.maxFlows > 0 && n > d.maxFlows {
+		d.flowsActive.Add(-1)
+		d.flowsRejected.Add(1)
+		return false
+	}
+	for {
+		old := d.flowsHighest.Load()
+		if n <= old || d.flowsHighest.CompareAndSwap(old, n) {
+			return true
+		}
+	}
+}
+
+func (d *flowDevice) releaseFlow() { d.flowsActive.Add(-1) }
+
+// cappedHandler is the core's TUN handler with tun.maxFlows applied to TCP. The stack calls NewConnection on a
+// goroutine of its own per accepted connection, and the call returns when the core is done with it.
+type cappedHandler struct {
+	*sing_tun.ListenerHandler
+	device *flowDevice
+}
+
+func (h cappedHandler) NewConnection(ctx context.Context, conn net.Conn, metadata M.Metadata) error {
+	if !h.device.acquireFlow() {
+		return conn.Close()
+	}
+	defer h.device.releaseFlow()
+	return h.ListenerHandler.NewConnection(ctx, conn, metadata)
 }
 
 var _ tun.Tun = (*flowDevice)(nil)
@@ -202,6 +246,7 @@ func (d *flowDevice) counters() TunCounters {
 	c.TxPackets, c.TxBytes, c.TxDropped, c.TxQueueHighest, c.TxQueueBytes = q.packets, q.bytes, q.dropped, q.highest, q.capacity
 	q.mu.Unlock()
 	c.RxMalformed, c.RxNoStack, c.RxOversize = d.rxMalformed.Load(), d.rxNoStack.Load(), d.rxOversize.Load()
+	c.FlowsActive, c.FlowsHighest, c.FlowsRejected = d.flowsActive.Load(), d.flowsHighest.Load(), d.flowsRejected.Load()
 	return c
 }
 
@@ -255,7 +300,7 @@ func startFlowListener(spec *tunSpec, device *flowDevice) (*flowListener, error)
 		EndpointIndependentNat: spec.endpointIndependentNat,
 		UDPTimeout:             spec.udpTimeout,
 		ICMPTimeout:            spec.icmpTimeout,
-		Handler:                handler,
+		Handler:                cappedHandler{ListenerHandler: handler, device: device},
 		Logger:                 mlog.SingLogger,
 		InterfaceFinder:        sing_tun.DefaultInterfaceFinder,
 		TCPCongestionControl:   spec.congestionControl,

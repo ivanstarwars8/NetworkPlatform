@@ -130,7 +130,7 @@ func frame(pkts ...[]byte) []byte {
 // goroutine, while writeBatch queues batches.
 func TestFlowDeviceHandoff(t *testing.T) {
 	// a full inbound queue drops (no reader attached to this device)
-	full := newFlowDevice(1500, 128<<10, 128<<10)
+	full := newFlowDevice(1500, 128<<10, 128<<10, 0)
 	full.attached.Store(true)
 	big := frame(make([]byte, 1400), make([]byte, 1400), make([]byte, 1400), make([]byte, 1400))
 	for i := 0; i < 40; i++ {
@@ -142,7 +142,7 @@ func TestFlowDeviceHandoff(t *testing.T) {
 		t.Errorf("full queue counters %+v", c)
 	}
 
-	d := newFlowDevice(100, 128<<10, 128<<10)
+	d := newFlowDevice(100, 128<<10, 128<<10, 0)
 	d.attached.Store(true)
 	got := make(chan []byte, 64)
 	var wg sync.WaitGroup
@@ -478,11 +478,16 @@ func TestSoakRSS(t *testing.T) {
 		peak = max(peak, r)
 		m := ReadMemoryStats()
 		mu.Lock()
-		t.Logf("t=%3.0fs rss=%d KiB heapLive=%d KiB mapped=%d KiB goroutines=%d conns=%d bytes=%d MiB failures=%d",
-			time.Since(began).Seconds(), r, m.HeapLive>>10, m.Mapped>>10, m.Goroutines, conns, bytesMoved>>20, failures)
+		anon, file := rssSplitKiB()
+		t.Logf("t=%3.0fs rss=%d KiB anon=%d file=%d heapLive=%d KiB mapped=%d KiB goroutines=%d conns=%d bytes=%d MiB failures=%d",
+			time.Since(began).Seconds(), r, anon, file, m.HeapLive>>10, m.Mapped>>10, m.Goroutines, conns, bytesMoved>>20, failures)
 		mu.Unlock()
 	}
 	ticker.Stop()
+	if dir := os.Getenv("NP_SOAK_PROF"); dir != "" {
+		// heap and goroutine profiles under load (this process: engine + the test's peer stack and client)
+		writeProfiles(t, dir, "soak-loaded")
+	}
 	close(stop)
 	wg.Wait()
 	st, _ := e.Stats()
