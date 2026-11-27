@@ -2,6 +2,7 @@
 
 - Статус: **принято**; выбор транспорта IPC — обратимый, скрыт за одним протоколом
 - Дата: 2026-11-24
+- Частично заменён: ADR-0008 (передача запроса запуска файлом в App Group вместо конфига в `startVPNTunnel(options:)`; §3.1, строка «Конфигурация», и §3.3 п. 1)
 - Основание: `Documentation/Research/singbox.md` §3.4–3.7, `Documentation/Research/reference-apps.md` §2.3 и §4–5, `PLATFORM_MATRIX.md` §2, §4, §8
 
 ## 1. Контекст

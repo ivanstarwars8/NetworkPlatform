@@ -16,6 +16,7 @@ allTargets += lib("CoreAbstraction")
 allTargets += lib("ConfigurationEngine", deps: ["DomainModels"])
 allTargets += lib("RoutingEngine")
 allTargets += lib("AdaptiveBalancer")
+allTargets += lib("EngineXray", deps: ["CoreAbstraction"])
 allTargets += [.executableTarget(name: "RoutingBench", dependencies: ["RoutingEngine"], path: "Benchmarks/RoutingBench", exclude: ["run-all.sh"])]
 
 let package = Package(
@@ -27,6 +28,7 @@ let package = Package(
         .library(name: "ConfigurationEngine", targets: ["ConfigurationEngine"]),
         .library(name: "RoutingEngine", targets: ["RoutingEngine"]),
         .library(name: "AdaptiveBalancer", targets: ["AdaptiveBalancer"]),
+        .library(name: "EngineXray", targets: ["EngineXray"]),
     ],
     targets: allTargets
 )

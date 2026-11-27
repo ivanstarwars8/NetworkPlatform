@@ -2,9 +2,11 @@
 // visionOS, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 45966628451 (workflow apple.yml)
 //
 // Builds the system description of the tunnel interface from the plan sent
-// by the control plane. Packets never pass through Swift: the engine reads
-// and writes the utun device itself (ADR-0003 §2), so nothing here touches
-// `packetFlow`.
+// by the control plane. Nothing here touches `packetFlow`: the packet pump of
+// the engine adapter moves packets in batches without parsing them
+// (ADR-0001 §4.1, Packages/EngineXray/Sources/PacketPump.swift).
+// The plan's MTU is also passed to the engine as `CoreStartOptions.mtu`, so
+// the interface and the engine's stack agree.
 
 import Foundation
 import NetworkExtension
