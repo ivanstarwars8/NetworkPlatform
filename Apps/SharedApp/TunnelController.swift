@@ -1,5 +1,5 @@
-// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
-// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46045764184 (workflow apple.yml)
+// UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode
+// (previous version compiled on macOS CI, GitHub Actions run 46045764184; changed since: diagnostics)
 //
 // Control-plane side of the tunnel (ADR-0003 §3.1): owns the
 // `NETunnelProviderManager`, mirrors `NEVPNStatus` (the source of truth about
@@ -17,10 +17,18 @@
 // extension of the request's engine before starting (ADR-0001 rule 5; whether
 // the system accepts that rewrite is check E-3 on a device).
 //
-// Not implemented: On-Demand rules, compiling a start request. Nothing calls
-// `connect(with:)` yet; `connect()` starts the tunnel without a request, which
-// works only when the extension has a snapshot.
+// The start request is compiled by `ProfileLibraryModel` (selected profile) and
+// passed to `connect(with:)`. `connect()` starts without a request, which works
+// only when the extension has a snapshot.
+//
+// Diagnostics: `lastDisconnectError` is the system's record of why the tunnel
+// last stopped (the extension's start error, `fetchLastDisconnectError`), and
+// `traffic` the bridge's byte counters (`.statistics` message). Texts shown are
+// passed through `ConfigValueRedactor` (UUIDs and IP literals removed).
+//
+// Not implemented: On-Demand rules.
 
+import ConfigurationEngine
 import Foundation
 // NetworkExtension has no Sendable annotations: `loadAllFromPreferences()`
 // returns non-Sendable managers to the main actor, where they stay.
@@ -34,6 +42,11 @@ final class TunnelController: ObservableObject {
     @Published private(set) var lastError: String?
     /// The engine whose extension the VPN configuration points at.
     @Published private(set) var selectedCoreID: String?
+    /// Why the tunnel last stopped, as the system recorded it; redacted.
+    @Published private(set) var lastDisconnectError: String?
+    /// Byte counters of the running engine, from the last `refreshTraffic()`.
+    @Published private(set) var traffic: TunnelTrafficReport?
+    @Published private(set) var trafficError: String?
 
     /// The engines of this build (flavour conditions).
     let catalog = TunnelEngineCatalog.thisBuild
@@ -179,17 +192,20 @@ final class TunnelController: ObservableObject {
 
         let request = makeRequest(.status)
         do {
-            let report = try TunnelExchange.statusReport(of: try await send(request), for: request)
+            var report = try TunnelExchange.statusReport(of: try await send(request), for: request)
             // The tunnel may have gone down while the reply was on its way.
             guard status == .connected else {
                 engineReport = nil
                 return
             }
+            if let error = report.lastError {
+                report.lastError = TunnelController.redacted(error)
+            }
             engineReport = report
             lastError = nil
         } catch let error as TunnelIPCError {
             engineReport = nil
-            lastError = "Querying the extension failed: \(error.summary)"
+            lastError = "Querying the extension failed: \(TunnelController.redacted(error.summary))"
         } catch {
             engineReport = nil
             lastError = "Querying the extension failed."
@@ -200,6 +216,48 @@ final class TunnelController: ObservableObject {
     func queryTraffic() async throws -> TunnelTrafficReport {
         let request = makeRequest(.statistics)
         return try TunnelExchange.trafficReport(of: try await send(request), for: request)
+    }
+
+    /// Updates `traffic`; only while connected (nobody answers otherwise).
+    func refreshTraffic() async {
+        guard status == .connected else {
+            traffic = nil
+            trafficError = nil
+            return
+        }
+        do {
+            traffic = try await queryTraffic()
+            trafficError = nil
+        } catch let error as TunnelIPCError {
+            trafficError = TunnelController.redacted(error.summary)
+        } catch {
+            trafficError = "\(type(of: error))"
+        }
+    }
+
+    /// Removes configuration-shaped values (UUIDs, IP literals) from a text before it is shown. The
+    /// extension's errors carry no configuration by construction (ADR-0003 §4); this is a second guard.
+    nonisolated static func redacted(_ text: String) -> String {
+        ConfigValueRedactor().redact(text)
+    }
+
+    /// Asks the system why the tunnel last stopped (the error the extension threw from `startTunnel` or
+    /// passed to `cancelTunnelWithError`).
+    private func fetchLastDisconnectError() {
+        guard let connection = manager?.connection else { return }
+        connection.fetchLastDisconnectError { [weak self] error in
+            // Reduced to text here: the error is not Sendable.
+            let text = error.map { TunnelController.describeDisconnect($0) }
+            Task { @MainActor in
+                self?.lastDisconnectError = text
+            }
+        }
+    }
+
+    nonisolated private static func describeDisconnect(_ error: Error) -> String {
+        let nsError = error as NSError
+        let text = "\(nsError.localizedDescription) (\(nsError.domain) \(nsError.code))"
+        return ConfigValueRedactor().redact(text)
     }
 
     // MARK: Channel
@@ -253,6 +311,10 @@ final class TunnelController: ObservableObject {
         status = newManager?.connection.status ?? .invalid
         if status != .connected {
             engineReport = nil
+            traffic = nil
+        }
+        if status == .disconnected {
+            fetchLastDisconnectError()
         }
         guard let connection = newManager?.connection else { return }
         statusObserver = NotificationObservation(
@@ -275,6 +337,10 @@ final class TunnelController: ObservableObject {
         status = manager?.connection.status ?? .invalid
         if status != .connected {
             engineReport = nil
+            traffic = nil
+        }
+        if status == .disconnected {
+            fetchLastDisconnectError()
         }
     }
 }

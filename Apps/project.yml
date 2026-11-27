@@ -171,6 +171,11 @@ targetTemplates:
       # Engine-neutral model (no engine code): Shared/ uses TunnelAddressing for the interface plan.
       - package: NetworkPlatform
         product: DomainModels
+      # Import, profile file + Keychain, compilation for the start request (pure Swift, no engine adapters).
+      - package: NetworkPlatform
+        product: ConfigurationEngine
+      - package: NetworkPlatform
+        product: ProfileLibrary
       - sdk: NetworkExtension.framework
 
   PacketTunnel:

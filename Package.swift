@@ -23,6 +23,10 @@ allTargets += lib("EngineBridge", deps: ["CoreAbstraction"], testDeps: ["EngineB
 allTargets += [.target(name: "EngineBridgeTestSupport", dependencies: ["EngineBridge"], path: "Packages/EngineBridge/TestSupport")]
 allTargets += lib("EngineXray", deps: ["CoreAbstraction", "EngineBridge"], testDeps: ["DomainModels", "EngineBridgeTestSupport"])
 allTargets += lib("EngineMihomo", deps: ["CoreAbstraction", "EngineBridge", "ConfigurationEngine"], testDeps: ["DomainModels", "EngineBridgeTestSupport"])
+// What the app keeps and compiles: import of links and subscriptions, the profile file with secrets in a
+// secret store, compilation for the Packet Tunnel. App-side only, no engine adapters (ADR-0001 rule 2).
+// The tests compile Extensions/PacketTunnel/Shared and the app's start-request mapping through symbolic links.
+allTargets += lib("ProfileLibrary", deps: ["DomainModels", "ConfigurationEngine"], testDeps: ["DomainModels", "ConfigurationEngine"])
 allTargets += [.executableTarget(name: "RoutingBench", dependencies: ["RoutingEngine"], path: "Benchmarks/RoutingBench", exclude: ["run-all.sh"])]
 
 let package = Package(
@@ -34,6 +38,7 @@ let package = Package(
         .library(name: "ConfigurationEngine", targets: ["ConfigurationEngine"]),
         .library(name: "RoutingEngine", targets: ["RoutingEngine"]),
         .library(name: "AdaptiveBalancer", targets: ["AdaptiveBalancer"]),
+        .library(name: "ProfileLibrary", targets: ["ProfileLibrary"]),
         .library(name: "EngineBridge", targets: ["EngineBridge"]),
         .library(name: "EngineXray", targets: ["EngineXray"]),
         .library(name: "EngineMihomo", targets: ["EngineMihomo"]),
