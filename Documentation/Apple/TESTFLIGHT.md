@@ -29,7 +29,7 @@
 
 Профили задаются по цели: `PROVISIONING_PROFILE_SPECIFIER = $(NP_APP_PROFILE_SPECIFIER)` у приложения и `$(NP_XRAY_EXTENSION_PROFILE_SPECIFIER)` у `PacketTunnelXray`; по умолчанию пусто. Команда, способ подписи (`Manual`, `Apple Distribution`), профили, версия и номер сборки передаются в командной строке workflow.
 
-Иконка — заглушка: глиф (кольцо и полумесяц-рога) на тёмном фоне, генерируется кодом `Tools/make-placeholder-icon.py` (только стандартная библиотека Python, без исходных изображений), 1024×1024 RGB без альфа-канала. Каталог `Apps/Branding/iOS/Assets.xcassets` подключён к целям приложения только для iOS; иконка используется, только когда задан `ASSETCATALOG_COMPILER_APPICON_NAME` (в `Byk.xcconfig`).
+Иконка — дуга рогов из элемента подключения, бронза на сланце (`Documentation/Design/DESIGN.md` §7). Генерируется кодом `Tools/make-app-icon.py` из той же геометрии, что и `HornGeometry.swift` (только стандартная библиотека Python, без исходных изображений): iOS — 1024×1024 RGB без альфа-канала, macOS — набор 16…1024 с полями. Каталоги `Apps/Branding/<платформа>/Assets.xcassets` подключены к целям приложения; `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon` задан в `project.yml` для iOS и macOS (и в `Byk.xcconfig`). Для tvOS и visionOS (многослойные иконки) иконки пока нет.
 
 ## 3. Шаги workflow
 

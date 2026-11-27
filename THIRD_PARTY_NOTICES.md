@@ -12,6 +12,17 @@
 
 Когда появится первое заимствование или зависимость, сюда добавляется запись: название, версия или SHA, лицензия, текст уведомления об авторских правах, какие файлы затронуты.
 
+### 1.1. Шрифты интерфейса
+
+Шрифты не код, но входят в сборку приложения как ресурсы пакета `DesignSystem` (`Packages/DesignSystem/Sources/DesignSystem/Resources/Fonts`). Оба — под SIL Open Font License 1.1; текст лицензии лежит рядом с файлом шрифта, попадает в сборку и показывается в приложении («Настройки → О приложении → Шрифты и лицензии»). Файлы шрифтов не изменены, только переименованы (`[wght]` убран из имени файла); имя семейства внутри шрифта прежнее.
+
+| Шрифт | Файл | Источник | Лицензия | Уведомление |
+|---|---|---|---|---|
+| Unbounded (переменный, ось `wght`) | `Unbounded.ttf`, SHA-256 `323b511be380c8d474ef030686b71aedde501f8d9cd46da558b7c40454372c3f` | `github.com/google/fonts`, коммит `5026800714d07231937d92eb4cceabf06e05d74e`, `ofl/unbounded/Unbounded[wght].ttf` | SIL OFL 1.1 (`Unbounded-OFL.txt`) | Copyright 2022 The Unbounded Project Authors (https://github.com/googlefonts/unbounded) |
+| Golos Text (переменный, ось `wght`) | `GolosText.ttf`, SHA-256 `7beaf350d662e9304e61f0781d90ff340ed013c04b2e56607a160db444be2a4c` | `github.com/google/fonts`, коммит `5026800714d07231937d92eb4cceabf06e05d74e`, `ofl/golostext/GolosText[wght].ttf` | SIL OFL 1.1 (`GolosText-OFL.txt`) | Copyright 2019 The Golos Text Project Authors (https://github.com/googlefonts/golos-text) |
+
+OFL разрешает встраивать шрифты в программы, в том числе распространяемые через App Store, при условии, что шрифт не продаётся отдельно и лицензия распространяется вместе с ним.
+
 ## 2. Что изучалось, но не копировалось
 
 Репозитории ниже читались как справочный материал. Их код в проект не переносился. SHA — в `Documentation/Research/SOURCES.txt`.

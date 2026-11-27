@@ -1,5 +1,5 @@
-// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
-// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46055850203 (workflow apple.yml)
+// UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode
+// (User-facing messages translated to Russian; otherwise as compiled on macOS CI in GitHub Actions run 46055850203.)
 //
 // Control-plane side of the tunnel (ADR-0003 §3.1): owns the
 // `NETunnelProviderManager`, mirrors `NEVPNStatus` (the source of truth about
@@ -79,7 +79,7 @@ final class TunnelController: ObservableObject {
             }
             adopt(ours)
         } catch {
-            lastError = "Loading VPN configurations failed: \(error.localizedDescription)"
+            lastError = "Не удалось прочитать настройки VPN: \(error.localizedDescription). Перезапустите приложение."
         }
     }
 
@@ -87,7 +87,7 @@ final class TunnelController: ObservableObject {
     /// this build's first engine. The system asks the user for permission.
     func install() async {
         guard let coreID = catalog.defaultEntry?.coreID, let provider = providerBundleIdentifier(for: coreID) else {
-            lastError = "This build contains no engine extension."
+            lastError = "В этой сборке нет расширения с движком — подключение невозможно."
             return
         }
         let proto = NETunnelProviderProtocol()
@@ -106,7 +106,7 @@ final class TunnelController: ObservableObject {
             adopt(newManager)
             lastError = nil
         } catch {
-            lastError = "Installing the VPN configuration failed: \(error.localizedDescription)"
+            lastError = "Не удалось добавить конфигурацию VPN: \(error.localizedDescription). Разрешите VPN, когда система спросит, и подключитесь снова."
         }
     }
 
@@ -132,9 +132,9 @@ final class TunnelController: ObservableObject {
                 handoff.discard(reference)
             }
         } catch let error as TunnelIPCError {
-            lastError = "Preparing the start request failed: \(error.summary)"
+            lastError = "Не удалось передать профиль расширению: \(error.summary). Попробуйте подключиться ещё раз."
         } catch {
-            lastError = "Preparing the start request failed."
+            lastError = "Не удалось передать профиль расширению. Попробуйте подключиться ещё раз."
         }
     }
 
@@ -146,7 +146,7 @@ final class TunnelController: ObservableObject {
             lastError = nil
             return true
         } catch {
-            lastError = "Starting the tunnel failed: \(error.localizedDescription)"
+            lastError = "Туннель не запустился: \(error.localizedDescription)."
             return false
         }
     }
@@ -157,12 +157,12 @@ final class TunnelController: ObservableObject {
     private func selectExtension(for coreID: String) async -> Bool {
         guard let manager = manager, let proto = manager.protocolConfiguration as? NETunnelProviderProtocol else { return false }
         guard let provider = providerBundleIdentifier(for: coreID) else {
-            lastError = "This build has no extension for the engine \(coreID)."
+            lastError = "В этой сборке нет расширения для движка \(coreID)."
             return false
         }
         if proto.providerBundleIdentifier == provider { return true }
         guard status == .disconnected || status == .invalid else {
-            lastError = "Disconnect before switching to the engine \(coreID)."
+            lastError = "Отключитесь, чтобы перейти на движок \(coreID)."
             return false
         }
         proto.providerBundleIdentifier = provider
@@ -173,7 +173,7 @@ final class TunnelController: ObservableObject {
             selectedCoreID = coreID
             return true
         } catch {
-            lastError = "Switching the extension failed: \(error.localizedDescription)"
+            lastError = "Не удалось переключить движок: \(error.localizedDescription)."
             return false
         }
     }
@@ -205,10 +205,10 @@ final class TunnelController: ObservableObject {
             lastError = nil
         } catch let error as TunnelIPCError {
             engineReport = nil
-            lastError = "Querying the extension failed: \(TunnelController.redacted(error.summary))"
+            lastError = "Расширение не ответило: \(TunnelController.redacted(error.summary))."
         } catch {
             engineReport = nil
-            lastError = "Querying the extension failed."
+            lastError = "Расширение не ответило."
         }
     }
 

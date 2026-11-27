@@ -1,5 +1,5 @@
-// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
-// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46055850203 (workflow apple.yml)
+// UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode
+// (User-facing messages translated to Russian; otherwise as compiled on macOS CI in GitHub Actions run 46055850203.)
 //
 // The app's side of profiles (main actor): import of pasted share links and subscriptions (a subscription
 // address is downloaded here), the profile file with secrets in the Keychain (`ProfileStore`,
@@ -43,9 +43,9 @@ final class ProfileLibraryModel: ObservableObject {
             let service = (Bundle.main.bundleIdentifier ?? "NetworkPlatform") + ".profiles"
             store = try ProfileStore(directory: try ProfileLibraryModel.storeDirectory(), secrets: KeychainSecretStore(service: service))
         } catch let error as ProfileStoreError {
-            lastError = "Profiles could not be opened: \(error.message)"
+            lastError = "Профили не открылись: \(error.message)."
         } catch {
-            lastError = "Profiles could not be opened (\(type(of: error)))."
+            lastError = "Профили не открылись (\(type(of: error)))."
         }
         publish()
     }
@@ -95,13 +95,13 @@ final class ProfileLibraryModel: ObservableObject {
             return true
         } catch let failure as ProfileImportFailure {
             importNotices = failure.notices
-            lastError = "Import failed: \(ProfileImporter.describe(failure))"
+            lastError = "Не удалось импортировать: \(ProfileImporter.describe(failure)). Проверьте ссылку или подписку."
         } catch let error as ProfileStoreError {
-            lastError = "Saving the profile failed: \(error.message)"
+            lastError = "Профиль не сохранился: \(error.message)."
         } catch let error as SubscriptionDownloadError {
-            lastError = "Downloading the subscription failed: \(error.message)"
+            lastError = "Подписка не загрузилась: \(error.message). Проверьте адрес и сеть."
         } catch {
-            lastError = "Import failed: \(ProfileImporter.describe(error))"
+            lastError = "Не удалось импортировать: \(ProfileImporter.describe(error)). Проверьте ссылку или подписку."
         }
         return false
     }
@@ -122,18 +122,18 @@ final class ProfileLibraryModel: ObservableObject {
         do {
             (data, response) = try await session.data(for: request)
         } catch let error as URLError {
-            throw SubscriptionDownloadError(message: "network error \(error.code.rawValue)")
+            throw SubscriptionDownloadError(message: "ошибка сети \(error.code.rawValue)")
         } catch {
             throw SubscriptionDownloadError(message: "\(type(of: error))")
         }
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-            throw SubscriptionDownloadError(message: "HTTP status \(http.statusCode)")
+            throw SubscriptionDownloadError(message: "сервер ответил HTTP \(http.statusCode)")
         }
         guard data.count <= maximumSubscriptionBytes else {
-            throw SubscriptionDownloadError(message: "the body exceeds \(maximumSubscriptionBytes) bytes")
+            throw SubscriptionDownloadError(message: "ответ больше \(maximumSubscriptionBytes) байт")
         }
         guard let text = String(data: data, encoding: .utf8) else {
-            throw SubscriptionDownloadError(message: "the body is not UTF-8 text")
+            throw SubscriptionDownloadError(message: "ответ не текст UTF-8")
         }
         return text
     }
@@ -171,7 +171,7 @@ final class ProfileLibraryModel: ObservableObject {
     /// blocked; `compileNotices` and `lastError` then say why.
     func makeStartRequest() -> TunnelStartRequest? {
         guard let store = store, let profile = store.selectedProfile else {
-            lastError = "Add and select a profile first."
+            lastError = "Сначала добавьте и выберите профиль."
             return nil
         }
         let secrets = store.resolvedSecrets(of: profile)
@@ -182,9 +182,9 @@ final class ProfileLibraryModel: ObservableObject {
             return TunnelStartRequest(compiled: compiled)
         } catch let failure as TunnelCompileFailure {
             compileNotices = failure.notices
-            lastError = "The profile cannot be started: \(failure.summary)"
+            lastError = "Профиль нельзя запустить: \(failure.summary)."
         } catch {
-            lastError = "The profile cannot be started (\(type(of: error)))."
+            lastError = "Профиль нельзя запустить (\(type(of: error)))."
         }
         return nil
     }
