@@ -121,9 +121,9 @@ jobs:
             done
           done
           for b in "$APP_BUNDLE_ID" "$EXT_BUNDLE_ID"; do
-            p="$(security cms -D -i "$s/profiles/$b.mobileprovision")"
+            security cms -D -i "$s/profiles/$b.mobileprovision" > "$s/profile-$b.plist"
             echo "== $b profile entitlements"
-            plutil -extract Entitlements xml1 -o - - <<<"$p" | grep -E '<key>|<string>|<true/>|<false/>' | sed 's/^[[:space:]]*/  /'
+            plutil -extract Entitlements xml1 -o - "$s/profile-$b.plist" | grep -E '<key>|<string>|<true/>|<false/>' | sed 's/^[[:space:]]*/  /'
           done
           echo "NP_APP_PROFILE=$(awk -v b="$APP_BUNDLE_ID" '$1=="PROFILE" && $2==b {sub(/^PROFILE [^ ]+ /,""); print}' "$s/profiles.txt")" >> "$GITHUB_ENV"
           echo "NP_EXT_PROFILE=$(awk -v b="$EXT_BUNDLE_ID" '$1=="PROFILE" && $2==b {sub(/^PROFILE [^ ]+ /,""); print}' "$s/profiles.txt")" >> "$GITHUB_ENV"
