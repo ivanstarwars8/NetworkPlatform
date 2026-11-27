@@ -80,7 +80,7 @@ go build -trimpath -ldflags "-s -w -buildid=" \
   -buildmode=c-archive -o "out/$SDK-$ARCH/libBridge.a" ./<пакет моста>
 ```
 
-Это запись того, что делает чужой скрипт, а не проверенная нами команда. Пакет моста — `./cabi` из `Cores/Bridge`; на Linux та же команда `go build -buildmode=c-archive` без SDK-окружения проверена (§4.7).
+Это запись того, что делает чужой скрипт. Наша проверенная команда — `Cores/BuildScripts/bridge-apple-xcframework.sh` (§4.8). Пакет моста — `./cabi` из `Cores/Bridge`; на Linux та же команда `go build -buildmode=c-archive` без SDK-окружения проверена (§4.7).
 
 `go build -buildmode=c-archive` кладёт рядом с архивом C-заголовок с экспортированными функциями [V: скрипт libXray копирует `libXray.h` из каталога среза].
 
@@ -149,6 +149,14 @@ xcodebuild -create-xcframework \
 `Cores/BuildScripts/bridge-linux-netns-test.sh` — режим `fd` против tun ядра Linux в одноразовом сетевом пространстве имён.
 
 `Cores/BuildScripts/bridge-tunlab.sh` (root, iproute2, curl, Go) — стенд из двух одноразовых пространств имён: приложение → tun ядра → мост (`flow` или `fd`) или штатный xray с той же конфигурацией → сервер → цели. Подкоманды `build`, `e2e`, `bench`, `batch`, `profile`, `soak`, `diag`, `teardown`; основное пространство имён не трогается. Запускался 2026-11-27, результаты и методика — `Documentation/Performance/bridge-benchmarks.md`.
+
+### 4.8. Что проверено на macOS (CI)
+
+`Cores/BuildScripts/bridge-apple-xcframework.sh` выполнялся на раннере GitHub Actions `macos-15` (Xcode 16.4, Go 1.27.4), задание `bridge` в `.github/workflows/apple.yml`, 2026-11-27. Собраны все 10 срезов: ios-arm64, ios-simulator-arm64/x86_64, macos-arm64/x86_64, tvos-arm64, tvos-simulator-arm64/x86_64, xros-arm64, xros-simulator-arm64. Размер среза 37–40 МБ. Платформа в Mach-O совпадает с целью: IOS 2, IOSSIMULATOR 7, MACOS 1, TVOS 3, TVOSSIMULATOR 8, XROS 11, XROSSIMULATOR 12. Из срезов собран `NPXrayBridge.xcframework`; заголовок и `module.modulemap` лежат в `Headers/NPXrayBridge/`, Swift пишет `import NPXrayBridge`.
+
+Отличие от §4.2: вместо `-m<sdk>-version-min` используется `clang -target <arch>-apple-<os><min>[-simulator]`. Так же собираются tvOS и visionOS, для которых у Go нет своего порта: Go берёт платформу из cgo-объектов при внешней линковке.
+
+`cabi/ctest/abi_test.c` против среза macos-arm64 выполнен на раннере: пройден. На iOS, tvOS и visionOS мост не запускался.
 
 ## 5. Что должен уметь мост
 

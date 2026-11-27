@@ -68,7 +68,7 @@ Packages/<Name>/Tests/…      тестовая цель <Name>Tests
 
 | Каталог | Содержимое |
 |---|---|
-| `Apps/` | проект Xcode: приложения, расширения, entitlements, xcconfig по вариантам сборки (`XrayOnly`, `SingBoxOnly`, `Dual`) и каналам (App Store, Developer ID) |
+| `Apps/` | проект Xcode: приложения, расширения, entitlements, xcconfig по вариантам сборки (`XrayOnly`, `MihomoOnly`, `Dual`; до ADR-0007 — `SingBoxOnly`) и каналам (App Store, Developer ID) |
 | `Engines/XrayBridge/` | Go-модуль моста: `go.mod` с закреплёнными версиями, экспортируемый C-заголовок, скрипты сборки |
 | `Engines/SingBox/` | только рецепт сборки libbox: SHA sing-box, версия Go, версия форка gomobile, список тегов, патчи upstream. Исходников sing-box в репозитории нет |
 | `Documentation/` | ADR, исследования |
@@ -95,5 +95,5 @@ Packages/<Name>/Tests/…      тестовая цель <Name>Tests
 
 - Условные бинарные цели в корневом манифесте корректно обрабатываются Xcode и SwiftPM на всех платформах.
 - XCFramework, собранный `gomobile bind`, и XCFramework из c-archive одинаково подключаются как `binaryTarget`.
-- Разделение на `XrayOnly` / `SingBoxOnly` / `Dual` выражается только xcconfig, без дублирования целей.
+- Разделение на `XrayOnly` / `MihomoOnly` / `Dual` (ADR-0007; было `SingBoxOnly`) выражается только xcconfig, без дублирования целей.
 - Пакет с `platforms`, включающими visionOS, собирается при отсутствии среза visionOS в XCFramework движка.

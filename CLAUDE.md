@@ -6,7 +6,7 @@
 
 Открытая сетевая платформа (прокси/VPN-клиент) для iOS, iPadOS, macOS, tvOS, visionOS. Xray-core и Mihomo — сменные движки за собственным управляющим слоем на Swift (второй движок — Mihomo по ADR-0007; sing-box изучен и не интегрируется).
 
-Состояние: Phase 1. Мост Xray (`Cores/Bridge`) собран и проверен на Linux; Swift-пакет проходит тесты на Linux; под Apple не собиралось ничего, туннель на устройстве не поднимался, код для Xcode не компилировался. Точное состояние — в `STATUS.md`.
+Состояние: Phase 1. Мост Xray (`Cores/Bridge`) собран и проверен на Linux. Swift-пакет проходит тесты на Linux и на macOS (CI). На раннере macOS CI без подписи собраны мост (XCFramework, 10 срезов) и приложение с расширением `XrayOnly` для iOS/iPadOS, macOS, tvOS, visionOS. Ничего не подписано и не запущено на устройстве, туннель не поднимался. Точное состояние — в `STATUS.md` §2.0.
 
 Мастер-спецификация владельца в репозиторий не добавлена. Её разделы 31–33 пересказаны ниже; остальное отражено в ADR и `ROADMAP.md`.
 
@@ -18,9 +18,10 @@ Packages/<Name>/Sources       код модуля
 Packages/<Name>/Tests         тесты модуля (XCTest)
 Extensions/PacketTunnel/      NEPacketTunnelProvider; Shared/ — типы, общие с приложением
 Apps/SharedApp/               оболочка приложения на SwiftUI
-Apps/project.yml              спецификация XcodeGen (iOS, macOS)
+Apps/project.yml              спецификация XcodeGen (iOS/iPadOS, macOS, tvOS, visionOS)
+Apps/Configurations/          xcconfig вариантов сборки: XrayOnly, MihomoOnly, Dual; Local.xcconfig — вне git
 Cores/Bridge/                 мост Xray: Go-модуль (engine/, cabi/ — C ABI v1, cmd/nplab — стенд Linux)
-Cores/BuildScripts/           скрипты проверки моста на Linux (C ABI, netns, стенд tun)
+Cores/BuildScripts/           мост: XCFramework для Apple; проверки на Linux (C ABI, netns, стенд tun)
 Benchmarks/                   RoutingBench, RoutingParity (Go), BridgeBench, results/
 Tests/Fixtures/               корпус ссылок, interop-конфигов и профилей; проверка настоящим Xray
 Tools/                        swift-docker.sh, remote-go.sh, validate-fixtures.sh
@@ -30,7 +31,8 @@ Documentation/Performance/    методика и результаты заме�
 Documentation/Protocols/      форматы ссылок, справочник современных транспортов Xray
 Documentation/Research/       первичные аудиты; SOURCES.txt — SHA изученных репозиториев
 Documentation/Security/       модель угроз
-.github/workflows/ci.yml      swift build + swift test
+.github/workflows/            swift-package (macOS+Linux), bridge-go (Linux), apple (XCFramework, xcodebuild)
+Documentation/Apple/          BUILD_ON_MAC.md, DEVICE_TEST_PLAN.md
 ```
 
 Модули пакета сейчас: `DomainModels`, `CoreAbstraction`, `ConfigurationEngine` (зависит от `DomainModels`), `RoutingEngine`, `AdaptiveBalancer`; исполняемая цель `RoutingBench`. `Extensions/PacketTunnel/Shared` и `TunnelSession.swift` подключены к тестам `CoreAbstraction` символическими ссылками — временно, до модулей `TunnelIPC`/`TunnelHost`. Карта будущих модулей — ADR-0004 §2.3; это карта намерений, а не список к созданию.
@@ -51,9 +53,12 @@ NP_REMOTE=<сервер> NP_KEY=<рабочее место> Tools/remote-go.sh '
 - `Package.swift`: список целей собирается по одному оператору `+=`. Одна цепочка `lib(...) + lib(...)` из шести слагаемых не проходит проверку типов Swift 5.10 за отведённое время — не возвращать.
 - Не-Swift-файлы внутри каталога цели исключать в манифесте (`exclude:`), иначе SwiftPM предупреждает.
 - Go-мост собирается только на сервере разработки через `Tools/remote-go.sh` (синхронизирует рабочую копию, общий lock, свои Go-кэши); Go-версия берётся из `go.mod` (`GOTOOLCHAIN=auto`). Тесты с сетью — только на 127.0.0.1 или в отдельном netns; созданные процессы и namespace удалять.
-- `go test -race ./engine` со штатным xray (`NP_STOCK_XRAY`) сейчас падает в `TestFlowThroughProxyWithDNS` из-за гонки Vision внутри ядра; через `NP_TEST_FLOW_PROXY=Trojan+TLS` тест проходит. Это известный провал, не скрывать его.
+- `go test -race ./engine` со штатным xray (`NP_STOCK_XRAY`) сейчас падает в `TestFlowThroughProxyWithDNS` (на CI — и в `TestProtocolsOverLoopback/VLESS+REALITY+Vision`) из-за гонки Vision внутри ядра; на CI это отдельный шаг «KNOWN FAILURE check»; через `NP_TEST_FLOW_PROXY=Trojan+TLS` тест проходит. Это известный провал, не скрывать его.
 
-Приложение и расширение: `cd Apps && xcodegen generate`, затем Xcode. Только на Mac; путь не проверен.
+Приложение и расширение: только на Mac или на CI (`Documentation/Apple/BUILD_ON_MAC.md`): `Cores/BuildScripts/bridge-apple-xcframework.sh`, затем `cd Apps && xcodegen generate`, затем `xcodebuild … -configuration Debug-XrayOnly`. С этого хоста код под Apple проверяется только через CI: коммит в `main` → `gh run watch` / `gh run view --log-failed`. Задания с фильтрами путей, лишние прогоны отменяются группой concurrency.
+
+- `MihomoOnly` и `Dual` объявлены и намеренно падают на фазе «Flavour guard», пока нет артефакта Mihomo. Не «чинить» это выключением фазы.
+- Неподписанная сборка CI — не работающий туннель и не проверенные entitlements. Linux-результат не выдавать за Apple-результат.
 
 ## Ограничения этого хоста
 
@@ -128,7 +133,7 @@ NP_REMOTE=<сервер> NP_KEY=<рабочее место> Tools/remote-go.sh '
 - Документы — на русском. Код, идентификаторы, комментарии в коде — на английском.
 - Каждое утверждение в исследованиях помечено: **[V]** — видно в исходнике или официальном документе, путь указан; **[U]** — по памяти, из вторичного источника или не подтверждено сборкой; **[C]** — пост инженера Apple на форуме. Не выдумывать номера версий, лимиты и имена API.
 - README не источник: читать `go.mod`, скрипты сборки, entitlements, `LICENSE`.
-- Файл, написанный без компиляции, начинается с комментария `UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode` и перечислен в `STATUS.md`. Пометка снимается только после сборки и запуска.
+- Файл, написанный без компиляции, начинается с комментария `UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode` и перечислен в `STATUS.md`. После компиляции на CI пометка заменяется на `compiled on macOS CI, never run` со ссылкой на прогон. Слово «проверено» — только после запуска.
 - Ограничения, введённые проектом (размер сообщения, размер конфигурации), в коде названы ограничениями проекта, а не платформы.
 - `git commit` выполняется по указанию владельца или оркестратора.
 

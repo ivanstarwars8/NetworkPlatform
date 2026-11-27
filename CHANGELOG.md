@@ -6,6 +6,18 @@
 
 ## Не выпущено
 
+### Добавлено (сборка под Apple на CI, 2026-11-27)
+
+- `.github/workflows/swift-package.yml` (macOS + Linux), `bridge-go.yml` (Linux: gofmt, vet, test, `-race` со штатным xray, известный провал Vision отдельным шагом, тест C ABI), `apple.yml` (XCFramework моста, приложение + расширение по платформам без подписи, проверка отказа `MihomoOnly`/`Dual`). Заменяют `ci.yml`.
+- `Cores/BuildScripts/bridge-apple-xcframework.sh`: 10 срезов C-архива (iOS, симулятор iOS, macOS, tvOS, симулятор tvOS, visionOS, симулятор visionOS) → `NPXrayBridge.xcframework`. Собрано на CI; на устройствах не запускалось.
+- `Apps/project.yml`: цели для iOS/iPadOS, macOS, tvOS, visionOS; конфигурации `{Debug,Release}-{XrayOnly,MihomoOnly,Dual}` через `Apps/Configurations/*.xcconfig`; расширение линкует мост. `XrayBridgeInfo.swift` пишет версию ABI моста в журнал при старте.
+- `Documentation/Apple/BUILD_ON_MAC.md`, `Documentation/Apple/DEVICE_TEST_PLAN.md`.
+
+### Исправлено (сборка под Apple)
+
+- `TunnelPendingReply.wait`: `NSLock` брался прямо в async-функции (в режиме Swift 6 это ошибка).
+- `TunnelController`: `@preconcurrency import NetworkExtension` (не-Sendable результат `loadAllFromPreferences()`).
+
 ### Добавлено (этап 2, 2026-11-25…27)
 
 - Мост Xray `Cores/Bridge` (Go, Xray-core v26.11.9, Go 1.27.4): движок с автоматом состояний, C ABI v1 (`npb_*`), пакетный ввод-вывод, статистика, журнал, параметры памяти; тесты, fuzz, тест ABI из C, режим fd в netns. Проверено на Linux; под Apple не собиралось.
