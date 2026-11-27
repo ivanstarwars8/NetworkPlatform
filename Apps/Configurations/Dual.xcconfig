@@ -1,7 +1,7 @@
 #include "Base.xcconfig"
-// Build flavour Dual (ADR-0001 §3, ADR-0007): two Packet Tunnel extensions, Xray and Mihomo, one engine per
-// process; the whole product counts as GPL-3.0 (ADR-0006).
-// NOT BUILDABLE YET: needs the Mihomo bridge artifact and the second extension target, neither exists.
+// Build flavour Dual (ADR-0001 §3, ADR-0007): two Packet Tunnel extensions, PacketTunnelXray and
+// PacketTunnelMihomo, one engine per process; the app picks the extension by engine. The whole product counts
+// as GPL-3.0 (ADR-0006). Target: AppDual_<platform>, scheme NetworkPlatform-Dual-<platform> (ADR-0009).
 NP_FLAVOUR = Dual
 NP_FLAVOUR_CONDITIONS = NP_ENGINE_XRAY NP_ENGINE_MIHOMO
 

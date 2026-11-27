@@ -1,21 +1,28 @@
-// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS,
-// visionOS, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 45987643793 (workflow apple.yml)
+// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
+// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46045764184 (workflow apple.yml)
 //
-// The binding of `XrayBridgeABI` (Packages/EngineXray) to the C archive of the Go bridge. The only file
-// that calls `npb_*` functions apart from XrayBridgeInfo.swift; the adapter itself never imports the
-// bridge module, so it is compiled and tested on Linux against a fake. Only in flavours that contain Xray.
+// The binding of `BridgeABI` (Packages/EngineBridge) to the C archive of this extension's Go bridge. Both
+// bridges export the same `npb_*` functions with the same signatures (Cores/MihomoBridge/cabi/shape_test.go),
+// so one file serves both extensions: each extension target compiles with exactly one engine condition
+// (Apps/project.yml, NP_ENGINE_CONDITIONS) and imports exactly one bridge module (ADR-0001: one engine per
+// process; linking both archives would fail on duplicate symbols anyway). The only file that calls `npb_*`
+// functions apart from BridgeInfo.swift; the adapters never import a bridge module.
 //
-// Signatures as cgo generates them for Cores/Bridge/cabi/main.go: `char *` for strings and byte buffers
+// Signatures as cgo generates them for Cores/{Bridge,MihomoBridge}/cabi/main.go: `char *` for strings and byte buffers
 // of the control plane, `uint8_t *` for packet batches, `int32_t` for lengths and results. The bridge
 // copies every input buffer before it returns (README, ABI notes), so pointers into Swift values that
 // live only for the call are sufficient.
 
-#if NP_ENGINE_XRAY
-import EngineXray
+#if NP_ENGINE_XRAY || NP_ENGINE_MIHOMO
+import EngineBridge
 import Foundation
+#if NP_ENGINE_XRAY
 import NPXrayBridge
+#else
+import NPMihomoBridge
+#endif
 
-struct XrayBridgeBinding: XrayBridgeABI {
+struct CBridgeBinding: BridgeABI {
     func abiVersion() -> Int32 {
         Int32(npb_abi_version())
     }

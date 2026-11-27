@@ -18,20 +18,20 @@
 
 Пока адаптера и насоса нет, выполнимы только шаги 1.1–1.6. Они проверяют установку, разрешение и линковку моста.
 
-Подсистема журнала: `<bundle id>.PacketTunnel`, категория `tunnel`. В Console.app фильтр: `subsystem:<bundle id>.PacketTunnel`.
+Подсистема журнала: `<bundle id>.PacketTunnelXray` (Mihomo: `.PacketTunnelMihomo`), категория `tunnel`. В Console.app фильтр: `subsystem:<bundle id>.PacketTunnelXray`.
 
 ## 1. Установка и первый старт (сегодняшняя сборка)
 
-1.1. Установить сборку из Xcode (Run на устройство), схема `NetworkPlatform-iOS`, конфигурация `Debug-XrayOnly`.
+1.1. Установить сборку из Xcode (Run на устройство), схема `NetworkPlatform-XrayOnly-iOS` (для Mihomo — `NetworkPlatform-MihomoOnly-iOS`, `Debug-MihomoOnly`), конфигурация `Debug-XrayOnly`.
 1.2. Нажать «Install VPN configuration». Ожидается системный запрос на добавление VPN. Разрешить. Записать: появился ли запрос и сколько секунд прошло до появления профиля в «Настройки → VPN».
 1.3. Нажать «Connect». Ожидается переход `connecting → disconnected` и в журнале расширения:
    - `xray bridge linked, abi 1, {"code":0,"data":{"abi":1,"core":"26.11.9","go":"go1.27.4"}}`. Это первое исполнение Go-моста на iOS. Записать время от `startTunnel` до этой строки;
    - `start failed: ... no start reference and no saved snapshot` или `core_not_registered`.
 1.4. Проверить, что после неудачного старта нет висящего интерфейса: в «Настройки → VPN» состояние «Не подключено», значок VPN в строке состояния не появляется, `ifconfig`-эквивалент недоступен, поэтому смотреть, что Safari открывает страницу без VPN.
 1.5. Повторить 1.3 десять раз подряд. Каждый раз ожидается тот же отказ и ни одного `engine did not stop in time`.
-1.6. Записать `phys_footprint` расширения сразу после 1.3. Взять его из Instruments → Allocations, процесс `PacketTunnel` (Attach to Process) или из Xcode → Debug Navigator при отладке расширения (Debug → Attach to Process by PID or Name… → `PacketTunnel`). Это базовая цена Go-рантайма без ядра в работе.
+1.6. Записать `phys_footprint` расширения сразу после 1.3. Взять его из Instruments → Allocations, процесс `PacketTunnelXray` (`PacketTunnelMihomo`) (Attach to Process) или из Xcode → Debug Navigator при отладке расширения (Debug → Attach to Process by PID or Name… → `PacketTunnelXray`). Это базовая цена Go-рантайма без ядра в работе.
 
-Критерий: 1.2–1.5 без падения расширения (в Console нет `Crash`/`jetsam` для `PacketTunnel`).
+Критерий: 1.2–1.5 без падения расширения (в Console нет `Crash`/`jetsam` для `PacketTunnelXray`/`PacketTunnelMihomo`).
 
 ## 2. Поднятие туннеля (после адаптера и насоса)
 
@@ -82,10 +82,10 @@
 
 Лимит памяти packet-tunnel-расширения на iOS не задокументирован. Порядок величины — 50 МиБ (`STATUS.md` §3, [U]). Цель — измерить, а не предполагать.
 
-6.1. Instruments → шаблон Allocations + VM Tracker, процесс `PacketTunnel`. Записывать `phys_footprint` (в приложении «Query engine» он тоже показан) в точках: после старта; после 3.1; во время 3.3; через 5 мин простоя после 3.3.
+6.1. Instruments → шаблон Allocations + VM Tracker, процесс `PacketTunnelXray` (`PacketTunnelMihomo`). Записывать `phys_footprint` (в приложении «Query engine» он тоже показан) в точках: после старта; после 3.1; во время 3.3; через 5 мин простоя после 3.3.
 6.2. Нагрузка 30 мин: 3.1 в цикле + 50 параллельных UDP-потоков к своему серверу. Строить footprint раз в 10 с (CSV из Instruments). Найти плато.
 6.3. Давление памяти: в журнале строки `memory pressure warning/critical`. Записать footprint в момент каждой.
-6.4. Если расширение убито системой: в Console искать `jetsam`/`EXC_RESOURCE` с `PacketTunnel`; в «Настройки → Конфиденциальность → Аналитика» — отчёт `JetsamEvent`. Записать footprint последней точки перед убийством. Это и есть наблюдённый предел для модели устройства.
+6.4. Если расширение убито системой: в Console искать `jetsam`/`EXC_RESOURCE` с `PacketTunnelXray`/`PacketTunnelMihomo`; в «Настройки → Конфиденциальность → Аналитика» — отчёт `JetsamEvent`. Записать footprint последней точки перед убийством. Это и есть наблюдённый предел для модели устройства.
 6.5. Повторить 6.2 с профилем `mobile`: опция моста `memory.profile = "mobile"` и конфиг, скомпилированный с `XrayMemoryProfile.mobile` (`connIdle` 30 с, `bufferSize` 4 КиБ). Затем — с `memory.limitBytes` 32/48 МиБ поверх профиля. Сравнить плато footprint и CPU расширения; ожидание по Linux — `Documentation/Performance/memory-budget.md` (RssAnon ~20 МиБ на плато). Записать `phys_footprint` на холостом старте: на Linux RSS 32 МиБ, из них 26 МиБ — страницы бинарника (не грязные).
 
 ## 7. 100 циклов переподключения
@@ -110,7 +110,7 @@
 - сеть (Wi-Fi/оператор, IPv4/IPv6/NAT64), RTT до сервера без туннеля;
 - размеры пачек `readPackets`/`writePackets` (распределение; нужен счётчик в насосе) и цена перехода Swift↔Go на arm64 (замер вокруг `npb_tun_write`);
 - CPU расширения во время 3.1 (Instruments → Time Profiler);
-- все аварийные отчёты `PacketTunnel` (`.ips`) — в протокол как вложение без адресов.
+- все аварийные отчёты `PacketTunnelXray`/`PacketTunnelMihomo` (`.ips`) — в протокол как вложение без адресов.
 
 ## 9. Шаблон протокола
 

@@ -95,5 +95,5 @@ Packages/<Name>/Tests/…      тестовая цель <Name>Tests
 
 - Условные бинарные цели в корневом манифесте корректно обрабатываются Xcode и SwiftPM на всех платформах.
 - XCFramework, собранный `gomobile bind`, и XCFramework из c-archive одинаково подключаются как `binaryTarget`.
-- Разделение на `XrayOnly` / `MihomoOnly` / `Dual` (ADR-0007; было `SingBoxOnly`) выражается только xcconfig, без дублирования целей.
+- Разделение на `XrayOnly` / `MihomoOnly` / `Dual` (ADR-0007; было `SingBoxOnly`) выражается только xcconfig, без дублирования целей. *Уточнено ADR-0009 (2026-11-27): расширения — по движку, цели приложения — по варианту из одного шаблона XcodeGen, потому что встраивание расширений в Xcode не зависит от конфигурации.*
 - Пакет с `platforms`, включающими visionOS, собирается при отсутствии среза visionOS в XCFramework движка.

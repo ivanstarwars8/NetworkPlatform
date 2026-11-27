@@ -1,17 +1,24 @@
 #!/usr/bin/env bash
-# Builds the Xray bridge (Cores/Bridge/cabi) as C archives for Apple platforms and packs them into
-# NPXrayBridge.xcframework. Runs on macOS with Xcode and Go (the version go.mod asks for; GOTOOLCHAIN=auto).
+# Builds a bridge as C archives for Apple platforms and packs them into an xcframework. Runs on macOS with
+# Xcode and Go (the version the bridge's go.mod asks for; GOTOOLCHAIN=auto).
 #
-#   Cores/BuildScripts/bridge-apple-xcframework.sh [slice ...]
+#   Cores/BuildScripts/bridge-apple-xcframework.sh [slice ...]                       # Xray bridge
+#   NP_BRIDGE_ENGINE=mihomo Cores/BuildScripts/bridge-apple-xcframework.sh [slice ...]  # Mihomo bridge
+#
+# Engines (same C ABI, same slices, same steps):
+#   xray    Cores/Bridge/cabi        -> Cores/Bridge/build/apple/NPXrayBridge.xcframework (libnpbridge.a)
+#   mihomo  Cores/MihomoBridge/cabi  -> Cores/MihomoBridge/build/apple/NPMihomoBridge.xcframework (libnpmihomo.a),
+#           always built with the Apple patch of mihomo-apple-patch.sh (-modfile; no proc_pidinfo, no
+#           recvmsg_x/sendmsg_x system calls). GPL-3.0: only the MihomoOnly and Dual flavours link it.
 #
 # Without arguments every slice is attempted. A slice that fails does not stop the others: the script
 # reports per slice (build.tsv in the output directory) and exits non-zero only when a slice listed in
 # NP_REQUIRED_SLICES failed (default: the iOS, iOS simulator and macOS slices). The xcframework holds every
 # slice that built.
 #
-# Output (git-ignored): Cores/Bridge/build/apple/
-#   slices/<slice>/libnpbridge.a      one archive per slice
-#   NPXrayBridge.xcframework          headers in Headers/NPXrayBridge/ with a module map (import NPXrayBridge)
+# Output (git-ignored): <bridge>/build/apple/
+#   slices/<slice>/<lib>.a            one archive per slice
+#   <Framework>.xcframework           headers in Headers/<Framework>/ with a module map (import <Framework>)
 #   build.tsv                         slice, status, size, sha256, platform of the archive
 #   versions.txt                      Go, Xcode, SDKs, core pin
 #
@@ -22,8 +29,22 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
-bridge="$root/Cores/Bridge"
+engine="${NP_BRIDGE_ENGINE:-xray}"
+goflags=()
+case "$engine" in
+  xray)
+    bridge="$root/Cores/Bridge"; lib=libnpbridge; framework=NPXrayBridge; core_module=github.com/xtls/xray-core ;;
+  mihomo)
+    bridge="$root/Cores/MihomoBridge"; lib=libnpmihomo; framework=NPMihomoBridge; core_module=github.com/metacubex/mihomo ;;
+  *)
+    echo "NP_BRIDGE_ENGINE must be xray or mihomo, not '$engine'" >&2; exit 2 ;;
+esac
 out="${NP_APPLE_OUT:-$bridge/build/apple}"
+if [ "$engine" = mihomo ]; then
+  # The patched module copies live outside the output directory (which CI caches).
+  patch_dir="${NP_PATCH_DIR:-$(mktemp -d)}"
+  goflags+=("$(NP_PATCH_DIR="$patch_dir" "$root/Cores/BuildScripts/mihomo-apple-patch.sh")")
+fi
 required="${NP_REQUIRED_SLICES:-ios-arm64 ios-simulator-arm64 ios-simulator-x86_64 macos-arm64 macos-x86_64}"
 
 # slice  GOOS  GOARCH  SDK  clang target
@@ -42,14 +63,16 @@ all_slices=(
 
 want=("$@")
 mkdir -p "$out/slices"
-rm -rf "$out/NPXrayBridge.xcframework" "$out/lipo" "$out/include"
+rm -rf "$out/$framework.xcframework" "$out/lipo" "$out/include"
 : >"$out/build.tsv"
 
 {
   echo "date: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
   echo "go: $(cd "$bridge" && go version)"
   echo "xcode: $(xcodebuild -version | tr '\n' ' ')"
-  echo "core: $(cd "$bridge" && go list -m -f '{{.Path}} {{.Version}}' github.com/xtls/xray-core)"
+  echo "engine: $engine"
+  echo "core: $(cd "$bridge" && go list -m -f '{{.Path}} {{.Version}}' "$core_module")"
+  [ "${#goflags[@]}" -eq 0 ] || echo "go flags: ${goflags[*]}"
   xcodebuild -showsdks 2>/dev/null | grep -E -- '-sdk ' | sed 's/^[[:space:]]*/sdk: /'
 } >"$out/versions.txt"
 cat "$out/versions.txt"
@@ -83,8 +106,8 @@ build_slice() {
     env GOOS="$goos" GOARCH="$goarch" CGO_ENABLED=1 \
       CC="$cc" CXX="$(xcrun --sdk "$sdk" --find clang++)" \
       CGO_CFLAGS="$flags -O2" CGO_CXXFLAGS="$flags -O2" CGO_LDFLAGS="$flags" \
-      go build -mod=readonly -buildvcs=false -trimpath -ldflags "-s -w -buildid=" \
-      -buildmode=c-archive -o "$dir/libnpbridge.a" ./cabi
+      go build -mod=readonly ${goflags[@]+"${goflags[@]}"} -buildvcs=false -trimpath -ldflags "-s -w -buildid=" \
+      -buildmode=c-archive -o "$dir/$lib.a" ./cabi
   ) >"$dir/build.log" 2>&1
 }
 
@@ -99,7 +122,7 @@ for row in "${all_slices[@]}"; do
   echo "::group::slice $name"
   start=$(date +%s)
   if build_slice "$@"; then
-    a="$out/slices/$name/libnpbridge.a"
+    a="$out/slices/$name/$lib.a"
     printf '%s\tok\t%s\t%s\t%s\t%ss\n' "$name" "$(stat -f %z "$a")" "$(shasum -a 256 "$a" | cut -d' ' -f1)" \
       "$(platform_of "$a")" "$(( $(date +%s) - start ))" | tee -a "$out/build.tsv"
   else
@@ -119,17 +142,17 @@ if [ -z "$first" ]; then
   echo "no slice built" >&2
   exit 1
 fi
-inc="$out/include/NPXrayBridge"
+inc="$out/include/$framework"
 mkdir -p "$inc"
-cp "$out/slices/$first/libnpbridge.h" "$inc/libnpbridge.h"
+cp "$out/slices/$first/$lib.h" "$inc/$lib.h"
 for d in "$out"/slices/*/; do
-  if [ -f "$d/libnpbridge.h" ] && ! cmp -s "$d/libnpbridge.h" "$inc/libnpbridge.h"; then
+  if [ -f "$d/$lib.h" ] && ! cmp -s "$d/$lib.h" "$inc/$lib.h"; then
     echo "warning: header of $(basename "$d") differs from $first" >&2
   fi
 done
-cat >"$inc/module.modulemap" <<'EOF'
-module NPXrayBridge {
-  header "libnpbridge.h"
+cat >"$inc/module.modulemap" <<EOF
+module $framework {
+  header "$lib.h"
   link "resolv"
   link framework "CoreFoundation"
   link framework "Security"
@@ -143,12 +166,12 @@ group() {
   local key="$1"; shift
   local parts=()
   for s in "$@"; do
-    if ok "$s"; then parts+=("$out/slices/$s/libnpbridge.a"); fi
+    if ok "$s"; then parts+=("$out/slices/$s/$lib.a"); fi
   done
   [ "${#parts[@]}" -gt 0 ] || return 0
   mkdir -p "$out/lipo/$key"
-  lipo -create "${parts[@]}" -output "$out/lipo/$key/libnpbridge.a"
-  args+=(-library "$out/lipo/$key/libnpbridge.a" -headers "$out/include")
+  lipo -create "${parts[@]}" -output "$out/lipo/$key/$lib.a"
+  args+=(-library "$out/lipo/$key/$lib.a" -headers "$out/include")
 }
 group ios ios-arm64
 group ios-simulator ios-simulator-arm64 ios-simulator-x86_64
@@ -158,9 +181,9 @@ group tvos-simulator tvos-simulator-arm64 tvos-simulator-x86_64
 group xros xros-arm64
 group xros-simulator xros-simulator-arm64
 
-xcodebuild -create-xcframework "${args[@]}" -output "$out/NPXrayBridge.xcframework"
-echo "--- NPXrayBridge.xcframework"
-plutil -p "$out/NPXrayBridge.xcframework/Info.plist" | grep -E 'LibraryIdentifier|SupportedPlatform"|SupportedPlatformVariant'
+xcodebuild -create-xcframework "${args[@]}" -output "$out/$framework.xcframework"
+echo "--- $framework.xcframework"
+plutil -p "$out/$framework.xcframework/Info.plist" | grep -E 'LibraryIdentifier|SupportedPlatform"|SupportedPlatformVariant'
 echo "--- slices"
 column -t -s $'\t' "$out/build.tsv"
 exit "$failed_required"

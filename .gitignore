@@ -6,5 +6,6 @@ DerivedData/
 *.xcframework/
 Logs/
 Cores/Bridge/build/
+Cores/MihomoBridge/build/
 Apps/Configurations/Local.xcconfig
 Apps/NetworkPlatform.xcodeproj/

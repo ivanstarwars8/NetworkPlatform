@@ -3,7 +3,7 @@
 Go-модуль `networkplatform/bridge`: один экземпляр Xray-core за узким C ABI. Решения — ADR-0001 §4 и §4.1;
 путь пакетов — `Documentation/Architecture/tun-integration.md`.
 
-Состояние на 2026-11-25: собран и проверен на Linux/amd64. **Под Apple не собирался и не запускался.**
+Состояние на 2026-11-27: собран и проверен на Linux/amd64. Под Apple собран на macOS CI (`Cores/BuildScripts/bridge-apple-xcframework.sh`, 10 срезов `NPXrayBridge.xcframework`, проверка `bridge-apple-verify.sh`), тест C ABI выполнен на macOS arm64; слинкован в расширения `PacketTunnelXray_<p>` (`STATUS.md` §2.0). **На устройствах Apple не запускался.**
 
 ## Закреплённые версии
 
@@ -122,8 +122,10 @@ go test ./engine -run '^$' -fuzz '^FuzzPrepareConfig$' -fuzztime 60s   # так�
 
 ## Известные ограничения
 
-- Под `GOOS=darwin` пакет `engine` только компилируется (`go build`, `go vet` с `CGO_ENABLED=0`); под
-  `GOOS=ios` без SDK не собирается вовсе. C-архив под Apple не собирался.
+- C-архив под Apple собирается только на Mac или на macOS CI (нужен SDK); на Linux под `GOOS=ios` без SDK
+  пакет не собирается. Срезы macOS импортируют `proc_pidinfo` (Xray-core `common/net/find_process_darwin.go`,
+  `darwin && !ios`; libproc — публичный API macOS): `bridge-apple-verify.sh` допускает его только в срезах
+  macOS моста Xray и пишет в `verify.tsv`.
 - Под детектором гонок тесты с `flow: xtls-rprx-vision` иногда сообщают гонку **внутри ядра**
   (`proxy/proxy.go`: `XtlsFilterTls` против `VisionReader.ReadMultiBuffer`, общий `TrafficState` читающей и
   пишущей половин outbound). `TestFlowThroughProxyWithDNS` под `-race` из-за этого падает воспроизводимо

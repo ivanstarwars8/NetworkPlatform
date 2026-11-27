@@ -6,7 +6,7 @@
 
 Открытая сетевая платформа (прокси/VPN-клиент) для iOS, iPadOS, macOS, tvOS, visionOS. Xray-core и Mihomo — сменные движки за собственным управляющим слоем на Swift (второй движок — Mihomo по ADR-0007; sing-box изучен и не интегрируется).
 
-Состояние: Phase 1, этап 3b. Мост Xray (`Cores/Bridge`) и мост Mihomo (`Cores/MihomoBridge`, тот же C ABI) собраны и проверены на Linux. Адаптер `EngineXray` (Swift поверх C ABI, насос пакетов) проверен на Linux против поддельного моста и зарегистрирован в `XrayOnly`. Компилятор выпускает TUN-inbound/перехват DNS/исключения из `TunnelAddressing`; вывод компилятора прогнан в мосте на tun ядра Linux. Swift-пакет проходит тесты на Linux и на macOS (CI). На раннере macOS CI без подписи собраны мост (XCFramework, 10 срезов) и приложение с расширением `XrayOnly` для iOS/iPadOS, macOS, tvOS, visionOS. Ничего не подписано и не запущено на устройстве, туннель не поднимался. Точное состояние — в `STATUS.md` §2.0.
+Состояние: Phase 1, этап 4. Мост Xray (`Cores/Bridge`) и мост Mihomo (`Cores/MihomoBridge`, тот же C ABI) собраны и проверены на Linux. Компиляторы модели → Xray JSON и → Mihomo (Clash) YAML проверены настоящими ядрами (`xray run -test`, `mihomo -t`), их вывод прогнан в мостах на tun ядра Linux. Адаптеры `EngineXray` и `EngineMihomo` (общий код — `EngineBridge`) проверены на Linux против поддельного моста; `MihomoCompiledConfiguration` передаёт вывод компилятора Mihomo адаптеру. На раннере macOS CI без подписи собраны оба моста (XCFramework, по 10 срезов) и все варианты `XrayOnly`/`MihomoOnly`/`Dual` для iOS/iPadOS, iOS Simulator, macOS, tvOS, visionOS. Ничего не подписано и не запущено на устройстве, туннель не поднимался. Точное состояние — в `STATUS.md` §2.0.
 
 Мастер-спецификация владельца в репозиторий не добавлена. Её разделы 31–33 пересказаны ниже; остальное отражено в ADR и `ROADMAP.md`.
 
@@ -22,11 +22,11 @@ Apps/project.yml              спецификация XcodeGen (iOS/iPadOS, mac
 Apps/Configurations/          xcconfig вариантов сборки: XrayOnly, MihomoOnly, Dual; Local.xcconfig — вне git
 Cores/Bridge/                 мост Xray: Go-модуль (engine/, cabi/ — C ABI v1, cmd/nplab — стенд Linux)
 Cores/MihomoBridge/           мост Mihomo: Go-модуль с тем же C ABI v1 (cmd/npmlab — стенд Linux); apple/patch — правка ядра для Apple
-Cores/BuildScripts/           мосты: XCFramework Xray для Apple; проверки на Linux (C ABI, netns, стенд tun, правка Apple для Mihomo)
+Cores/BuildScripts/           мосты: XCFramework обоих мостов для Apple и их проверка; проверки на Linux (C ABI, netns, стенд tun, правка Apple для Mihomo)
 Benchmarks/                   RoutingBench, RoutingParity (Go), BridgeBench, results/
 Tests/Fixtures/               корпус ссылок, interop-конфигов и профилей; проверка настоящим Xray
-Tools/                        swift-docker.sh, remote-go.sh, validate-fixtures.sh
-Documentation/ADR/            решения 0001–0008, REVIEW-2026-11-25.md
+Tools/                        swift-docker.sh, remote-go.sh, validate-fixtures.sh, apple-build-flavour.sh
+Documentation/ADR/            решения 0001–0009, REVIEW-2026-11-25.md
 Documentation/Architecture/   tun, жизненный цикл, паритет маршрутизации, адаптивный выбор
 Documentation/Performance/    методика и результаты замеров
 Documentation/Protocols/      форматы ссылок, справочник современных транспортов Xray
@@ -36,7 +36,7 @@ Documentation/Security/       модель угроз
 Documentation/Apple/          BUILD_ON_MAC.md, DEVICE_TEST_PLAN.md
 ```
 
-Модули пакета сейчас: `DomainModels`, `CoreAbstraction`, `ConfigurationEngine` (зависит от `DomainModels` и `RoutingEngine`; компиляторы Xray JSON и Mihomo YAML), `RoutingEngine`, `AdaptiveBalancer`, `EngineXray` (адаптер Xray: чистый Swift, Go не линкует; вызовы `npb_*` — в `Extensions/PacketTunnel/XrayBridgeBinding.swift`); исполняемая цель `RoutingBench`. Приложение `EngineXray` не линкует — только расширение. `Extensions/PacketTunnel/Shared` и `TunnelSession.swift` подключены к тестам `CoreAbstraction` символическими ссылками — временно, до модулей `TunnelIPC`/`TunnelHost`. Карта будущих модулей — ADR-0004 §2.3; это карта намерений, а не список к созданию.
+Модули пакета сейчас: `DomainModels`, `CoreAbstraction`, `ConfigurationEngine` (зависит от `DomainModels` и `RoutingEngine`; компиляторы Xray JSON и Mihomo YAML), `RoutingEngine`, `AdaptiveBalancer`, `EngineBridge` (общий для обоих мостов C ABI, драйвер жизненного цикла, насос пакетов; `EngineBridgeTestSupport` — подделки моста для тестов, без продукта), `EngineXray` и `EngineMihomo` (адаптеры: только различия движков; чистый Swift, Go не линкуют; `EngineMihomo` зависит от `ConfigurationEngine` ради `MihomoCompiledConfiguration` — вывод компилятора → `CoreConfiguration` + MTU + отчёт, заблокированная компиляция до моста не доходит; вызовы `npb_*` — в `Extensions/PacketTunnel/BridgeBinding.swift`); исполняемая цель `RoutingBench`. Приложение `Engine*` не линкует — только расширения. `Extensions/PacketTunnel/Shared` и `TunnelSession.swift` подключены к тестам `CoreAbstraction` символическими ссылками — временно, до модулей `TunnelIPC`/`TunnelHost`. Карта будущих модулей — ADR-0004 §2.3; это карта намерений, а не список к созданию.
 
 Расхождение, о котором надо знать: ADR-0004 §2.5 называет каталог движков `Engines/`, в репозитории создан `Cores/`. До решения не создавать второй каталог.
 
@@ -65,7 +65,8 @@ NP_REMOTE=<сервер> NP_KEY=<рабочее место> Tools/remote-go.sh '
 
 Приложение и расширение: только на Mac или на CI (`Documentation/Apple/BUILD_ON_MAC.md`): `Cores/BuildScripts/bridge-apple-xcframework.sh`, затем `cd Apps && xcodegen generate`, затем `xcodebuild … -configuration Debug-XrayOnly`. С этого хоста код под Apple проверяется только через CI: коммит в `main` → `gh run watch` / `gh run view --log-failed`. Задания с фильтрами путей, лишние прогоны отменяются группой concurrency.
 
-- `MihomoOnly` и `Dual` объявлены и намеренно падают на фазе «Flavour guard», пока нет артефакта Mihomo (XCFramework моста Mihomo ещё не собирается). Не «чинить» это выключением фазы.
+- Расширения — по движку (`PacketTunnelXray_<p>`, `PacketTunnelMihomo_<p>`), приложения — по варианту (`AppXrayOnly_<p>`, `AppMihomoOnly_<p>`, `AppDual_<p>`), схемы `NetworkPlatform-<вариант>-<платформа>` (ADR-0009). Фаза «Flavour guard» проверяет соответствие цели и конфигурации; не выключать её. Расширение компилируется с одним условием движка (`NP_ENGINE_CONDITIONS`), даже в `Dual`. Сборка и проверки продукта (встроенные расширения, «своё ядро — да, чужое — нет», в приложении Go нет) — `Tools/apple-build-flavour.sh`.
+- Мост Mihomo под Apple: `NP_BRIDGE_ENGINE=mihomo Cores/BuildScripts/bridge-apple-xcframework.sh` (всегда с правкой Apple: без `proc_pidinfo` и без системных вызовов `SYS_RECVMSG_X`/`SYS_SENDMSG_X` sing-tun); `bridge-apple-verify.sh` — платформы объектов и закрытые символы.
 - Неподписанная сборка CI — не работающий туннель и не проверенные entitlements. Linux-результат не выдавать за Apple-результат.
 
 ## Ограничения этого хоста

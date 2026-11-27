@@ -1,7 +1,9 @@
-# (c) The Go bridge built for Apple platforms (c-archive slices -> NPXrayBridge.xcframework) and its C ABI
-#     smoke test run natively on the macOS arm64 runner.
-# (d) xcodebuild of App + PacketTunnel extension per platform, without signing (CODE_SIGNING_ALLOWED=NO),
-#     flavour XrayOnly; MihomoOnly and Dual are checked to stop at the flavour guard with its reason.
+# (c) The Go bridges built for Apple platforms (c-archive slices -> NPXrayBridge.xcframework and
+#     NPMihomoBridge.xcframework, the same ten slices), verified (recorded platforms of every object, no
+#     proc_pidinfo/recvmsg_x/sendmsg_x symbols) and their C ABI smoke tests run natively on the macOS arm64 runner.
+# (d) xcodebuild of the app + Packet Tunnel extensions per platform and flavour (XrayOnly, MihomoOnly, Dual),
+#     without signing (CODE_SIGNING_ALLOWED=NO), with product checks: embedded extensions per flavour, each
+#     extension links only its own engine, the app links none (Tools/apple-build-flavour.sh).
 # An unsigned compile proves compilation and linking only: nothing here installs or runs a tunnel.
 # No secrets, no signing material, no releases.
 name: Apple
@@ -15,7 +17,10 @@ on:
       - Packages/**
       - Package.swift
       - Cores/Bridge/**
-      - Cores/BuildScripts/bridge-apple-xcframework.sh
+      - Cores/MihomoBridge/**
+      - Cores/BuildScripts/bridge-apple-*.sh
+      - Cores/BuildScripts/mihomo-apple-patch.sh
+      - Tools/apple-build-flavour.sh
       - .github/workflows/apple.yml
   pull_request:
     paths: *paths
@@ -33,150 +38,114 @@ env:
 
 jobs:
   bridge:
-    name: bridge xcframework (macOS runner)
+    name: ${{ matrix.engine }} bridge xcframework (macOS runner)
     runs-on: macos-15
-    timeout-minutes: 60
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { engine: xray, dir: Cores/Bridge, framework: NPXrayBridge, lib: libnpbridge }
+          - { engine: mihomo, dir: Cores/MihomoBridge, framework: NPMihomoBridge, lib: libnpmihomo }
+    env:
+      NP_BRIDGE_ENGINE: ${{ matrix.engine }}
     steps:
       - uses: actions/checkout@v4
       - name: Cache key of the bridge sources
         id: key
-        run: echo "hash=${{ hashFiles('Cores/Bridge/**', 'Cores/BuildScripts/bridge-apple-xcframework.sh') }}" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "hash=${{ hashFiles(format('{0}/**', matrix.dir), 'Cores/BuildScripts/bridge-apple-xcframework.sh', 'Cores/BuildScripts/mihomo-apple-patch.sh') }}" >> "$GITHUB_OUTPUT"
       - name: Restore xcframework
         id: cache
         uses: actions/cache@v4
         with:
-          path: Cores/Bridge/build/apple
-          key: npxraybridge-${{ steps.key.outputs.hash }}
+          path: ${{ matrix.dir }}/build/apple
+          key: np${{ matrix.engine }}bridge-${{ steps.key.outputs.hash }}
       - uses: actions/setup-go@v5
         with:
-          go-version-file: Cores/Bridge/go.mod
-          cache-dependency-path: Cores/Bridge/go.sum
+          go-version-file: ${{ matrix.dir }}/go.mod
+          cache-dependency-path: ${{ matrix.dir }}/go.sum
       - name: Build slices and xcframework
         if: steps.cache.outputs.cache-hit != 'true'
         run: Cores/BuildScripts/bridge-apple-xcframework.sh
       - name: Slice report
         run: |
-          cat Cores/Bridge/build/apple/versions.txt
-          { echo '### Bridge slices'; echo '```'; column -t -s $'\t' Cores/Bridge/build/apple/build.tsv; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-          column -t -s $'\t' Cores/Bridge/build/apple/build.tsv
+          d=${{ matrix.dir }}/build/apple
+          cat "$d/versions.txt"
+          { echo "### ${{ matrix.framework }} slices"; echo '```'; column -t -s $'\t' "$d/build.tsv"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          column -t -s $'\t' "$d/build.tsv"
+      - name: Verify recorded platforms and private symbols (otool, nm)
+        run: |
+          Cores/BuildScripts/bridge-apple-verify.sh
+          { echo "### ${{ matrix.framework }} verification"; echo '```'; column -t -s $'\t' ${{ matrix.dir }}/build/apple/verify.tsv; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
       - name: C ABI smoke test on macOS arm64 (runs the bridge natively)
         run: |
-          d=Cores/Bridge/build/apple/slices/macos-arm64
-          clang -O2 -Wall -I"$d" -o "$RUNNER_TEMP/abi_test" Cores/Bridge/cabi/ctest/abi_test.c "$d/libnpbridge.a" \
+          d=${{ matrix.dir }}/build/apple/slices/macos-arm64
+          clang -O2 -Wall -I"$d" -o "$RUNNER_TEMP/abi_test" ${{ matrix.dir }}/cabi/ctest/abi_test.c "$d/${{ matrix.lib }}.a" \
             -lresolv -framework CoreFoundation -framework Security
           "$RUNNER_TEMP/abi_test" | tee "$RUNNER_TEMP/abi_test.log"
+          { echo "### ${{ matrix.engine }} C ABI test (macOS arm64)"; echo '```'; tail -n 15 "$RUNNER_TEMP/abi_test.log"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
-          name: NPXrayBridge
+          name: ${{ matrix.framework }}
           path: |
-            Cores/Bridge/build/apple/NPXrayBridge.xcframework
-            Cores/Bridge/build/apple/build.tsv
-            Cores/Bridge/build/apple/versions.txt
+            ${{ matrix.dir }}/build/apple/${{ matrix.framework }}.xcframework
+            ${{ matrix.dir }}/build/apple/build.tsv
+            ${{ matrix.dir }}/build/apple/verify.tsv
+            ${{ matrix.dir }}/build/apple/versions.txt
           retention-days: 3
           compression-level: 6
 
   app:
-    name: xcodebuild ${{ matrix.platform }} (XrayOnly, unsigned)
+    name: xcodebuild ${{ matrix.platform }} ${{ matrix.kind }} (3 flavours, unsigned)
     needs: bridge
     runs-on: macos-15
-    timeout-minutes: 45
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { platform: iOS, scheme: NetworkPlatform-iOS, destination: "generic/platform=iOS", products: Debug-XrayOnly-iphoneos }
-          - { platform: iOS Release, scheme: NetworkPlatform-iOS, destination: "generic/platform=iOS", products: Release-XrayOnly-iphoneos, config: Release-XrayOnly }
-          - { platform: iOS Simulator, scheme: NetworkPlatform-iOS, destination: "generic/platform=iOS Simulator", products: Debug-XrayOnly-iphonesimulator }
-          - { platform: macOS, scheme: NetworkPlatform-macOS, destination: "generic/platform=macOS", products: Debug-XrayOnly }
-          - { platform: tvOS, scheme: NetworkPlatform-tvOS, destination: "generic/platform=tvOS", products: Debug-XrayOnly-appletvos }
-          - { platform: visionOS, scheme: NetworkPlatform-visionOS, destination: "generic/platform=visionOS", products: Debug-XrayOnly-xros }
+          - { platform: iOS, kind: Debug }
+          - { platform: iOS, kind: Release }
+          - { platform: iOS-Simulator, kind: Debug }
+          - { platform: macOS, kind: Debug }
+          - { platform: tvOS, kind: Debug }
+          - { platform: visionOS, kind: Debug }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: NPXrayBridge
           path: Cores/Bridge/build/apple
+      - uses: actions/download-artifact@v4
+        with:
+          name: NPMihomoBridge
+          path: Cores/MihomoBridge/build/apple
       - name: XcodeGen
         run: |
           curl -fsSL -o "$RUNNER_TEMP/xcodegen.zip" "$XCODEGEN_URL"
           unzip -q "$RUNNER_TEMP/xcodegen.zip" -d "$RUNNER_TEMP"
           "$RUNNER_TEMP/xcodegen/bin/xcodegen" --version
           cd Apps && "$RUNNER_TEMP/xcodegen/bin/xcodegen" generate
+          xcodebuild -list -project NetworkPlatform.xcodeproj
       - name: Toolchain
         run: xcodebuild -version
-      - name: xcodebuild (CODE_SIGNING_ALLOWED=NO)
+      # One job per platform builds the three flavours into the same derived data, so the package modules are
+      # compiled once. Every flavour is attempted; the job fails if any flavour failed.
+      - name: Build XrayOnly, MihomoOnly, Dual (CODE_SIGNING_ALLOWED=NO) and check the products
         run: |
-          set -o pipefail
-          xcodebuild -project Apps/NetworkPlatform.xcodeproj -scheme "${{ matrix.scheme }}" \
-            -configuration "${{ matrix.config || 'Debug-XrayOnly' }}" -destination "${{ matrix.destination }}" \
-            -derivedDataPath "$RUNNER_TEMP/dd" CODE_SIGNING_ALLOWED=NO build 2>&1 | tee "$RUNNER_TEMP/xcodebuild.log" \
-            | grep -E '(error|warning):|\*\* BUILD' || true
-          grep -q '\*\* BUILD SUCCEEDED \*\*' "$RUNNER_TEMP/xcodebuild.log"
-      - name: Check the product (extension embedded, bridge linked)
-        run: |
-          p="$RUNNER_TEMP/dd/Build/Products/${{ matrix.products }}"
-          ls "$p"
-          app="$p/NetworkPlatform.app"
-          if [ -d "$app/Contents" ]; then appex="$app/Contents/PlugIns/PacketTunnel.appex"; bin="$appex/Contents/MacOS/PacketTunnel"
-          else appex="$app/PlugIns/PacketTunnel.appex"; bin="$appex/PacketTunnel"; fi
-          test -d "$appex" && echo "embedded: $appex"
-          plist="$appex/Info.plist"; [ -f "$plist" ] || plist="$appex/Contents/Info.plist"
-          for k in CFBundleIdentifier NPAppGroupIdentifier NSExtension.NSExtensionPointIdentifier NSExtension.NSExtensionPrincipalClass; do
-            echo "appex $k = $(plutil -extract "$k" raw "$plist")"
+          echo "### ${{ matrix.platform }} ${{ matrix.kind }}" >> "$GITHUB_STEP_SUMMARY"
+          status=0
+          for flavour in XrayOnly MihomoOnly Dual; do
+            echo "::group::$flavour"
+            Tools/apple-build-flavour.sh "${{ matrix.platform }}" "$flavour" "${{ matrix.kind }}" "$RUNNER_TEMP/dd" || status=1
+            echo "::endgroup::"
           done
-          test "$(plutil -extract CFBundleIdentifier raw "$plist")" = "org.example.networkplatform.PacketTunnel"
-          file "$bin"
-          # Debug builds put the code into PacketTunnel.debug.dylib next to a small launcher (ENABLE_DEBUG_DYLIB).
-          : > "$RUNNER_TEMP/syms"
-          find "$appex" -type f \( -name PacketTunnel -o -name '*.dylib' \) | while read -r f; do
-            nm -m "$f" 2>/dev/null | grep -E '_npb_(abi_version|version|start|tun_read)$' | sed "s|^|$(basename "$f"): |" >> "$RUNNER_TEMP/syms" || true
-          done
-          cat "$RUNNER_TEMP/syms"
-          test -s "$RUNNER_TEMP/syms"
-          vtool -show-build "$bin" | grep -E 'platform|minos'
-          du -sh "$app" "$bin"
-          { echo "### ${{ matrix.platform }} XrayOnly"; echo '```'; file "$bin"; vtool -show-build "$bin" | grep -E 'platform|minos'; du -sh "$app" "$bin"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-      - name: Warnings in project sources
-        if: always()
-        run: |
-          grep -E '/(Apps|Extensions)/[^ ]+:[0-9]+:[0-9]+: warning:' "$RUNNER_TEMP/xcodebuild.log" | sort -u | head -100 || true
+          grep -h '^RESULT' "$RUNNER_TEMP"/dd/*.log 2>/dev/null || true
+          exit "$status"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: xcodebuild-log-${{ matrix.platform }}
-          path: ${{ runner.temp }}/xcodebuild.log
+          name: xcodebuild-logs-${{ matrix.platform }}-${{ matrix.kind }}
+          path: ${{ runner.temp }}/dd/*.log
           retention-days: 7
-
-  flavours-not-buildable:
-    name: MihomoOnly + Dual (declared, not buildable yet)
-    needs: bridge
-    runs-on: macos-15
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: NPXrayBridge
-          path: Cores/Bridge/build/apple
-      - name: XcodeGen
-        run: |
-          curl -fsSL -o "$RUNNER_TEMP/xcodegen.zip" "$XCODEGEN_URL"
-          unzip -q "$RUNNER_TEMP/xcodegen.zip" -d "$RUNNER_TEMP"
-          cd Apps && "$RUNNER_TEMP/xcodegen/bin/xcodegen" generate
-      # Passes only when each Mihomo flavour is refused by the flavour guard with its reason. This is a check
-      # of the declaration, not a build of Mihomo: no Mihomo code or artifact exists.
-      - name: Expect refusal by the flavour guard
-        run: |
-          for flavour in MihomoOnly Dual; do
-            set +e
-            xcodebuild -project Apps/NetworkPlatform.xcodeproj -scheme NetworkPlatform-iOS -configuration "Debug-$flavour" \
-              -destination generic/platform=iOS -derivedDataPath "$RUNNER_TEMP/dd" CODE_SIGNING_ALLOWED=NO build >"$RUNNER_TEMP/$flavour.log" 2>&1
-            rc=$?
-            set -e
-            if [ "$rc" -ne 0 ] && grep -q "flavour $flavour is declared but not buildable yet" "$RUNNER_TEMP/$flavour.log"; then
-              echo "::notice::$flavour: not buildable yet (Mihomo engine artifact and extension target do not exist), refused by the flavour guard as intended"
-              echo "- $flavour: NOT BUILDABLE YET — refused by the flavour guard (no Mihomo artifact, ADR-0007)" >> "$GITHUB_STEP_SUMMARY"
-            else
-              echo "$flavour: unexpected result rc=$rc"; grep -E 'error:|BUILD' "$RUNNER_TEMP/$flavour.log" | head -40; exit 1
-            fi
-          done

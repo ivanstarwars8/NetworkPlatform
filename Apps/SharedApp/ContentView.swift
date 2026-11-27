@@ -1,5 +1,5 @@
-// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS,
-// visionOS, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 45966628451 (workflow apple.yml)
+// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
+// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46045764184 (workflow apple.yml)
 
 import NetworkExtension
 import SwiftUI
@@ -26,7 +26,9 @@ struct ContentView: View {
                 Text("Engine: no report")
             }
 
-            Text("This build contains no engine. Connecting is expected to fail.")
+            Text("Engines in this build: \(tunnel.catalog.coreIDs.joined(separator: ", ")); extension: \(tunnel.selectedCoreID ?? "none")")
+                .font(.footnote)
+            Text("No profile is compiled yet: Connect works only with a snapshot saved by an earlier start.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
 
