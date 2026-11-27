@@ -4,7 +4,11 @@
 #  2. every Mach-O object of every slice archive carries the LC_BUILD_VERSION platform of its slice and the
 #     architectures of the slice;
 #  3. no slice references proc_pidinfo, recvmsg_x or sendmsg_x as a symbol (defined or undefined, nm) and
-#     none of these names occurs in the archive bytes at all.
+#     none of these names occurs in the archive bytes at all. One exception, for the Xray bridge only:
+#     proc_pidinfo in the macOS slices. libproc (proc_pidinfo) is public API in the macOS SDK, not in the iOS,
+#     tvOS or visionOS SDKs; Xray-core's process lookup (common/net/find_process_darwin.go, build tag
+#     "darwin && !ios") uses it on macOS only. It is reported in verify.tsv, not hidden. The Mihomo bridge has no
+#     exception: its Apple patch removes the call and this check guards against a regression.
 # recvmsg_x/sendmsg_x can also be reached as raw system calls by number, which no symbol table shows; that
 # part is checked on the sources by mihomo-apple-check.sh (go list of every file compiled for Apple).
 #
@@ -15,8 +19,8 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 engine="${NP_BRIDGE_ENGINE:-xray}"
 case "$engine" in
-  xray) bridge="$root/Cores/Bridge"; lib=libnpbridge; framework=NPXrayBridge ;;
-  mihomo) bridge="$root/Cores/MihomoBridge"; lib=libnpmihomo; framework=NPMihomoBridge ;;
+  xray) bridge="$root/Cores/Bridge"; lib=libnpbridge; framework=NPXrayBridge; macos_public="proc_pidinfo" ;;
+  mihomo) bridge="$root/Cores/MihomoBridge"; lib=libnpmihomo; framework=NPMihomoBridge; macos_public="" ;;
   *) echo "NP_BRIDGE_ENGINE must be xray or mihomo" >&2; exit 2 ;;
 esac
 out="${NP_APPLE_OUT:-$bridge/build/apple}"
@@ -108,8 +112,15 @@ for dir in "$out"/slices/*/; do
     [ "$p" = "$want_p" ] || wrong="$wrong $(basename "$o")=$p"
   done
   rm -rf "$tmp"
-  syms="$(nm -A "$a" 2>/dev/null | grep -E "[[:space:]]_($forbidden)\$" || true)"
-  bytes="$(LC_ALL=C grep -a -o -E "$forbidden" "$a" | sort | uniq -c | tr -s ' ' | tr '\n' ';' || true)"
+  pattern="$forbidden"
+  allowed=""
+  if [ -n "$macos_public" ] && [[ "$name" == macos-* ]]; then
+    # Public macOS API (see the header): reported, not a failure.
+    pattern="$(echo "$forbidden" | tr '|' '\n' | grep -vx "$macos_public" | paste -sd'|' -)"
+    allowed="$(nm -A "$a" 2>/dev/null | grep -cE "[[:space:]]_($macos_public)\$" || true)"
+  fi
+  syms="$(nm -A "$a" 2>/dev/null | grep -E "[[:space:]]_($pattern)\$" || true)"
+  bytes="$(LC_ALL=C grep -a -o -E "$pattern" "$a" | sort | uniq -c | tr -s ' ' | tr '\n' ';' || true)"
   status=ok
   if [ "$archs" != "$want_a" ]; then status=FAILED; echo "FAIL: $name: architectures '$archs', expected '$want_a'"; fi
   if [ "$objects" -eq 0 ]; then status=FAILED; echo "FAIL: $name: no Mach-O objects in the archive"; fi
@@ -117,8 +128,9 @@ for dir in "$out"/slices/*/; do
   if [ -n "$syms" ]; then status=FAILED; echo "FAIL: $name: private symbols:"; echo "$syms" | head -20; fi
   if [ -n "$bytes" ]; then status=FAILED; echo "FAIL: $name: private names in the archive bytes: $bytes"; fi
   [ "$status" = ok ] || fail=1
-  printf '%s\t%s\tplatform=%s\tarch=%s\tobjects=%s\tprivate_symbols=%s\tprivate_names=%s\n' "$name" "$status" "$want_p" \
-    "$archs" "$objects" "$(printf '%s' "$syms" | grep -c . || true)" "${bytes:-0}" | tee -a "$out/verify.tsv"
+  printf '%s\t%s\tplatform=%s\tarch=%s\tobjects=%s\tprivate_symbols=%s\tprivate_names=%s%s\n' "$name" "$status" "$want_p" \
+    "$archs" "$objects" "$(printf '%s' "$syms" | grep -c . || true)" "${bytes:-0}" \
+    "${allowed:+	macos_public_${macos_public}=$allowed}" | tee -a "$out/verify.tsv"
 done
 [ "$fail" -eq 0 ] && echo "BRIDGE APPLE VERIFY PASSED ($engine)" || echo "BRIDGE APPLE VERIFY FAILED ($engine)"
 exit "$fail"

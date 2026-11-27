@@ -80,7 +80,7 @@ go build -trimpath -ldflags "-s -w -buildid=" \
   -buildmode=c-archive -o "out/$SDK-$ARCH/libBridge.a" ./<пакет моста>
 ```
 
-Это запись того, что делает чужой скрипт. Наша проверенная команда — `Cores/BuildScripts/bridge-apple-xcframework.sh` (§4.8). Пакет моста — `./cabi` из `Cores/Bridge`; на Linux та же команда `go build -buildmode=c-archive` без SDK-окружения проверена (§4.7).
+Это запись того, что делает чужой скрипт. Наша проверенная команда — `Cores/BuildScripts/bridge-apple-xcframework.sh` (§4.8; с `NP_BRIDGE_ENGINE=mihomo` — мост Mihomo, §6а). Пакет моста — `./cabi` из `Cores/Bridge`; на Linux та же команда `go build -buildmode=c-archive` без SDK-окружения проверена (§4.7).
 
 `go build -buildmode=c-archive` кладёт рядом с архивом C-заголовок с экспортированными функциями [V: скрипт libXray копирует `libXray.h` из каталога среза].
 
@@ -179,10 +179,10 @@ xcodebuild -create-xcframework \
 | Скрипт | Что делает |
 |---|---|
 | `mihomo-linux-cabi-test.sh` | C-архив моста Mihomo для Linux и `cabi/ctest/abi_test.c` |
-| `mihomo-apple-patch.sh` | готовит копию ядра без `proc_pidinfo` (`component/memory`) и печатает флаг `-modfile=…`, обязательный для сборок Apple |
-| `mihomo-apple-check.sh` | без SDK: компилирует `./engine` для `ios/arm64`, `darwin/arm64`, `darwin/amd64` с правкой и проверяет, что `proc_pidinfo` есть в Mach-O без правки и отсутствует с ней |
+| `mihomo-apple-patch.sh` | готовит копии ядра без `proc_pidinfo` (`component/memory`) и sing-tun без системных вызовов `SYS_RECVMSG_X`/`SYS_SENDMSG_X` (`internal/rawfile_darwin`: правка делается скриптом на копии, исходников sing-tun в репозитории нет) и печатает флаг `-modfile=…`, обязательный для сборок Apple |
+| `mihomo-apple-check.sh` | без SDK: компилирует `./engine` для `ios/arm64`, `darwin/arm64`, `darwin/amd64` с правкой; проверяет, что `proc_pidinfo` есть в Mach-O без правки и отсутствует с ней; по `go list -deps ./cabi` (cgo, четыре пары GOOS/GOARCH Apple) проверяет, что ни один компилируемый файл нестандартных пакетов не ссылается на `proc_pidinfo`/`SYS_RECVMSG_X`/`SYS_SENDMSG_X` (контроль без правки: 8 ссылок для darwin/arm64) |
 
-Скрипта XCFramework для Mihomo нет: он должен повторить `bridge-apple-xcframework.sh` с флагом `-modfile` из `mihomo-apple-patch.sh` и не запускался.
+Под Apple мост Mihomo собирается тем же скриптом, что мост Xray: `NP_BRIDGE_ENGINE=mihomo Cores/BuildScripts/bridge-apple-xcframework.sh` → `Cores/MihomoBridge/build/apple/NPMihomoBridge.xcframework` (`libnpmihomo.a`, модуль `NPMihomoBridge`), те же 10 срезов, всегда с флагом из `mihomo-apple-patch.sh`. `bridge-apple-verify.sh` (macOS, для обоих мостов) сверяет `Info.plist` XCFramework (идентификаторы, платформы, варианты, архитектуры), платформу `LC_BUILD_VERSION` каждого объекта каждого среза и отсутствие `proc_pidinfo`/`recvmsg_x`/`sendmsg_x` в таблице символов (`nm`) и в байтах архива. Системный вызов по номеру таблица символов не показывает — эту часть закрывает проверка исходников в `mihomo-apple-check.sh`. Результаты на CI — в `STATUS.md`.
 
 ## 6. sing-box (libbox) — позже, Phase 5
 
