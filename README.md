@@ -6,12 +6,12 @@
 
 ## Состояние на 2026-11-27
 
-**Phase 1. Рабочего приложения нет; на устройствах Apple не собиралось и не запускалось ничего.**
+**Phase 1. Рабочего приложения нет.** На раннерах macOS CI код для Apple скомпилирован без подписи; ничего не подписано, не установлено и не запущено на устройствах Apple, туннель не поднимался.
 
-- Мост Xray (`Cores/Bridge`, Go, Xray-core v26.11.9) собран и проверен на Linux: шесть протоколов против штатного xray, трафик через настоящий tun ядра в netns, пропускная способность 90–129 % от штатного xray. Под детектором гонок падает один тест из-за гонки внутри ядра (Vision).
+- Мост Xray (`Cores/Bridge`, Go, Xray-core v26.11.9) собран и проверен на Linux: шесть протоколов против штатного xray, трафик через настоящий tun ядра в netns, пропускная способность 90–129 % от штатного xray на стенде Linux. Под детектором гонок падают случаи с VLESS+REALITY+Vision (`TestFlowThroughProxyWithDNS`, на CI также `TestProtocolsOverLoopback/VLESS+REALITY+Vision`) из-за гонки внутри ядра.
 - Компилятор модели → Xray JSON проверен настоящим Xray 26.11.9: 53 конфига приняты, 16 из 16 interop-конфигов передали трафик (Xray ↔ Xray, Linux).
-- Swift-пакет из пяти модулей (`DomainModels`, `CoreAbstraction`, `ConfigurationEngine`, `RoutingEngine`, `AdaptiveBalancer`) — 477 тестов, 0 падений на Linux (Swift 5.10.1).
-- Код расширения Packet Tunnel и приложения **ни разу не компилировался**; туннель на устройстве не поднимался. Для этого нужны Mac с Xcode, аккаунт Apple Developer с Network Extension и устройство.
+- Swift-пакет из пяти модулей (`DomainModels`, `CoreAbstraction`, `ConfigurationEngine`, `RoutingEngine`, `AdaptiveBalancer`) — 477 тестов, 0 падений на Linux (Swift 5.10.1) и на macOS CI (Xcode 16.4).
+- Приложение и расширение Packet Tunnel (`XrayOnly`) **скомпилированы на macOS CI без подписи** для iOS/iPadOS, симулятора iOS, macOS, tvOS, visionOS; мост — XCFramework из 10 срезов. **Ни разу не запускались**: адаптера движка нет, старт расширения отказывает `core_not_registered`. Для запуска нужны аккаунт Apple Developer с Network Extension и устройство.
 - Второй движок — Mihomo (ADR-0007, направление до сравнительных замеров); моста Mihomo пока нет.
 
 Подробно, с разделением на «сделано / не проверено / заблокировано»: [`STATUS.md`](STATUS.md).
@@ -22,11 +22,11 @@
 
 | Путь | Содержимое | Проверено сборкой |
 |---|---|---|
-| `Package.swift`, `Packages/` | модули `DomainModels`, `CoreAbstraction`, `ConfigurationEngine`, `RoutingEngine`, `AdaptiveBalancer` с тестами XCTest | Linux, Swift 5.10.1: 477 тестов, 0 падений; Apple — нет |
-| `Cores/Bridge/` | мост Xray на Go с C ABI | Linux — да; Apple — нет |
-| `Extensions/PacketTunnel/` | минимальный `NEPacketTunnelProvider`: сетевые настройки, старт и стоп, сообщения приложения, контроль памяти | нет |
-| `Apps/` | оболочка приложения на SwiftUI и спецификация XcodeGen для iOS и macOS | нет |
-| `Cores/BuildScripts/` | скрипты проверки моста на Linux (C ABI, netns, стенд tun) | Linux — да |
+| `Package.swift`, `Packages/` | модули `DomainModels`, `CoreAbstraction`, `ConfigurationEngine`, `RoutingEngine`, `AdaptiveBalancer` с тестами XCTest | Linux (Swift 5.10.1) и macOS CI (Xcode 16.4): 477 тестов, 0 падений |
+| `Cores/Bridge/` | мост Xray на Go с C ABI | Linux — тесты и стенд; Apple — 10 срезов собраны на CI, тест C ABI выполнен на macOS arm64; на iOS/tvOS/visionOS не запускался |
+| `Extensions/PacketTunnel/` | `NEPacketTunnelProvider`: сетевые настройки, старт и стоп, сообщения приложения, контроль памяти; адаптера движка нет | скомпилировано на macOS CI без подписи; не запускалось |
+| `Apps/` | оболочка приложения на SwiftUI и спецификация XcodeGen для iOS/iPadOS, macOS, tvOS, visionOS | скомпилировано на macOS CI без подписи; не запускалось |
+| `Cores/BuildScripts/` | сборка XCFramework моста; скрипты проверки моста на Linux (C ABI, netns, стенд tun) | Linux — да; XCFramework — на macOS CI |
 | `Benchmarks/` | замеры моста и маршрутизации, тест паритета с роутером Xray | Linux — да |
 | `Tests/Fixtures/`, `Tools/` | корпус ссылок и конфигов, проверка настоящим Xray, обёртки сборки | Linux — да |
 | `RESEARCH.md`, `Documentation/Research/` | результаты аудита движков, референс-клиентов и платформ | — |
@@ -49,9 +49,9 @@ swift test
 
 Нужен Swift 5.9 или новее (`// swift-tools-version:5.9` в `Package.swift`); проверено на 5.10.1. Внешних зависимостей у пакета нет.
 
-Те же две команды выполняет CI (`.github/workflows/ci.yml`) на macOS и в Linux-контейнере. Workflow написан; успешных запусков не зафиксировано.
+Те же две команды выполняет CI (`.github/workflows/swift-package.yml`) на macOS и в Linux-контейнере; мост на Linux проверяет `bridge-go.yml`, сборку для Apple — `apple.yml`. Все три зелёные на 2026-11-27 (`STATUS.md` §2.0).
 
-Приложение и расширение этой командой не собираются. Для них намечен путь `cd Apps && xcodegen generate` на Mac; он не проверен — см. заголовки файлов в `Apps/` и `Extensions/`.
+Приложение и расширение этой командой не собираются: `Cores/BuildScripts/bridge-apple-xcframework.sh`, затем `cd Apps && xcodegen generate`, затем `xcodebuild … -configuration Debug-XrayOnly` — см. [`Documentation/Apple/BUILD_ON_MAC.md`](Documentation/Apple/BUILD_ON_MAC.md). Неподписанная сборка проверена на CI; подписанная и установка на устройство — нет.
 
 ## Архитектура в пяти строках
 
@@ -67,7 +67,7 @@ swift test
 
 **Лицензия не выбрана. Файла `LICENSE` в репозитории нет намеренно.**
 
-Решение отложено до ответа владельца проекта: варианты, временные правила и вопросы — в [`Documentation/ADR/0006-licence-decision-deferred.md`](Documentation/ADR/0006-licence-decision-deferred.md), основание — в [`LICENSE_AUDIT.md`](LICENSE_AUDIT.md). До решения все права на код сохранены за автором, репозиторий не публикуется, сторонние изменения не принимаются.
+Решение отложено до ответа владельца проекта: варианты, временные правила и вопросы — в [`Documentation/ADR/0006-licence-decision-deferred.md`](Documentation/ADR/0006-licence-decision-deferred.md), основание — в [`LICENSE_AUDIT.md`](LICENSE_AUDIT.md). До решения все права на код сохранены за автором, сторонние изменения не принимаются. ADR-0006 предполагал, что репозиторий не публикуется, но `origin` фактически — публичный репозиторий GitHub; это расхождение ждёт решения владельца (`STATUS.md` §3).
 
 ## Документы
 
