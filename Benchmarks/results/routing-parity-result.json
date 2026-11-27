@@ -1,0 +1,83 @@
+{
+  "xrayModule": "v1.260327.1-0.20261109052709-676eaf66f8f0",
+  "tables": 14,
+  "flatRules": 578,
+  "requests": 3782,
+  "agreed": 3779,
+  "knownDifferences": [
+    {
+      "table": "known-differences",
+      "request": 0,
+      "detail": "rule: swift=0 xray=1",
+      "reason": "K1: a request without a transport network. The engine then has no destination at all (no domain, port 0); the simulator still evaluates the fields it was given.",
+      "query": {
+        "domain": "www.example.com",
+        "ip": null,
+        "resolvedIPs": null,
+        "port": 443,
+        "network": null,
+        "sourceIP": null,
+        "sourcePort": null,
+        "inboundTag": null,
+        "user": null,
+        "protocol": null,
+        "swift": {
+          "rule": 0,
+          "action": "proxy:keyword"
+        },
+        "expect": "differ",
+        "reason": "K1: a request without a transport network. The engine then has no destination at all (no domain, port 0); the simulator still evaluates the fields it was given."
+      }
+    },
+    {
+      "table": "known-differences",
+      "request": 1,
+      "detail": "rule: swift=final xray=0",
+      "reason": "K2: a name longer than 253 bytes is not a DNS name; the simulator drops it, the engine matches it as text.",
+      "query": {
+        "domain": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com",
+        "ip": null,
+        "resolvedIPs": null,
+        "port": 443,
+        "network": "tcp",
+        "sourceIP": null,
+        "sourcePort": null,
+        "inboundTag": null,
+        "user": null,
+        "protocol": null,
+        "swift": {
+          "rule": null,
+          "action": "proxy:final"
+        },
+        "expect": "differ",
+        "reason": "K2: a name longer than 253 bytes is not a DNS name; the simulator drops it, the engine matches it as text."
+      }
+    },
+    {
+      "table": "known-differences",
+      "request": 2,
+      "detail": "rule: swift=final xray=0",
+      "reason": "K3: a name with whitespace is dropped by the simulator; the engine matches it as text.",
+      "query": {
+        "domain": "my example.com",
+        "ip": null,
+        "resolvedIPs": null,
+        "port": 443,
+        "network": "tcp",
+        "sourceIP": null,
+        "sourcePort": null,
+        "inboundTag": null,
+        "user": null,
+        "protocol": null,
+        "swift": {
+          "rule": null,
+          "action": "proxy:final"
+        },
+        "expect": "differ",
+        "reason": "K3: a name with whitespace is dropped by the simulator; the engine matches it as text."
+      }
+    }
+  ],
+  "unexpectedDifferences": null,
+  "knownDifferencesThatAgree": null
+}

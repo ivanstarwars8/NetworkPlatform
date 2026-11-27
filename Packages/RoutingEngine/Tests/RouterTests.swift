@@ -100,11 +100,17 @@ final class RouterTests: XCTestCase {
         ])
         let router = try CompiledRouter(table: table)
         XCTAssertEqual(router.match(RouteRequest(domain: "www.example.com")).ruleIndex, 0)
-        XCTAssertEqual(router.match(RouteRequest(domain: "WWW.EXAMPLE.COM.")).ruleIndex, 0)
+        XCTAssertEqual(router.match(RouteRequest(domain: "WWW.EXAMPLE.COM")).ruleIndex, 0)
+        // 2026-11-25: the request name is no longer stripped of a trailing
+        // dot. The engine compares the name as it arrived (verified against
+        // its router, see Documentation/Architecture/routing-parity.md), so
+        // the simulator must not match what the engine would not.
+        XCTAssertTrue(router.match(RouteRequest(domain: "WWW.EXAMPLE.COM.")).isFinal)
         XCTAssertEqual(router.match(RouteRequest(domain: "A.example.org")).ruleIndex, 1)
         XCTAssertEqual(router.match(RouteRequest(domain: "my-Tracker.net")).ruleIndex, 2)
 
-        XCTAssertEqual(RouteRequest(domain: "WWW.Example.COM.").domain, "www.example.com")
+        XCTAssertEqual(RouteRequest(domain: "WWW.Example.COM").domain, "www.example.com")
+        XCTAssertEqual(RouteRequest(domain: "WWW.Example.COM.").domain, "www.example.com.")
         XCTAssertNil(RouteRequest(domain: "").domain)
         XCTAssertNil(RouteRequest(domain: ".").domain)
         XCTAssertNil(RouteRequest(domain: "bad host").domain)

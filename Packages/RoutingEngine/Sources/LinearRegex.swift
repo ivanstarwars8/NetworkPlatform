@@ -1,4 +1,4 @@
-// Verified on Linux only (Swift 5.10.1, swift test, 2026-11-24). Not yet built or run on Apple platforms.
+// Verified on Linux only (Swift 5.10.1, swift test, 2026-11-27). Not yet built or run on Apple platforms.
 import Foundation
 
 /// A small regular-expression engine with guaranteed linear-time matching
@@ -59,6 +59,13 @@ public struct LinearRegex: Sendable {
     private let instructions: [Instruction]
     private let sets: [ByteSet]
 
+    /// A byte string that every match contains, for inputs that are already
+    /// lower case (host names are lowercased before routing): the longest
+    /// one found by a conservative walk of the syntax tree, or empty. With
+    /// `(?i)` a letter is reported in lower case. Used by the router to skip
+    /// patterns whose literal does not occur in the name.
+    let requiredLiteral: [UInt8]
+
     public init(_ pattern: String) throws {
         let bytes = Array(pattern.utf8)
         guard !bytes.isEmpty else { throw CompileError.empty }
@@ -77,6 +84,7 @@ public struct LinearRegex: Sendable {
             throw CompileError.tooComplex(limit: LinearRegex.maximumInstructions)
         }
         self.pattern = pattern
+        self.requiredLiteral = RequiredLiteral.of(tree).best
         self.instructions = compiler.instructions
         self.sets = compiler.sets
     }
@@ -303,6 +311,92 @@ private indirect enum Node {
     case repetition(Node, minimum: Int, maximum: Int?)
     case assertStart
     case assertEnd
+}
+
+// MARK: - Required literal
+
+/// Necessary substrings of a syntax tree. `exact` is set when the node
+/// matches exactly one string; `best` is the longest string known to occur
+/// in every match of the node.
+private struct RequiredLiteral {
+    static let maximumLength = 64
+
+    var exact: [UInt8]?
+    var best: [UInt8]
+
+    /// The single lower-case byte a set stands for: a one-byte set, or the
+    /// two cases of one ASCII letter (input is lower case).
+    private static func literalByte(_ set: ByteSet) -> UInt8? {
+        var members: [UInt8] = []
+        var value = 0
+        while value < 256 {
+            if set.contains(UInt8(value)) {
+                members.append(UInt8(value))
+                if members.count > 2 { return nil }
+            }
+            value += 1
+        }
+        if members.count == 1 { return members[0] }
+        if members.count == 2, members[0] >= 0x41, members[0] <= 0x5A, members[1] == members[0] + 0x20 {
+            return members[1]
+        }
+        return nil
+    }
+
+    private static func longer(_ lhs: [UInt8], _ rhs: [UInt8]) -> [UInt8] {
+        rhs.count > lhs.count ? rhs : lhs
+    }
+
+    static func of(_ node: Node) -> RequiredLiteral {
+        switch node {
+        case .empty, .assertStart, .assertEnd:
+            // Zero-width: adjacent literals stay adjacent.
+            return RequiredLiteral(exact: [], best: [])
+        case let .set(set):
+            if let byte = literalByte(set) { return RequiredLiteral(exact: [byte], best: [byte]) }
+            return RequiredLiteral(exact: nil, best: [])
+        case let .concat(items):
+            var run: [UInt8]? = []
+            var best: [UInt8] = []
+            var whole: [UInt8]? = []
+            for item in items {
+                let part = of(item)
+                if let exact = part.exact, var current = run, current.count + exact.count <= maximumLength {
+                    current.append(contentsOf: exact)
+                    run = current
+                    whole?.append(contentsOf: exact)
+                } else {
+                    best = longer(best, run ?? [])
+                    best = longer(best, part.best)
+                    // A run restarts after a non-exact part, with this part's
+                    // exact text if it has one.
+                    run = part.exact.flatMap { $0.count <= maximumLength ? $0 : nil } ?? []
+                    whole = nil
+                }
+            }
+            best = longer(best, run ?? [])
+            return RequiredLiteral(exact: whole, best: best)
+        case let .alternate(branches):
+            let parts = branches.map(of)
+            if let first = parts.first?.exact, parts.allSatisfy({ $0.exact == first }) {
+                return RequiredLiteral(exact: first, best: first)
+            }
+            return RequiredLiteral(exact: nil, best: [])
+        case .star, .optional:
+            return RequiredLiteral(exact: nil, best: [])
+        case let .plus(child):
+            let part = of(child)
+            return RequiredLiteral(exact: nil, best: part.exact ?? part.best)
+        case let .repetition(child, minimum, maximum):
+            guard minimum >= 1 else { return RequiredLiteral(exact: nil, best: []) }
+            let part = of(child)
+            if let exact = part.exact, maximum == minimum, exact.count * minimum <= maximumLength {
+                let repeated = Array([[UInt8]](repeating: exact, count: minimum).joined())
+                return RequiredLiteral(exact: repeated, best: repeated)
+            }
+            return RequiredLiteral(exact: nil, best: part.exact ?? part.best)
+        }
+    }
 }
 
 // MARK: - Parser

@@ -80,8 +80,9 @@ public struct RouteSimulator: Sendable {
     }
 
     public func explain(_ request: RouteRequest) -> RouteExplanation {
-        let input = EvaluationInput(request)
-        let candidates = router.candidates(for: input)
+        let evaluation = router.evaluate(request)
+        let input = evaluation.input
+        let candidates = evaluation.candidates
         let best = candidates.best
         let rules = router.reference.rules
         let resolved = router.reference.resolved
@@ -121,6 +122,12 @@ public struct RouteSimulator: Sendable {
             var reason = "matched"
             if let condition = resolved[winner] {
                 reason = RouteSimulator.describe(condition, input).text
+            }
+            if evaluation.usedSecondPass {
+                reason += " (second pass: no rule matched without resolving the domain,"
+                    + " so the rules were evaluated again with its resolved addresses)"
+            } else if input.usesResolvedIPs {
+                reason += " (address rules see the resolved addresses of the domain)"
             }
             let sources = RouteSimulator.sources(of: winner, in: candidates)
             if !sources.isEmpty {
@@ -168,7 +175,11 @@ public struct RouteSimulator: Sendable {
 
         let decision: RouteDecision
         if let winner = winner {
-            decision = RouteDecision(action: rules[winner].action, ruleIndex: winner)
+            decision = RouteDecision(
+                action: rules[winner].action,
+                ruleIndex: winner,
+                usedSecondPass: evaluation.usedSecondPass
+            )
         } else {
             decision = RouteDecision(action: router.reference.finalAction, ruleIndex: nil)
         }
@@ -203,6 +214,12 @@ public struct RouteSimulator: Sendable {
     private static func domainText(_ input: EvaluationInput) -> String? {
         guard let domain = input.domain else { return nil }
         return ByteText.string(domain)
+    }
+
+    private static func addressText(_ input: EvaluationInput) -> String {
+        let listed = input.targetIPs.prefix(4).map { "\($0)" }.joined(separator: ", ")
+            + (input.targetIPs.count > 4 ? ", ..." : "")
+        return input.usesResolvedIPs ? "resolved address \(listed)" : "address \(listed)"
     }
 
     /// Evaluates a condition and says why it did or did not match.
@@ -248,22 +265,69 @@ public struct RouteSimulator: Sendable {
             return (false, "domain '\(domain)' does not match regex '\(regex.pattern)'")
 
         case let .ipCIDR(cidr):
-            guard let ip = input.ip else {
+            guard !input.targetIPs.isEmpty else {
                 return (false, "request has no IP address (needs \(cidr))")
             }
+            let shown = addressText(input)
             if condition.matches(input) {
-                return (true, "address \(ip) is inside \(cidr)")
+                return (true, "\(shown) is inside \(cidr)")
             }
-            return (false, "address \(ip) is outside \(cidr)")
+            return (false, "\(shown) is outside \(cidr)")
+
+        case let .ipNotIn(excluded):
+            let wanted = excluded.prefixes.prefix(3).map { "\($0)" }.joined(separator: ", ")
+                + (excluded.prefixes.count > 3 ? ", ..." : "")
+            guard !input.targetIPs.isEmpty else {
+                return (false, "request has no IP address (needs one outside \(wanted))")
+            }
+            let shown = addressText(input)
+            if condition.matches(input) {
+                return (true, "\(shown) has an address outside \(wanted)")
+            }
+            return (false, "\(shown) has no address outside \(wanted)"
+                + " (an address only counts when the list has a prefix of its family)")
 
         case let .port(range):
-            guard let port = input.port else {
-                return (false, "request has no port (needs \(range))")
-            }
+            let port = input.port
             if condition.matches(input) {
                 return (true, "port \(port) is in \(range)")
             }
             return (false, "port \(port) is not in \(range)")
+
+        case let .sourceCIDR(cidr):
+            guard let ip = input.sourceIP else {
+                return (false, "request has no source address (needs \(cidr))")
+            }
+            if condition.matches(input) {
+                return (true, "source \(ip) is inside \(cidr)")
+            }
+            return (false, "source \(ip) is outside \(cidr)")
+
+        case let .sourcePort(range):
+            if condition.matches(input) {
+                return (true, "source port \(input.sourcePort) is in \(range)")
+            }
+            return (false, "source port \(input.sourcePort) is not in \(range)")
+
+        case let .inboundTag(tag):
+            if condition.matches(input) {
+                return (true, "inbound is '\(tag)'")
+            }
+            return (false, "inbound is '\(input.inboundTag ?? "(none)")', not '\(tag)'")
+
+        case let .user(name):
+            if condition.matches(input) {
+                return (true, "user is '\(name)'")
+            }
+            return (false, "user is '\(input.user ?? "(none)")', not '\(name)'")
+
+        case let .sniffedProtocol(prefix):
+            let wanted = ByteText.string(prefix)
+            let actual = input.sniffedProtocol.map { ByteText.string($0) } ?? "(none)"
+            if condition.matches(input) {
+                return (true, "sniffed protocol '\(actual)' starts with '\(wanted)'")
+            }
+            return (false, "sniffed protocol '\(actual)' does not start with '\(wanted)'")
 
         case let .network(kind):
             guard let network = input.network else {
@@ -372,7 +436,8 @@ public enum ConflictDetector {
                     case let .ipCIDR(cidr):
                         by = prefixes.coveringIndex(cidr)
                         what = "prefix \(cidr)"
-                    case .port, .network, .domainKeyword, .domainRegex, .allOf, .anyOf, .not:
+                    case .port, .network, .domainKeyword, .domainRegex, .ipNotIn, .sourceCIDR, .sourcePort,
+                         .inboundTag, .user, .sniffedProtocol, .allOf, .anyOf, .not:
                         by = noRuleIndex
                     }
                     if by == noRuleIndex {
@@ -415,7 +480,8 @@ public enum ConflictDetector {
                     domains.insertSuffix(name, strict: strict, ruleIndex: ruleIndex)
                 case let .ipCIDR(cidr):
                     prefixes.insert(cidr, ruleIndex: ruleIndex)
-                case .port, .network, .domainKeyword, .domainRegex, .allOf, .anyOf, .not:
+                case .port, .network, .domainKeyword, .domainRegex, .ipNotIn, .sourceCIDR, .sourcePort,
+                     .inboundTag, .user, .sniffedProtocol, .allOf, .anyOf, .not:
                     break
                 }
             }
