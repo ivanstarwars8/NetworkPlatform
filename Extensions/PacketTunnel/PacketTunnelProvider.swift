@@ -2,10 +2,22 @@
 //
 // Minimal Packet Tunnel host (ADR-0001 §4, ADR-0003 §2–3).
 //
-// What it does: takes a start request (from the app, or from its own snapshot
-// when the system starts it), applies the interface settings, drives one
-// engine through `CoreLifecycle`, answers app messages, watches the engine and
-// the memory pressure of the process.
+// What it does: takes a start reference (from the app) or its own snapshot
+// (when the system starts it), applies the interface settings, drives one
+// engine through `CoreLifecycle`, answers app messages, watches the engine
+// and the memory pressure of the process, forwards sleep and wake.
+//
+// The order of operations (start, rollback, stop, their overlap) lives in
+// TunnelSession.swift, which is tested on Linux; this file only supplies the
+// Network Extension calls. See Documentation/Architecture/control-plane-lifecycle.md.
+//
+// Rules this file keeps:
+// - Every wait on the engine has a deadline (`TunnelDeadlines`).
+// - An engine call that never returns leaves the process unusable (one
+//   engine instance per process, ADR-0001). The process then exits after
+//   reporting the failure: the emergency path of ADR-0001 §4.
+// - No task captures the provider strongly, and nothing non-Sendable crosses
+//   a task boundary except through `ProviderReference`.
 //
 // What is missing, and therefore what this file cannot do yet:
 // - No engine adapter exists in the repository, so the registry below is
@@ -13,10 +25,7 @@
 //   comes up without an engine; that is the intended failure.
 // - The utun file descriptor is not located (ADR-0001 §4, risk R-08), so
 //   `CoreStartOptions.tunnelFileDescriptor` is always `nil`.
-// - There is no deadline for a start or stop that never returns; ADR-0001 §4
-//   makes terminating the process the emergency path, and that path is not
-//   written.
-// - Network changes, sleep and wake are not handled.
+// - Network path changes are not observed.
 
 import CoreAbstraction
 import Foundation
@@ -33,77 +42,97 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     private let session = TunnelSession()
     private let memoryMonitor = MemoryPressureMonitor()
 
+    private let deadlines = TunnelDeadlines.standard
+
     // MARK: Start and stop
 
     override func startTunnel(options: [String: NSObject]?) async throws {
         do {
-            try await start(options: options)
+            // Decoded here, synchronously: the options dictionary is not
+            // Sendable and must not travel further.
+            let reference = try TunnelStartReference.from(startOptions: options)
+            // Not fatal when unavailable: a start with a fresh request does
+            // not need the snapshot, it only cannot save one.
+            let snapshots = try? ConfigurationSnapshotStore.inOwnContainer()
+            let registry = self.registry
+
+            let request = try await TunnelRunner.start(session: session, deadlines: deadlines, hooks: makeHooks()) {
+                let request: TunnelStartRequest
+                if let reference = reference {
+                    let handoff = ConfigurationHandoff(directory: try ConfigurationHandoff.sharedDirectory())
+                    request = try handoff.consume(reference)
+                } else if let saved = try snapshots?.load() {
+                    // Started by the system: the last successful request is reused.
+                    request = saved
+                } else {
+                    throw TunnelIPCError(.noConfiguration, "no start reference and no saved snapshot")
+                }
+                // Fails before the interface is touched when the engine is
+                // not in this build.
+                return (request, try registry.makeCore(CoreIdentifier(request.coreID)))
+            }
+
+            startMemoryMonitor()
+            if !(await session.isActive) {
+                // A stop won the race right after the start completed.
+                memoryMonitor.stop()
+            }
+            if reference != nil, let snapshots = snapshots {
+                do {
+                    try snapshots.save(request)
+                } catch {
+                    // The tunnel works; only system-initiated starts are affected.
+                    log.error("snapshot was not saved: \(TunnelRunner.describe(error), privacy: .public)")
+                }
+            }
         } catch {
-            memoryMonitor.stop()
-            await session.clear()
             // The description never contains the configuration: `CoreError`
-            // carries codes and bounded engine messages only.
-            log.error("start failed: \(PacketTunnelProvider.describe(error), privacy: .public)")
+            // and `TunnelIPCError` carry codes and bounded messages only.
+            log.error("start failed: \(TunnelRunner.describe(error), privacy: .public)")
             throw PacketTunnelProvider.bridged(error)
         }
     }
 
-    private func start(options: [String: NSObject]?) async throws {
-        let snapshots = try ConfigurationSnapshotStore.inOwnContainer()
-
-        let request: TunnelStartRequest
-        if let fresh = try TunnelStartRequest.from(startOptions: options) {
-            request = fresh
-        } else if let saved = try snapshots.load() {
-            // Started by the system: the last successful request is reused.
-            request = saved
-        } else {
-            throw TunnelIPCError(code: "no_configuration", message: "no start request and no saved snapshot")
-        }
-
-        // Fail before touching the interface when the engine is not in this build.
-        let core = try registry.makeCore(CoreIdentifier(request.coreID))
-        let lifecycle = CoreLifecycle(core: core)
-
-        try await setTunnelNetworkSettings(TunnelNetworkSettingsBuilder.makeSettings(for: request.network))
-
-        memoryMonitor.start { [log] level, footprint in
-            // Recorded only. `NetworkCore` has no way to ask an engine to
-            // release memory yet; adding one waits for measurements (R-03).
-            log.warning("memory pressure \(level.rawValue, privacy: .public), footprint \(footprint ?? 0) bytes")
-        }
-
-        let configuration = CoreConfiguration(
-            coreID: CoreIdentifier(request.coreID),
-            format: request.format,
-            payload: request.configuration
-        )
-        let startOptions = CoreStartOptions(tunnelFileDescriptor: nil, mtu: request.network.mtu, memoryLimitBytes: nil)
-        try await lifecycle.start(configuration, options: startOptions)
-
-        await session.attach(lifecycle: lifecycle, coreID: request.coreID)
-
-        do {
-            try snapshots.save(request)
-        } catch {
-            // The tunnel works; only system-initiated starts are affected.
-            log.error("snapshot was not saved: \(PacketTunnelProvider.describe(error), privacy: .public)")
-        }
-
-        await session.setWatchdog(makeWatchdog(for: lifecycle))
-    }
-
     override func stopTunnel(with reason: NEProviderStopReason) async {
         log.info("stop requested, reason \(reason.rawValue)")
-        // The watchdog goes first, so that a failing stop is not reported as
-        // an engine that died on its own.
-        let lifecycle = await session.detach()
         memoryMonitor.stop()
-        guard let lifecycle = lifecycle else { return }
-        do {
-            try await lifecycle.stop()
-        } catch {
-            log.error("engine stop failed: \(PacketTunnelProvider.describe(error), privacy: .public)")
+        await TunnelRunner.stop(session: session, deadlines: deadlines, hooks: makeHooks())
+    }
+
+    /// The platform calls the session logic needs. The closures are used
+    /// only by the call they are passed to and do not outlive it.
+    private func makeHooks() -> TunnelHostHooks {
+        let log = self.log
+        let exitGrace = deadlines.exitGrace
+        return TunnelHostHooks(
+            applySettings: { [unowned self] plan in
+                try await self.setTunnelNetworkSettings(TunnelNetworkSettingsBuilder.makeSettings(for: plan))
+            },
+            clearSettings: { [unowned self] in
+                try await self.setTunnelNetworkSettings(nil)
+            },
+            makeWatchdog: { [unowned self] lifecycle in
+                self.makeWatchdog(for: lifecycle)
+            },
+            engineWedged: {
+                log.fault("engine did not stop in time, the tunnel process will exit")
+                DispatchQueue.global().asyncAfter(deadline: .now() + exitGrace) {
+                    exit(EXIT_FAILURE)
+                }
+            },
+            log: { message in
+                log.error("\(message, privacy: .public)")
+            }
+        )
+    }
+
+    private func startMemoryMonitor() {
+        let session = self.session
+        let timeout = deadlines.systemEvent
+        memoryMonitor.start { [log] level, footprint in
+            log.warning("memory pressure \(level.rawValue, privacy: .public), footprint \(footprint ?? 0) bytes")
+            let mapped: CoreMemoryPressureLevel = level == .critical ? .critical : .warning
+            Task { await session.forwardMemoryPressure(mapped, timeout: timeout) }
         }
     }
 
@@ -111,13 +140,16 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     /// tunnel down, otherwise the interface keeps capturing traffic that
     /// nothing forwards.
     private func makeWatchdog(for lifecycle: CoreLifecycle) -> Task<Void, Never> {
-        Task { [weak self] in
+        let provider = ProviderReference(self)
+        let log = self.log
+        return Task {
             for await state in await lifecycle.stateUpdates() {
                 if Task.isCancelled { return }
                 if state == .failed {
                     let failure: Error = await lifecycle.lastError ?? CoreError.unexpectedExit(message: "engine failed")
-                    self?.log.error("engine failed, cancelling tunnel: \(PacketTunnelProvider.describe(failure), privacy: .public)")
-                    self?.cancelTunnelWithError(PacketTunnelProvider.bridged(failure))
+                    if Task.isCancelled { return }
+                    log.error("engine failed, cancelling tunnel: \(TunnelRunner.describe(failure), privacy: .public)")
+                    provider.cancelTunnel(with: PacketTunnelProvider.bridged(failure))
                     return
                 }
                 if state == .idle { return }
@@ -125,30 +157,40 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         }
     }
 
+    // MARK: Sleep and wake
+
+    override func sleep() async {
+        // Bounded: the system waits for this before the device sleeps.
+        guard let lifecycle = await session.lifecycle else { return }
+        let delivered = await lifecycle.deliver(.willSleep, timeout: deadlines.systemEvent)
+        log.info("sleep, engine notified: \(delivered)")
+    }
+
+    override func wake() {
+        let session = self.session
+        let log = self.log
+        let timeout = deadlines.systemEvent
+        Task {
+            guard let lifecycle = await session.lifecycle else { return }
+            let delivered = await lifecycle.deliver(.didWake, timeout: timeout)
+            log.info("wake, engine notified: \(delivered)")
+        }
+    }
+
     // MARK: App messages
 
     override func handleAppMessage(_ messageData: Data) async -> Data? {
         let response = await respond(to: messageData)
-        return try? JSONEncoder().encode(response)
+        return TunnelExchange.encode(response)
     }
 
     private func respond(to messageData: Data) async -> TunnelResponse {
-        func failure(_ id: UInt64, _ code: String, _ message: String) -> TunnelResponse {
-            TunnelResponse(
-                version: TunnelIPC.protocolVersion,
-                id: id,
-                outcome: .failure(TunnelIPCError(code: code, message: message))
-            )
-        }
-
-        guard messageData.count <= TunnelIPC.maximumMessageBytes else {
-            return failure(0, "message_too_large", "message exceeds \(TunnelIPC.maximumMessageBytes) bytes")
-        }
-        guard let request = try? JSONDecoder().decode(TunnelRequest.self, from: messageData) else {
-            return failure(0, "malformed_request", "message is not a tunnel request")
-        }
-        guard request.version == TunnelIPC.protocolVersion else {
-            return failure(request.id, "unsupported_version", "extension speaks version \(TunnelIPC.protocolVersion)")
+        let request: TunnelRequest
+        switch TunnelExchange.decodeRequest(messageData) {
+        case let .rejection(response):
+            return response
+        case let .request(decoded):
+            request = decoded
         }
 
         switch request.body {
@@ -156,10 +198,14 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             return TunnelResponse(version: TunnelIPC.protocolVersion, id: request.id, outcome: .status(await statusReport()))
         case .statistics:
             guard let lifecycle = await session.lifecycle else {
-                return failure(request.id, "not_running", "no engine is running")
+                return TunnelExchange.failure(id: request.id, .notRunning, "no engine is running")
             }
             do {
-                let statistics = try await lifecycle.statistics()
+                // Bounded: an engine that does not answer must not keep the
+                // app's request, and this task, alive.
+                let statistics = try await CoreDeadline.run(.statistics, timeout: deadlines.statistics) {
+                    try await lifecycle.statistics()
+                }
                 let report = TunnelTrafficReport(
                     uplinkBytes: statistics.traffic.uplinkBytes,
                     downlinkBytes: statistics.traffic.downlinkBytes
@@ -167,11 +213,17 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 return TunnelResponse(version: TunnelIPC.protocolVersion, id: request.id, outcome: .statistics(report))
             } catch {
                 let normalised = CoreError.normalise(error, during: .statistics)
-                return failure(request.id, normalised.code, normalised.description)
+                return TunnelExchange.failure(
+                    id: request.id,
+                    TunnelIPCError.Code(rawValue: normalised.code),
+                    normalised.description
+                )
             }
         }
     }
 
+    /// Never waits for the engine: the lifecycle actor answers while the
+    /// engine works.
     private func statusReport() async -> TunnelStatusReport {
         let counts = memoryMonitor.counts
         var report = TunnelStatusReport(
@@ -191,53 +243,28 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
 
     // MARK: Errors
 
-    private static func describe(_ error: Error) -> String {
-        if let core = error as? CoreError { return "\(core.code): \(core.description)" }
-        if let ipc = error as? TunnelIPCError { return "\(ipc.code): \(ipc.message)" }
-        return String(describing: type(of: error))
-    }
-
     /// The system reports tunnel errors as `NSError`; a bare Swift enum would
     /// lose its text on the way.
     private static func bridged(_ error: Error) -> NSError {
         NSError(
             domain: "NetworkPlatform.Tunnel",
             code: 1,
-            userInfo: [NSLocalizedDescriptionKey: describe(error)]
+            userInfo: [NSLocalizedDescriptionKey: TunnelRunner.describe(error)]
         )
     }
 }
 
-/// The mutable state of one tunnel process. An actor, because the provider's
-/// entry points and the watchdog run concurrently.
-private actor TunnelSession {
-    private(set) var lifecycle: CoreLifecycle?
-    private(set) var coreID: String?
-    private var watchdog: Task<Void, Never>?
+/// Lets a task reach the provider without keeping it alive and without
+/// claiming that the provider is Sendable. `cancelTunnelWithError` is the
+/// only call made through it; Network Extension allows it from any thread.
+private final class ProviderReference: @unchecked Sendable {
+    private weak var provider: NEPacketTunnelProvider?
 
-    func attach(lifecycle: CoreLifecycle, coreID: String) {
-        self.lifecycle = lifecycle
-        self.coreID = coreID
+    init(_ provider: NEPacketTunnelProvider) {
+        self.provider = provider
     }
 
-    func setWatchdog(_ task: Task<Void, Never>) {
-        watchdog?.cancel()
-        watchdog = task
-    }
-
-    /// Cancels the watchdog and hands the lifecycle over for stopping.
-    func detach() -> CoreLifecycle? {
-        watchdog?.cancel()
-        watchdog = nil
-        let current = lifecycle
-        lifecycle = nil
-        return current
-    }
-
-    func clear() {
-        watchdog?.cancel()
-        watchdog = nil
-        lifecycle = nil
-        coreID = nil
+    func cancelTunnel(with error: NSError) {
+        provider?.cancelTunnelWithError(error)
     }
 }

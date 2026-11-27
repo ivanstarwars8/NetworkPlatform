@@ -4,10 +4,16 @@
 // `NETunnelProviderManager`, mirrors `NEVPNStatus` (the source of truth about
 // the tunnel) and talks to the extension over `sendProviderMessage`.
 //
+// Every request to the extension goes through `send(_:)`: it has a deadline,
+// honours cancellation and throws only `TunnelIPCError`. The rules of the
+// exchange (`TunnelExchange`, `TunnelPendingReply`) and of the configuration
+// hand-off (`ConfigurationHandoff`) are in Extensions/PacketTunnel/Shared and
+// are tested on Linux; this file adds only the Network Extension calls.
+//
 // Not implemented: On-Demand rules, choosing between several extensions by
-// `providerBundleIdentifier` (ADR-0001 §3, rule 5), compiling and sending a
-// start request. `connect()` therefore starts the tunnel without options and
-// the extension refuses to start.
+// `providerBundleIdentifier` (ADR-0001 §3, rule 5), compiling a start
+// request. Nothing calls `connect(with:)` yet; `connect()` starts the tunnel
+// without a request, which works only when the extension has a snapshot.
 
 import Foundation
 import NetworkExtension
@@ -20,8 +26,9 @@ final class TunnelController: ObservableObject {
     @Published private(set) var lastError: String?
 
     private var manager: NETunnelProviderManager?
-    private var statusObserver: NSObjectProtocol?
+    private var statusObserver: NotificationObservation?
     private var nextRequestID: UInt64 = 1
+    private var queryInFlight = false
 
     /// The extension's bundle identifier is the app's plus a fixed suffix
     /// (Apps/project.yml).
@@ -66,13 +73,42 @@ final class TunnelController: ObservableObject {
         }
     }
 
+    /// Starts the tunnel without a request: the extension reuses its
+    /// snapshot of the last successful start, or refuses.
     func connect() {
-        guard let manager = manager else { return }
+        start(options: nil)
+    }
+
+    /// Starts the tunnel with a compiled request. The request goes to the
+    /// extension through a file in the App Group container; the start options
+    /// carry only a reference to it (length and SHA-256 included).
+    func connect(with request: TunnelStartRequest) {
+        guard manager != nil else { return }
         do {
-            try manager.connection.startVPNTunnel(options: nil)
+            let handoff = ConfigurationHandoff(directory: try ConfigurationHandoff.sharedDirectory())
+            let reference = try handoff.write(request)
+            let options = try reference.startOptions()
+            if !start(options: options) {
+                // The extension will never read the file.
+                handoff.discard(reference)
+            }
+        } catch let error as TunnelIPCError {
+            lastError = "Preparing the start request failed: \(error.summary)"
+        } catch {
+            lastError = "Preparing the start request failed."
+        }
+    }
+
+    @discardableResult
+    private func start(options: [String: NSObject]?) -> Bool {
+        guard let manager = manager else { return false }
+        do {
+            try manager.connection.startVPNTunnel(options: options)
             lastError = nil
+            return true
         } catch {
             lastError = "Starting the tunnel failed: \(error.localizedDescription)"
+            return false
         }
     }
 
@@ -80,71 +116,121 @@ final class TunnelController: ObservableObject {
         manager?.connection.stopVPNTunnel()
     }
 
-    /// Asks the running extension for the engine state. Only meaningful while
-    /// the tunnel is connected: a message to a stopped extension may never be
-    /// answered.
+    /// Asks the running extension for the engine state.
     func queryEngine() async {
-        guard status == .connected, let session = manager?.connection as? NETunnelProviderSession else {
-            engineReport = nil
-            return
-        }
-        let request = TunnelRequest(version: TunnelIPC.protocolVersion, id: nextRequestID, body: .status)
-        nextRequestID += 1
+        // One query at a time: replies to overlapping queries would race for
+        // the same published property.
+        guard !queryInFlight else { return }
+        queryInFlight = true
+        defer { queryInFlight = false }
+
+        let request = makeRequest(.status)
         do {
-            let message = try JSONEncoder().encode(request)
-            let reply: Data? = try await withCheckedThrowingContinuation { continuation in
-                do {
-                    try session.sendProviderMessage(message) { data in
-                        continuation.resume(returning: data)
-                    }
-                } catch {
-                    continuation.resume(throwing: error)
-                }
-            }
-            guard let reply = reply else {
-                lastError = "The extension sent no reply."
+            let report = try TunnelExchange.statusReport(of: try await send(request), for: request)
+            // The tunnel may have gone down while the reply was on its way.
+            guard status == .connected else {
+                engineReport = nil
                 return
             }
-            let response = try JSONDecoder().decode(TunnelResponse.self, from: reply)
-            guard response.version == TunnelIPC.protocolVersion, response.id == request.id else {
-                lastError = "The extension replied with an unexpected version or request id."
-                return
-            }
-            switch response.outcome {
-            case let .status(report):
-                engineReport = report
-                lastError = nil
-            case .statistics:
-                lastError = "The extension replied with the wrong kind of answer."
-            case let .failure(failure):
-                lastError = "\(failure.code): \(failure.message)"
-            }
+            engineReport = report
+            lastError = nil
+        } catch let error as TunnelIPCError {
+            engineReport = nil
+            lastError = "Querying the extension failed: \(error.summary)"
         } catch {
-            lastError = "Querying the extension failed: \(error.localizedDescription)"
+            engineReport = nil
+            lastError = "Querying the extension failed."
         }
     }
 
-    private func adopt(_ newManager: NETunnelProviderManager?) {
-        if let observer = statusObserver {
-            NotificationCenter.default.removeObserver(observer)
-            statusObserver = nil
+    /// Traffic counters of the running engine.
+    func queryTraffic() async throws -> TunnelTrafficReport {
+        let request = makeRequest(.statistics)
+        return try TunnelExchange.trafficReport(of: try await send(request), for: request)
+    }
+
+    // MARK: Channel
+
+    private func makeRequest(_ body: TunnelRequest.Body) -> TunnelRequest {
+        let request = TunnelRequest(version: TunnelIPC.protocolVersion, id: nextRequestID, body: body)
+        nextRequestID &+= 1
+        return request
+    }
+
+    /// The single path to the extension. Returns the raw reply, or throws a
+    /// `TunnelIPCError`: `.notConnected`, `.sendFailed`, `.timedOut`,
+    /// `.cancelled`, `.messageTooLarge`.
+    ///
+    /// A message to an extension that is not running may never be answered,
+    /// so nothing is sent unless the tunnel is connected, and the wait is
+    /// bounded in any case.
+    private func send(
+        _ request: TunnelRequest,
+        timeout: TimeInterval = TunnelIPC.defaultRequestTimeout
+    ) async throws -> Data? {
+        guard status == .connected, let session = manager?.connection as? NETunnelProviderSession else {
+            throw TunnelIPCError(.notConnected, "the tunnel is not connected")
         }
+        let message = try TunnelExchange.encode(request)
+        let pending = TunnelPendingReply()
+        do {
+            // Called here, on the main actor: the session is not Sendable and
+            // never leaves it. Only `pending` (Sendable) enters the handler.
+            try session.sendProviderMessage(message) { reply in
+                pending.fulfil(reply)
+            }
+        } catch {
+            throw TunnelIPCError(.sendFailed, "the system refused the message: \(type(of: error))")
+        }
+        return try await pending.wait(timeout: timeout)
+    }
+
+    // MARK: Status
+
+    private func adopt(_ newManager: NETunnelProviderManager?) {
+        // Dropping the previous observation unregisters it.
+        statusObserver = nil
         manager = newManager
         isInstalled = newManager != nil
         status = newManager?.connection.status ?? .invalid
+        if status != .connected {
+            engineReport = nil
+        }
         guard let connection = newManager?.connection else { return }
-        statusObserver = NotificationCenter.default.addObserver(
-            forName: .NEVPNStatusDidChange,
-            object: connection,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                guard let self = self else { return }
-                self.status = connection.status
-                if connection.status != .connected {
-                    self.engineReport = nil
+        statusObserver = NotificationObservation(
+            NotificationCenter.default.addObserver(
+                forName: .NEVPNStatusDidChange,
+                object: connection,
+                queue: .main
+            ) { [weak self] _ in
+                // Delivered on the main queue (requested above), so this is
+                // the main actor; the status is read from the manager the
+                // controller holds instead of capturing the connection.
+                MainActor.assumeIsolated {
+                    self?.statusDidChange()
                 }
             }
+        )
+    }
+
+    private func statusDidChange() {
+        status = manager?.connection.status ?? .invalid
+        if status != .connected {
+            engineReport = nil
         }
+    }
+}
+
+/// Owns one `NotificationCenter` registration and removes it when released,
+/// so the controller needs no `deinit` and cannot leak the observer.
+private final class NotificationObservation {
+    private let token: NSObjectProtocol
+
+    init(_ token: NSObjectProtocol) {
+        self.token = token
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(token)
     }
 }

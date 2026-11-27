@@ -1,4 +1,4 @@
-// Verified on Linux only (Swift 5.10.1, swift test, 2026-11-24). Not yet built or run on Apple platforms.
+// Verified on Linux only (Swift 5.10.1, swift test, 2026-11-25). Not yet built or run on Apple platforms.
 import Foundation
 
 // MARK: - Inputs
@@ -163,6 +163,25 @@ public struct CoreHealth: Hashable, Sendable {
     }
 }
 
+// MARK: - System events
+
+public enum CoreMemoryPressureLevel: String, Hashable, Sendable, Codable {
+    case warning
+    case critical
+}
+
+/// Something the operating system told the hosting process and a running
+/// core may want to react to. The set is deliberately small: only what the
+/// Packet Tunnel host observes today.
+public enum CoreSystemEvent: Hashable, Sendable {
+    /// The device is about to sleep.
+    case willSleep
+    /// The device woke up.
+    case didWake
+    /// The process received a memory-pressure notification.
+    case memoryPressure(CoreMemoryPressureLevel)
+}
+
 // MARK: - The protocol
 
 /// The surface every engine adapter implements (ADR-0001 §5). Nothing
@@ -178,6 +197,17 @@ public struct CoreHealth: Hashable, Sendable {
 ///   `.hotReload`; other cores are restarted by the caller.
 /// - `stop` must be safe to call after a failed `start`.
 /// - `health` does not throw: failing to check is itself a health status.
+/// - `start` and `reload` should honour task cancellation: `CoreLifecycle`
+///   cancels them when their deadline passes, when the caller is cancelled
+///   and on `shutdown`. A core that cannot be interrupted is still handled
+///   (the result of an abandoned start is discarded), only slower.
+/// - `stop` is never cancelled.
+/// - `handleSystemEvent` is serialised with `start`, `stop` and `reload` and
+///   only called while the core is running.
+/// - `validate`, `statistics` and `health` are **not** serialised: they may
+///   overlap each other and any command, including a `stop` that began after
+///   the lifecycle checked its state. Implementations must make them safe to
+///   call at any time.
 public protocol NetworkCore: Sendable {
     /// Static description: identifier, version, capabilities.
     var descriptor: CoreDescriptor { get }
@@ -198,10 +228,16 @@ public protocol NetworkCore: Sendable {
     func statistics() async throws -> CoreStatistics
 
     func health() async -> CoreHealth
+
+    /// Reacts to a system event. Must return quickly; it is not allowed to
+    /// throw. The default implementation ignores every event.
+    func handleSystemEvent(_ event: CoreSystemEvent) async
 }
 
 extension NetworkCore {
     public var capabilities: CoreCapabilities { descriptor.capabilities }
+
+    public func handleSystemEvent(_ event: CoreSystemEvent) async {}
 }
 
 // MARK: - Errors
@@ -214,6 +250,7 @@ public enum CoreOperation: String, Hashable, Sendable, Codable, CaseIterable {
     case reload
     case statistics
     case health
+    case systemEvent
 }
 
 /// The only error type that leaves this module. Adapters translate engine
@@ -238,6 +275,9 @@ public enum CoreError: Error, Hashable, Sendable {
     /// The core stopped on its own.
     case unexpectedExit(message: String)
     case cancelled(operation: CoreOperation)
+    /// The caller stopped waiting for `operation` after `seconds`. The
+    /// operation itself may still be in progress.
+    case timedOut(operation: CoreOperation, seconds: TimeInterval)
 
     /// Longest message kept from a foreign error.
     public static let maximumMessageLength = 512
@@ -256,6 +296,7 @@ public enum CoreError: Error, Hashable, Sendable {
         case .operationFailed: return "operation_failed"
         case .unexpectedExit: return "unexpected_exit"
         case .cancelled: return "cancelled"
+        case .timedOut: return "timed_out"
         }
     }
 
@@ -310,6 +351,8 @@ extension CoreError: CustomStringConvertible {
             return "the core stopped unexpectedly: \(message)"
         case let .cancelled(operation):
             return "\(operation.rawValue) was cancelled"
+        case let .timedOut(operation, seconds):
+            return "\(operation.rawValue) did not finish within \(seconds) s"
         }
     }
 }

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode -->
+<!-- Shared by the iOS and the macOS app targets (Apps/project.yml). Holds only
+     what Xcode cannot generate; everything else comes from
+     GENERATE_INFOPLIST_FILE and the INFOPLIST_KEY_ build settings. -->
+<plist version="1.0">
+<dict>
+	<key>NPAppGroupIdentifier</key>
+	<string>$(NP_APP_GROUP)</string>
+</dict>
+</plist>

@@ -7,11 +7,12 @@
 // The extension's memory limit is not documented by Apple and has not been
 // measured by this project on any device.
 
+import Darwin
 import Dispatch
 import Foundation
 
 final class MemoryPressureMonitor: @unchecked Sendable {
-    enum Level: String {
+    enum Level: String, Sendable {
         case warning
         case critical
     }
@@ -22,11 +23,20 @@ final class MemoryPressureMonitor: @unchecked Sendable {
     private var warnings = 0
     private var criticals = 0
 
+    deinit {
+        // Cancelled explicitly, so that no event is handled after the
+        // monitor is gone.
+        source?.cancel()
+    }
+
     /// Starts listening. `handler` runs on a private queue for every warning
-    /// or critical event. Calling `start` twice replaces the handler.
+    /// or critical event and must return quickly. Calling `start` twice
+    /// replaces the handler; the counters are kept.
     func start(handler: @escaping @Sendable (Level, UInt64?) -> Void) {
         stop()
         let newSource = DispatchSource.makeMemoryPressureSource(eventMask: [.warning, .critical], queue: queue)
+        // The source is referenced weakly from its own handler: a strong
+        // reference would be a cycle that only `cancel` breaks.
         newSource.setEventHandler { [weak self, weak newSource] in
             guard let self = self, let event = newSource?.data else { return }
             let level: Level = event.contains(.critical) ? .critical : .warning
