@@ -1,5 +1,5 @@
-// UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode
-// (previous version compiled on macOS CI, GitHub Actions run 46045764184; changed since: diagnostics)
+// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
+// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46055850203 (workflow apple.yml)
 //
 // Control-plane side of the tunnel (ADR-0003 §3.1): owns the
 // `NETunnelProviderManager`, mirrors `NEVPNStatus` (the source of truth about

@@ -1,4 +1,5 @@
-// UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode
+// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
+// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46055850203 (workflow apple.yml)
 //
 // Diagnostics for testers: the tunnel state (NEVPNStatus), the extension's engine report and the bridge's
 // byte counters over the provider-message IPC (`.status`, `.statistics`), and the last errors, redacted.

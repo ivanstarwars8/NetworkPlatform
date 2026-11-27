@@ -26,7 +26,7 @@ public struct SecretStoreError: Error, Equatable, Sendable {
 /// Generic-password items of the app's own Keychain access group, one per secret reference. Readable after
 /// the first unlock of the device, never migrated to another device.
 ///
-/// compiled on macOS CI (swift-package.yml) only; not exercised by the unit tests (they use an in-memory
+/// compiled on macOS CI (swift-package.yml run 46056045371, apple.yml run 46055850203) only; not exercised by the unit tests (they use an in-memory
 /// store), never run on a device.
 public final class KeychainSecretStore: SecretStore {
     public let service: String
