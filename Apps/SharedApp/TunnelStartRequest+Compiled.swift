@@ -6,6 +6,7 @@
 // `TunnelStartRequest` the extension consumes. The interface plan is built from the same `XrayTunnelPlan`
 // the configuration was compiled with, so the system interface and the engine agree on addresses and MTU.
 
+import ConfigurationEngine
 import DomainModels
 import Foundation
 import ProfileLibrary

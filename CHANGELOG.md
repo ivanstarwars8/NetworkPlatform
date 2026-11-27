@@ -6,6 +6,11 @@
 
 ## Не выпущено
 
+### Добавлено (`importui`, ветка `byk/importui`, 2026-11-27)
+
+- Модуль `ProfileLibrary` (линкуется приложением, адаптеров движков нет): импорт ссылки / адреса подписки / тела подписки с отчётом, хранилище профилей `profiles.json` с секретами в Keychain (`KeychainSecretStore`), компиляция выбранного профиля для packet tunnel под Xray или Mihomo. 12 тестов на Linux.
+- Приложение: список профилей с выбором, добавление вставкой, выбор сервера внутри профиля, Connect/Disconnect со статусом, передача скомпилированного конфига расширению файлом в App Group (ADR-0008), экран диагностики (состояние туннеля, отчёт движка, байты вверх/вниз, последняя ошибка с вырезанием значений). Не запускалось на устройстве.
+
 ### Добавлено (этап 4, 2026-11-27)
 
 - `stage4/clash`: компилятор Mihomo — `Profile` + `RoutingTable` → Clash YAML с отчётом о потерях (`MihomoConfigCompiler`, `MihomoProxyCompiler`, `MihomoRuleCompiler`, `EngineID.mihomo`); свой `YAMLEmitter`; корпус `*.mihomo.yaml`/`*.mihomo-report.json` и фикстуры `Tests/Fixtures/Routing`; `Tools/validate-fixtures.sh <xray> <mihomo>` прогоняет `mihomo -t` (и на CI); тест моста `TestCompiledFixturesNeedNoOverride`; `npmlab -options`; стенд `ENGINE=mihomo bridge-tunlab.sh` — сервера Trojan+TLS и Hysteria2, `compiled-link`/`compiled DIR` для 4 протоколов. Linux: `mihomo -t` 58/0/7; REALITY+Vision, SS-2022, Trojan, Hysteria2 через мост и tun ядра — 0 провалов из 16 проверок на протокол.

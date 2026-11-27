@@ -56,6 +56,8 @@ struct ContentView: View {
                                     }
                                 }
                             }
+                            // Without it a List row with two controls triggers both on a tap.
+                            .buttonStyle(.borderless)
                             Spacer()
                             NavigationLink("Details") {
                                 ProfileDetailView(profileID: profile.id)
