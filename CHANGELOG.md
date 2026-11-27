@@ -6,7 +6,16 @@
 
 ## Не выпущено
 
-### Добавлено (`importui`, ветка `byk/importui`, 2026-11-27)
+### Добавлено (TestFlight, 2026-11-27)
+
+- `.github/workflows/testflight.yml`: подписанная сборка `Release-XrayOnly` для iPhone/iPad с наложением `Apps/Configurations/Byk.xcconfig` (приложение `com.gbnconnect.app`, расширение `com.gbnconnect.app.tun`, группа `group.com.gbnconnect.app`, имя «Бык»), Xcode 26+, временная связка ключей, загрузка только во внутреннее тестирование TestFlight; `CFBundleVersion = 404 + номер запуска`. `Tools/asc.py` (preflight, профили App Store, ожидание `VALID`, внутренняя группа), `Tools/verify-ipa.sh`, `Tools/make-placeholder-icon.py`, `Documentation/Apple/TESTFLIGHT.md`. Переменные `NP_XRAY_EXTENSION_BUNDLE_ID`, `NP_DISPLAY_NAME`, `NP_APP_PROFILE_SPECIFIER`, `NP_XRAY_EXTENSION_PROFILE_SPECIFIER` в `Base.xcconfig` (умолчания не меняют неподписанные сборки).
+- Загружены 0.1.0 (409) — оболочка, прогон 46055561063 — и 0.1.0 (410) — с путём тестировщика, прогон 46060225098; обе `VALID`. Экспортный контроль не отвечен (решение владельца). На устройстве не устанавливались.
+
+### Исправлено (слияние `importui`, 2026-11-27)
+
+- Выбор расширения приложением: `TunnelEngineCatalog` строил идентификатор как `<app>.PacketTunnelXray`, а в сборке Byk расширение — `com.gbnconnect.app.tun`, и Connect указал бы конфигурацию VPN на несуществующий провайдер. Приложение берёт идентификатор из Info.plist (`NPXrayExtensionBundleIdentifier = $(NP_XRAY_EXTENSION_BUNDLE_ID)`), правило суффикса остаётся по умолчанию; `verify-ipa.sh` сверяет его со встроенным расширением; тест `testExplicitExtensionIdentifierWinsOverTheSuffix`. Linux 602/0.
+
+### Добавлено (`importui`, ветка `byk/importui`, слита в `main` 2026-11-27)
 
 - Модуль `ProfileLibrary` (линкуется приложением, адаптеров движков нет): импорт ссылки / адреса подписки / тела подписки с отчётом, хранилище профилей `profiles.json` с секретами в Keychain (`KeychainSecretStore`), компиляция выбранного профиля для packet tunnel под Xray или Mihomo. 12 тестов на Linux.
 - Приложение: список профилей с выбором, добавление вставкой, выбор сервера внутри профиля, Connect/Disconnect со статусом, передача скомпилированного конфига расширению файлом в App Group (ADR-0008), экран диагностики (состояние туннеля, отчёт движка, байты вверх/вниз, последняя ошибка с вырезанием значений). Не запускалось на устройстве.

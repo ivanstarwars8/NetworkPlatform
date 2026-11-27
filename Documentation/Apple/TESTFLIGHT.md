@@ -4,6 +4,8 @@
 
 Что проверено [V]: прогон `testflight.yml` [46055561063](https://github.com/ivanstarwars8/NetworkPlatform/actions/runs/46055561063) собрал `XrayOnly` для iOS/iPadOS (Xcode 26.3, iOS 26.2 SDK), подписал приложение и расширение дистрибутивным сертификатом команды, `altool --validate-app` и `--upload-app` прошли, сборка 0.1.0 (409) в App Store Connect дошла до `processingState = VALID`, внутренняя группа «oz» получает все сборки автоматически (`hasAccessToAllBuilds = true`).
 
+Сборки: **0.1.0 (409)** — прогон 46055561063, коммит `4925dcc`, оболочка без импорта профилей; **0.1.0 (410)** — прогон [46060225098](https://github.com/ivanstarwars8/NetworkPlatform/actions/runs/46060225098), коммит `a83c593`, с путём тестировщика (импорт ссылки/подписки, профили, Connect, диагностика) и исправленным выбором расширения (`NPXrayExtensionBundleIdentifier` в Info.plist приложения = `com.gbnconnect.app.tun`, проверяется `verify-ipa.sh`). Обе `VALID`, обе без ответа об экспортном контроле. Номера 405–408 сожжены при отладке и не загружались.
+
 Что не проверено: установка из TestFlight и запуск туннеля на устройстве. Сборка не даёт работающего туннеля (см. `BUILD_ON_MAC.md`, `DEVICE_TEST_PLAN.md`).
 
 ## 1. Что и куда

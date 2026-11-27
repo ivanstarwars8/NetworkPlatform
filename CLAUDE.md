@@ -69,6 +69,21 @@ NP_REMOTE=<сервер> NP_KEY=<рабочее место> Tools/remote-go.sh '
 - Мост Mihomo под Apple: `NP_BRIDGE_ENGINE=mihomo Cores/BuildScripts/bridge-apple-xcframework.sh` (всегда с правкой Apple: без `proc_pidinfo` и без системных вызовов `SYS_RECVMSG_X`/`SYS_SENDMSG_X` sing-tun); `bridge-apple-verify.sh` — платформы объектов и закрытые символы.
 - Неподписанная сборка CI — не работающий туннель и не проверенные entitlements. Linux-результат не выдавать за Apple-результат.
 
+Сборка TestFlight («Бык», только внутреннее тестирование; подробно — `Documentation/Apple/TESTFLIGHT.md`):
+
+```sh
+gh workflow run testflight.yml --ref main -f marketing_version=0.1.0   # сборка, подпись, загрузка, ожидание VALID
+gh workflow run testflight.yml --ref main -f upload=false              # без загрузки: сборка, подпись, verify-ipa.sh
+gh run watch <id> --exit-status
+```
+
+- Перед запуском — зелёные `apple.yml` и `swift-package.yml` на том же коммите. Запускает только владелец репозитория (`workflow_dispatch` или тег `testflight-*`); секреты — только в Actions, ничего производного не печатать и не коммитить.
+- `CFBundleVersion = 404 + номер запуска` (`BUILD_NUMBER_BASE`): каждая загрузка — новый запуск через `gh workflow run`; re-run того же прогона остановится на preflight (номер занят). Сборки 401–403 в записи — чужие, не трогать.
+- Идентичность — наложение `Apps/Configurations/Byk.xcconfig` (`-xcconfig` поверх `Release-XrayOnly`); умолчания в `Base.xcconfig` сохраняют неподписанные сборки. Приложение находит расширение по `NPXrayExtensionBundleIdentifier` в своём Info.plist — не возвращать вывод идентификатора из суффикса.
+- Нужен Xcode 26+ (iOS 26 SDK): сборку с iOS 18.5 SDK App Store Connect отвергает (409). С апреля 2027 — iOS 27 SDK (предупреждение 90725).
+- Не задавать `ITSAppUsesNonExemptEncryption` и не отвечать на экспортный контроль — решение владельца; `verify-ipa.sh` падает, если ключ есть. Не отправлять на ревью, не добавлять внешних тестировщиков, не менять метаданные.
+- Результат прогона — `processingState = VALID` и строка группы «oz» в журнале шага «Internal group»; установка из TestFlight этим не проверяется.
+
 ## Ограничения этого хоста
 
 Разработка сейчас идёт на небольшом **боевом** Linux-сервере (2 vCPU, около 1 ГБ свободной памяти, около 9 ГБ диска). На нём нет macOS, Xcode, Go и Swift.
