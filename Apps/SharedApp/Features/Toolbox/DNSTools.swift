@@ -1,4 +1,5 @@
-// UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode
+// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
+// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46083058268 (workflow apple.yml)
 //
 // Запрос DNS (records A/AAAA through a resolver the user picks) and Утечка DNS (NetworkToolbox.DNSPathCheck:
 // the system's resolvers against the tunnel's, plus one query straight to the tunnel's resolver). No

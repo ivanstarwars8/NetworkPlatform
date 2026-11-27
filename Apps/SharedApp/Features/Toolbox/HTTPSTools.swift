@@ -1,4 +1,5 @@
-// UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode
+// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
+// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46083058268 (workflow apple.yml)
 //
 // Время HTTPS-запроса (phases of one request) and Сертификат TLS (the chain the server presents and the
 // system's verdict). Both use HTTPSProbe: one GET, bounded in time and bytes.

@@ -1,4 +1,5 @@
-// UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode
+// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
+// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46083058268 (workflow apple.yml)
 //
 // Shared pieces of the toolbox screens: running a blocking probe off the main actor, a cancellation flag the
 // probe polls, formatting of measured values, and the quiet "method and limits" footer every tool carries.

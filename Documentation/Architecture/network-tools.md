@@ -2,7 +2,7 @@
 
 Дата: 2026-11-27. Код: `Packages/NetworkToolbox` (логика, тесты на Linux), `Apps/SharedApp/Features/Toolbox` и `Apps/SharedApp/Features/Analyzer` (экраны), запрос `.connections` канала приложение–расширение (`Extensions/PacketTunnel/Shared/TunnelMessages.swift`), функция `npb_connections` обоих мостов.
 
-Состояние: логика пакета и функция моста Mihomo проверены тестами на Linux; экраны и `HTTPSProbe` собраны только на macOS CI без подписи (если CI зелёный) и на устройстве не запускались.
+Состояние: логика пакета и функция моста Mihomo проверены тестами на Linux; экраны и `HTTPSProbe` собраны на macOS CI без подписи (Xcode 16.4, все платформы и варианты, прогон apple.yml 46083058268) и на устройстве не запускались.
 
 ## 1. Правила
 

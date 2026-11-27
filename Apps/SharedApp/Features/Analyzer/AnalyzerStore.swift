@@ -1,4 +1,5 @@
-// UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode
+// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
+// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46083058268 (workflow apple.yml)
 //
 // State of the analyser, owned by the app (so a short trip to another screen does not wipe it) and bounded
 // everywhere (NetworkToolbox: TrafficGraph.capacity points, EventTimeline.capacity events,

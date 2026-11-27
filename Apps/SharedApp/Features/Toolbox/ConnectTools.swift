@@ -1,4 +1,5 @@
-// UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode
+// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
+// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46083058268 (workflow apple.yml)
 //
 // Пинг TCP and Проверка порта: TCP handshakes from the app (NetworkToolbox.TCPProbe). The name is resolved
 // once through the system resolver; then each attempt opens a socket, waits for the handshake or the timeout,
