@@ -126,7 +126,8 @@ jobs:
           { echo "### ${{ matrix.platform }} XrayOnly"; echo '```'; file "$bin"; vtool -show-build "$bin" | grep -E 'platform|minos'; du -sh "$app" "$bin"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
       - name: Warnings in project sources
         if: always()
-        run: grep -E '/(Apps|Extensions)/[^ ]+:[0-9]+:[0-9]+: warning:' "$RUNNER_TEMP/xcodebuild.log" | sort -u | head -100 || true
+        run: |
+          grep -E '/(Apps|Extensions)/[^ ]+:[0-9]+:[0-9]+: warning:' "$RUNNER_TEMP/xcodebuild.log" | sort -u | head -100 || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
