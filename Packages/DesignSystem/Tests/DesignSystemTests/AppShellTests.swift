@@ -42,8 +42,8 @@ final class AppShellTests: XCTestCase {
 
     /// Расширенный adds the routing rules and DNS under Настройки; the simulator is a Профи tool.
     func testAdvancedLevelAddsRoutingAndDNS() {
-        XCTAssertEqual(AppArea.settings.destinations(at: .basic), [.settings])
-        XCTAssertEqual(AppArea.settings.destinations(at: .advanced), [.settings, .routingRules, .dns])
+        XCTAssertEqual(AppArea.settings.destinations(at: .basic), [.settings, .automation])
+        XCTAssertEqual(AppArea.settings.destinations(at: .advanced), [.settings, .routingRules, .dns, .automation])
         XCTAssertEqual(AppArea.visible(at: .advanced), [.connection, .profiles, .settings], "no tools below Профи")
         XCTAssertTrue(ExperienceLevel.selectable.contains(.advanced))
         XCTAssertEqual(ExperienceLevel.effective(storedRawValue: "advanced"), .advanced)

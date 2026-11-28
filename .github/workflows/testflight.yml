@@ -1,4 +1,5 @@
 # Signed iOS/iPadOS build of the Dual app ("Бык", Xray and Mihomo extensions) uploaded to internal TestFlight. Documentation/Apple/TESTFLIGHT.md.
+# Input flavour=XrayOnly builds the app with the Xray extension only (no Mihomo bundle id, profile or bridge needed).
 #
 # Runs only from the owner's repository on workflow_dispatch or on a pushed tag testflight-*; never on pull requests,
 # so secrets are not exposed to forks. Signing material exists only as repository secrets; it is decoded into
@@ -26,6 +27,11 @@ on:
         description: Upload to App Store Connect (false = build, sign and verify only)
         type: boolean
         default: true
+      flavour:
+        description: Dual (Xray + Mihomo extensions) or XrayOnly
+        type: choice
+        options: [Dual, XrayOnly]
+        default: Dual
   push:
     tags: ["testflight-*"]
 
@@ -61,14 +67,17 @@ jobs:
         env:
           INPUT_VERSION: ${{ inputs.marketing_version }}
           INPUT_UPLOAD: ${{ inputs.upload }}
+          INPUT_FLAVOUR: ${{ inputs.flavour }}
         run: |
           version="${INPUT_VERSION:-0.1.0}"
           [[ "$version" =~ ^[0-9]+(\.[0-9]+){1,2}$ ]] || { echo "bad marketing version '$version'"; exit 1; }
           build=$((BUILD_NUMBER_BASE + GITHUB_RUN_NUMBER))
           upload="${INPUT_UPLOAD:-true}"
-          { echo "version=$version"; echo "build=$build"; echo "upload=$upload"; } >> "$GITHUB_OUTPUT"
-          echo "### Byk $version ($build), upload=$upload" >> "$GITHUB_STEP_SUMMARY"
-          echo "marketing $version build $build upload=$upload"
+          flavour="${INPUT_FLAVOUR:-Dual}"
+          case "$flavour" in Dual|XrayOnly) ;; *) echo "bad flavour '$flavour'"; exit 1 ;; esac
+          { echo "version=$version"; echo "build=$build"; echo "upload=$upload"; echo "flavour=$flavour"; } >> "$GITHUB_OUTPUT"
+          echo "### Byk $version ($build), $flavour, upload=$upload" >> "$GITHUB_STEP_SUMMARY"
+          echo "marketing $version build $build flavour $flavour upload=$upload"
 
       - name: Signing material (temporary keychain, ASC key)
         env:
@@ -110,6 +119,7 @@ jobs:
       # The only App ID write of the workflow: creates the Mihomo extension's bundle id and its capabilities when
       # missing. Which App Groups it belongs to cannot be set through the ASC API; the next step checks the profile.
       - name: Register the Mihomo extension bundle id
+        if: steps.v.outputs.flavour == 'Dual'
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
@@ -122,7 +132,10 @@ jobs:
         run: |
           set -euo pipefail
           s="$RUNNER_TEMP/np-secrets"
-          python3 -I Tools/asc.py profiles --cert-serial "$NP_CERT_SERIAL" --bundle-id "$APP_BUNDLE_ID" --bundle-id "$XRAY_EXT_BUNDLE_ID" --bundle-id "$MIHOMO_EXT_BUNDLE_ID" --out "$s/profiles" | tee "$s/profiles.txt"
+          ids=("$APP_BUNDLE_ID" "$XRAY_EXT_BUNDLE_ID")
+          [ "${{ steps.v.outputs.flavour }}" = Dual ] && ids+=("$MIHOMO_EXT_BUNDLE_ID")
+          args=(); for b in "${ids[@]}"; do args+=(--bundle-id "$b"); done
+          python3 -I Tools/asc.py profiles --cert-serial "$NP_CERT_SERIAL" "${args[@]}" --out "$s/profiles" | tee "$s/profiles.txt"
           for d in "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
             mkdir -p "$d"
             for f in "$s"/profiles/*.mobileprovision; do
@@ -131,7 +144,7 @@ jobs:
             done
           done
           missing=""
-          for b in "$APP_BUNDLE_ID" "$XRAY_EXT_BUNDLE_ID" "$MIHOMO_EXT_BUNDLE_ID"; do
+          for b in "${ids[@]}"; do
             security cms -D -i "$s/profiles/$b.mobileprovision" > "$s/profile-$b.plist"
             echo "== $b profile entitlements"
             plutil -extract Entitlements xml1 -o - "$s/profile-$b.plist" | grep -E '<key>|<string>|<true/>|<false/>' | sed 's/^[[:space:]]*/  /'
@@ -178,19 +191,19 @@ jobs:
           NP_BRIDGE_ENGINE: xray
         run: Cores/BuildScripts/bridge-apple-xcframework.sh
       - uses: actions/setup-go@v5
-        if: steps.cache_mihomo.outputs.cache-hit != 'true'
+        if: steps.v.outputs.flavour == 'Dual' && steps.cache_mihomo.outputs.cache-hit != 'true'
         with:
           go-version-file: Cores/MihomoBridge/go.mod
           cache-dependency-path: Cores/MihomoBridge/go.sum
       - name: Build the Mihomo bridge xcframework
-        if: steps.cache_mihomo.outputs.cache-hit != 'true'
+        if: steps.v.outputs.flavour == 'Dual' && steps.cache_mihomo.outputs.cache-hit != 'true'
         env:
           NP_BRIDGE_ENGINE: mihomo
         run: Cores/BuildScripts/bridge-apple-xcframework.sh
       - name: Verify both bridges
         run: |
           NP_BRIDGE_ENGINE=xray Cores/BuildScripts/bridge-apple-verify.sh
-          NP_BRIDGE_ENGINE=mihomo Cores/BuildScripts/bridge-apple-verify.sh
+          [ "${{ steps.v.outputs.flavour }}" != Dual ] || NP_BRIDGE_ENGINE=mihomo Cores/BuildScripts/bridge-apple-verify.sh
 
       # App Store Connect accepts iOS uploads only from the current major SDK (iOS 26 SDK / Xcode 26 since 2026);
       # pick the newest Xcode 26+ on the image.
@@ -210,21 +223,22 @@ jobs:
           cd Apps && "$RUNNER_TEMP/xcodegen/bin/xcodegen" generate
           xcodebuild -version
 
-      - name: Archive Release-Dual (Byk identity, manual signing)
+      - name: Archive Release-${{ steps.v.outputs.flavour }} (Byk identity, manual signing)
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           set -euo pipefail
           mkdir -p Logs
           set +e
-          xcodebuild -project Apps/NetworkPlatform.xcodeproj -scheme NetworkPlatform-Dual-iOS \
-            -configuration Release-Dual -destination generic/platform=iOS \
+          f="${{ steps.v.outputs.flavour }}"
+          xcodebuild -project Apps/NetworkPlatform.xcodeproj -scheme "NetworkPlatform-$f-iOS" \
+            -configuration "Release-$f" -destination generic/platform=iOS \
             -derivedDataPath "$RUNNER_TEMP/dd" -archivePath "$RUNNER_TEMP/Byk.xcarchive" \
             -xcconfig "$PWD/Apps/Configurations/Byk.xcconfig" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="Apple Distribution" \
             OTHER_CODE_SIGN_FLAGS="--keychain $NP_KEYCHAIN" \
             NP_APP_PROFILE_SPECIFIER="$NP_APP_PROFILE" NP_XRAY_EXTENSION_PROFILE_SPECIFIER="$NP_XRAY_EXT_PROFILE" \
-            NP_MIHOMO_EXTENSION_PROFILE_SPECIFIER="$NP_MIHOMO_EXT_PROFILE" \
+            NP_MIHOMO_EXTENSION_PROFILE_SPECIFIER="${NP_MIHOMO_EXT_PROFILE:-}" \
             MARKETING_VERSION="${{ steps.v.outputs.version }}" CURRENT_PROJECT_VERSION="${{ steps.v.outputs.build }}" \
             archive > Logs/archive.log 2>&1
           rc=$?
@@ -248,7 +262,8 @@ jobs:
               "signingCertificate": "Apple Distribution",
               "provisioningProfiles": {os.environ["APP_BUNDLE_ID"]: os.environ["NP_APP_PROFILE"],
                                        os.environ["XRAY_EXT_BUNDLE_ID"]: os.environ["NP_XRAY_EXT_PROFILE"],
-                                       os.environ["MIHOMO_EXT_BUNDLE_ID"]: os.environ["NP_MIHOMO_EXT_PROFILE"]},
+                                       **({os.environ["MIHOMO_EXT_BUNDLE_ID"]: os.environ["NP_MIHOMO_EXT_PROFILE"]}
+                                          if os.environ.get("NP_MIHOMO_EXT_PROFILE") else {})},
               "manageAppVersionAndBuildNumber": False,
               "uploadSymbols": True,
               "testFlightInternalTestingOnly": True,
@@ -267,7 +282,8 @@ jobs:
       - name: Verify signature, entitlements and profiles
         run: |
           Tools/verify-ipa.sh "$NP_IPA" "$APP_BUNDLE_ID" "$APP_GROUP" "${{ steps.v.outputs.build }}" "${{ steps.v.outputs.version }}" \
-            "PacketTunnelXray=$XRAY_EXT_BUNDLE_ID" "PacketTunnelMihomo=$MIHOMO_EXT_BUNDLE_ID"
+            "PacketTunnelXray=$XRAY_EXT_BUNDLE_ID" \
+            $([ "${{ steps.v.outputs.flavour }}" = Dual ] && echo "PacketTunnelMihomo=$MIHOMO_EXT_BUNDLE_ID")
           [ "${{ steps.v.outputs.upload }}" = true ] || echo "- upload=false: signed IPA verified, nothing uploaded" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Validate and upload to App Store Connect

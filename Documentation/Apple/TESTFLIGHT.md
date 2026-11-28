@@ -16,7 +16,7 @@
 | Приложение | `com.gbnconnect.app`, имя на экране «Бык», iPhone + iPad (`TARGETED_DEVICE_FAMILY = 1,2`) |
 | Расширения | `PacketTunnelXray.appex` — `com.gbnconnect.app.tun`; `PacketTunnelMihomo.appex` — `com.gbnconnect.app.mihomo` (с ветки `byk/dual`); оба `packet-tunnel-provider` |
 | App Group | `group.com.gbnconnect.app` |
-| Вариант сборки | `Release-Dual`, схема `NetworkPlatform-Dual-iOS` (оба движка; сборка целиком GPL-3.0, ADR-0007). Сборки 409 и 410 были `XrayOnly` |
+| Вариант сборки | параметр `flavour`: `Dual` (по умолчанию) — `Release-Dual`, схема `NetworkPlatform-Dual-iOS` (оба движка; сборка целиком GPL-3.0, ADR-0007); `XrayOnly` — `Release-XrayOnly`, только расширение Xray: идентификатор, профиль и мост Mihomo не нужны. `Dual` ждёт ручного шага в портале (App Group для `com.gbnconnect.app.mihomo`, §6), до него загружается `XrayOnly`. Сборки 409 и 410 были `XrayOnly` |
 | Номер сборки | `CFBundleVersion = 404 + GITHUB_RUN_NUMBER` (растёт с каждым запуском; 401–403 в записи — чужие сборки, их не трогать) |
 | Версия | `CFBundleShortVersionString` — параметр запуска `marketing_version` (по умолчанию 0.1.0) |
 | Куда | только внутреннее тестирование TestFlight: экспорт с `testFlightInternalTestingOnly = true`, группа «oz» |
@@ -55,6 +55,7 @@
 ```sh
 gh workflow run testflight.yml -f marketing_version=0.1.0            # сборка и загрузка
 gh workflow run testflight.yml -f upload=false                        # только сборка, подпись и проверка
+gh workflow run testflight.yml -f flavour=XrayOnly                   # без расширения Mihomo
 git tag testflight-0.1.0 && git push origin testflight-0.1.0          # то же по тегу (версия по умолчанию)
 gh run watch <id>; gh run view <id> --log-failed
 ```
@@ -70,5 +71,6 @@ gh run watch <id>; gh run view <id> --log-failed
 ## 6. Что остаётся владельцу
 
 - **Экспортный контроль.** Ключ `ITSAppUsesNonExemptEncryption` не задан намеренно: это юридическое заявление. Пока владелец не ответит в App Store Connect (TestFlight → сборка → Missing Compliance), сборка помечена «Missing Compliance» и тестировщикам недоступна.
+- **App Group для расширения Mihomo** (нужен для `flavour=Dual`). Идентификатор `com.gbnconnect.app.mihomo` workflow регистрирует сам, а привязать к нему App Group API App Store Connect не умеет: Developer portal → Identifiers → `com.gbnconnect.app.mihomo` → App Groups → `group.com.gbnconnect.app` → Save. Проверка 2026-11-28 (прогон 46090070167, `upload=false`) ещё остановилась на этом шаге.
 - Предупреждение 90725: с апреля 2027 г. потребуется iOS 27 SDK (Xcode 27) — шаг выбора Xcode возьмёт новейший Xcode 2x на образе.
 - Профили `NetworkPlatform CI AppStore …` созданы конвейером в аккаунте разработчика; профили и сборки прежнего приложения не трогаются.
