@@ -235,6 +235,44 @@ final class XrayCoreTests: XCTestCase {
         }
     }
 
+    func testGroupObservationAndSelectionGoThroughTheBridge() async throws {
+        let bridge = FakeBridge()
+        bridge.observeReply = #"{"code":0,"data":{"groups":[{"tag":"group-0000","kind":"leastPing","now":"proxy-0001","members":[{"tag":"proxy-0000","alive":false,"lastTryUnixMs":1700000000000},{"tag":"proxy-0001","alive":true,"delayMs":87,"lastTryUnixMs":1700000001000,"lastSeenUnixMs":1700000001000}]}]}}"#
+        let core = XrayCore(bridge: bridge, packetIO: nil, settings: settings())
+        XCTAssertTrue(core.capabilities.features.contains(.selectorGroups))
+        let lifecycle = CoreLifecycle(core: core)
+        do {
+            _ = try await lifecycle.groupObservations()
+            XCTFail("observation while idle")
+        } catch let error as CoreError {
+            guard case .notRunning = error else { return XCTFail("\(error)") }
+        }
+        try await lifecycle.start(config, options: .none, timeout: 5)
+        let groups = try await lifecycle.groupObservations()
+        XCTAssertEqual(groups.count, 1)
+        XCTAssertEqual(groups[0].tag, "group-0000")
+        XCTAssertEqual(groups[0].current, "proxy-0001")
+        XCTAssertNil(groups[0].pinned)
+        XCTAssertEqual(groups[0].members.map(\.alive), [false, true])
+        XCTAssertNil(groups[0].members[0].delayMilliseconds)
+        XCTAssertEqual(groups[0].members[1].delayMilliseconds, 87)
+        XCTAssertEqual(groups[0].members[1].lastSeen, Date(timeIntervalSince1970: 1_700_000_001))
+
+        try await lifecycle.selectGroupMember(group: "group-0000", member: "proxy-0000")
+        try await lifecycle.selectGroupMember(group: "group-0000", member: nil)
+        XCTAssertEqual(bridge.selectCalls.map(\.group), ["group-0000", "group-0000"])
+        XCTAssertEqual(bridge.selectCalls.map(\.member), ["proxy-0000", ""])
+
+        bridge.selectReply = #"{"code":1,"error":"the balancer has no such member"}"#
+        do {
+            try await lifecycle.selectGroupMember(group: "group-0000", member: "proxy-0009")
+            XCTFail("unknown member accepted")
+        } catch let error as CoreError {
+            XCTAssertTrue("\(error)".contains("no such member"), "\(error)")
+        }
+        try await lifecycle.shutdown(timeout: 5)
+    }
+
     func testEngineCrashIsReportedAndHealthTurnsUnhealthy() async throws {
         let bridge = FakeBridge()
         let messages = Locked<[String]>([])

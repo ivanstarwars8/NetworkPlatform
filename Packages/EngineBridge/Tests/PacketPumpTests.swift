@@ -219,6 +219,8 @@ final class BlockingWriteBridge: BridgeABI, @unchecked Sendable {
     func stats() -> String { inner.stats() }
     func health() -> String { inner.health() }
     func memory() -> String { inner.memory() }
+    func observe() -> String { inner.observe() }
+    func select(group: String, member: String) -> String { inner.select(group: group, member: member) }
     func state() -> Int32 { inner.state() }
     func readLog(into buffer: UnsafeMutableRawBufferPointer, timeoutMilliseconds: Int32) -> Int32 {
         inner.readLog(into: buffer, timeoutMilliseconds: timeoutMilliseconds)

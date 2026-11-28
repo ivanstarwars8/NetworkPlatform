@@ -2,8 +2,8 @@
 // C archive on Linux; the bindings live in the extensions (Extensions/PacketTunnel/{Xray,Mihomo}BridgeBinding.swift).
 import Foundation
 
-/// The C ABI v1 of the Go bridges, one Swift method per `npb_*` function. Both bridges export the same 14
-/// functions with the same signatures and envelopes (`Cores/Bridge/cabi/main.go`,
+/// The C ABI v1 of the Go bridges, one Swift method per `npb_*` function. Both bridges export the same 16
+/// functions (`npb_observe` and `npb_select` were added to v1 without changing any existing function) with the same signatures and envelopes (`Cores/Bridge/cabi/main.go`,
 /// `Cores/MihomoBridge/cabi/main.go`, checked by `Cores/MihomoBridge/cabi/shape_test.go`); what differs per
 /// engine is the configuration document, the options and the shape of a few `data` payloads.
 ///
@@ -34,6 +34,12 @@ public protocol BridgeABI: Sendable {
     func health() -> String
     /// `npb_memory`.
     func memory() -> String
+    /// `npb_observe`: the groups of the running configuration with the core's own health measurements of their
+    /// members (`engine.Observation`, the same JSON shape in both bridges). Reads in-process state only.
+    func observe() -> String
+    /// `npb_select`: pins the member new connections of a group go to, without a restart; an empty member gives
+    /// the choice back to the group. Existing connections keep their outbound.
+    func select(group: String, member: String) -> String
     /// `npb_state`: 0 idle, 1 starting, 2 running, 3 stopping.
     func state() -> Int32
     /// `npb_log_read`: newline-terminated JSON records; 0 = nothing within the timeout. Needs >= 4 KiB.
@@ -167,4 +173,25 @@ public struct BridgeLogRecord: Decodable, Hashable, Sendable {
         self.kind = kind
         self.message = message
     }
+}
+
+/// `engine.Observation` of both bridges (`Cores/{Bridge,MihomoBridge}/engine/observe.go`).
+package struct BridgeObservation: Decodable, Equatable {
+    package struct Member: Decodable, Equatable {
+        package let tag: String
+        package let alive: Bool?
+        package let delayMs: Int64?
+        package let lastTryUnixMs: Int64?
+        package let lastSeenUnixMs: Int64?
+    }
+
+    package struct Group: Decodable, Equatable {
+        package let tag: String
+        package let kind: String?
+        package let now: String?
+        package let fixed: String?
+        package let members: [Member]?
+    }
+
+    package let groups: [Group]?
 }

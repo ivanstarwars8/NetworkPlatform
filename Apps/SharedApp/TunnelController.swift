@@ -1,5 +1,5 @@
 // compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
-// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46073714202 (workflow apple.yml)
+// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46079098963 (workflow apple.yml)
 // (User-facing messages translated to Russian; otherwise as compiled on macOS CI in GitHub Actions run 46055850203.)
 //
 // Control-plane side of the tunnel (ADR-0003 §3.1): owns the
@@ -26,6 +26,9 @@
 // last stopped (the extension's start error, `fetchLastDisconnectError`), and
 // `traffic` the bridge's byte counters (`.statistics` message). Texts shown are
 // passed through `ConfigValueRedactor` (UUIDs and IP literals removed).
+//
+// Servers: `queryGroups()` reads the engine's own measurements of the automatic group (`.groups`), and
+// `selectMember` switches the server inside the running engine (`.selectMember`), without a restart.
 //
 // Not implemented: On-Demand rules.
 
@@ -234,6 +237,20 @@ final class TunnelController: ObservableObject {
         } catch {
             trafficError = "\(type(of: error))"
         }
+    }
+
+    /// The engine's groups with its own health measurements. Only while connected.
+    func queryGroups() async throws -> TunnelGroupReport {
+        let request = makeRequest(.groups)
+        return try TunnelExchange.groupReport(of: try await send(request), for: request)
+    }
+
+    /// Pins a member of an engine group (or gives the choice back to the group) inside the running engine,
+    /// without restarting the tunnel. Only while connected.
+    func selectMember(group: String, member: String?) async throws {
+        var request = makeRequest(.selectMember)
+        request.selection = TunnelGroupSelection(group: group, member: member)
+        try TunnelExchange.confirmation(of: try await send(request), for: request)
     }
 
     /// Removes configuration-shaped values (UUIDs, IP literals) from a text before it is shown. The

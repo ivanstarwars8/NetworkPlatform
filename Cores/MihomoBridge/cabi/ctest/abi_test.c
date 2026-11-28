@@ -123,6 +123,13 @@ int main(void) {
             printf("stats: %s\n", r);
             CHECK(code_of(r) == 0 && strstr(r, "\"total\"") && strstr(r, "\"rxPackets\""), "stats");
             npb_free(r);
+            r = npb_observe();
+            printf("observe: %s\n", r);
+            CHECK(code_of(r) == 0 && strstr(r, "\"groups\":"), "observe: %s", r);
+            npb_free(r);
+            r = npb_select("no-such-group", 13, NULL, 0);
+            CHECK(code_of(r) == 1, "select unknown group: %s", r);
+            npb_free(r);
             r = npb_memory();
             printf("memory: %s\n", r);
             CHECK(code_of(r) == 0 && strstr(r, "\"limit\":41943040"), "memory");
@@ -149,6 +156,9 @@ int main(void) {
     }
     r = npb_stop(0);
     CHECK(code_of(r) == 0, "stop while idle: %s", r);
+    npb_free(r);
+    r = npb_observe();
+    CHECK(code_of(r) == 11, "observe while idle: %s", r);
     npb_free(r);
     r = npb_stats();
     CHECK(code_of(r) == 11, "stats while idle: %s", r);

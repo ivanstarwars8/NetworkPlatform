@@ -1,5 +1,5 @@
 // compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS,
-// visionOS, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 45966628451 (workflow apple.yml)
+// visionOS, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46079098963 (workflow apple.yml)
 //
 // It imports only Foundation and CoreAbstraction and is also unit-tested,
 // through a symbolic link in Packages/CoreAbstraction/Tests, on Linux and on
@@ -226,6 +226,13 @@ enum TunnelRunner {
         )
         let options = CoreStartOptions(tunnelFileDescriptor: nil, mtu: request.network.mtu, memoryLimitBytes: nil)
         try await lifecycle.start(configuration, options: options, timeout: deadlines.engineStart)
+        if let selection = request.groupSelection {
+            // The user's server, pinned before the start completes. A failure fails the start: running on
+            // another server than the one chosen would be a silent change of route.
+            try await CoreDeadline.run(.statistics, timeout: deadlines.statistics) {
+                try await lifecycle.selectGroupMember(group: selection.group, member: selection.member)
+            }
+        }
 
         // The session refuses this when a stop arrived in the meantime; the
         // start then fails and is rolled back.

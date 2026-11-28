@@ -48,6 +48,8 @@ Go-модуль `networkplatform/mihomobridge`: ядро Mihomo за тем же
 - `npb_version` → `{"abi":1,"engine":"mihomo","core":"v1.19.34","go":…}`;
 - `npb_validate` → `ConfigSummary` (`depth` всегда `"parse"`, список `overridden` — что мост переписал);
   при активном движке отказ `invalid_state` (разбор временно применяет секцию general к работающему ядру);
+- `npb_observe` → `groups[{tag, kind, now, fixed, members[{tag, alive, delayMs, lastTryUnixMs, lastSeenUnixMs}]}]` — группы прокси (без встроенной `GLOBAL`) и результаты их собственных проверок (url-test/fallback); форма JSON та же, что у моста Xray (`engine/observe.go`)
+- `npb_select(group, member)` → `Set`/`ForceSet` группы ядра (select, url-test, fallback), без перезапуска; пустой участник снимает закрепление url-test/fallback; url-test использует закреплённого участника, только пока его проверка проходит (правило ядра)
 - `npb_stats` → `uptimeMs`, `total{uplink,downlink}`, `connections`, `idleClosedTcp`/`idleClosedUdp`, `tun`
   (с `flowsActive`/`flowsHighest`/`flowsRejected`) — ядро считает по соединениям, без разбивки по
   inbound/outbound;

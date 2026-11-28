@@ -181,6 +181,8 @@ enum TunnelStartContainer {
         var coreID: String
         var format: String
         var network: TunnelNetworkPlan
+        /// Absent in hand-offs written before the field existed.
+        var groupSelection: TunnelGroupSelection?
     }
 
     static func encode(_ request: TunnelStartRequest) throws -> Data {
@@ -194,7 +196,10 @@ enum TunnelStartContainer {
             )
         }
         try request.network.validate()
-        let header = Header(coreID: request.coreID, format: request.format, network: request.network)
+        try request.groupSelection?.validate()
+        let header = Header(
+            coreID: request.coreID, format: request.format, network: request.network, groupSelection: request.groupSelection
+        )
         guard let headerData = try? JSONEncoder().encode(header), headerData.count <= maximumHeaderBytes else {
             throw TunnelIPCError(.handoffTooLarge, "start request header exceeds \(maximumHeaderBytes) bytes")
         }
@@ -251,11 +256,17 @@ enum TunnelStartContainer {
             throw corrupt("start request names no engine")
         }
         try header.network.validate()
+        do {
+            try header.groupSelection?.validate()
+        } catch {
+            throw corrupt("start request carries an invalid group selection")
+        }
         return TunnelStartRequest(
             coreID: header.coreID,
             format: header.format,
             configuration: configuration,
-            network: header.network
+            network: header.network,
+            groupSelection: header.groupSelection
         )
     }
 }

@@ -27,7 +27,7 @@ public final class XrayCore: NetworkCore, @unchecked Sendable {
     public static let baseCapabilities = CoreCapabilities(
         protocols: [.vless, .vmess, .trojan, .shadowsocks],
         transports: [.tcp, .websocket, .httpUpgrade, .grpc, .xhttp, .mkcp],
-        features: [.configurationValidation, .trafficStatistics, .perOutboundStatistics]
+        features: [.configurationValidation, .trafficStatistics, .perOutboundStatistics, .selectorGroups]
     )
 
     /// The descriptor with the core version the linked bridge reports.
@@ -160,5 +160,17 @@ public final class XrayCore: NetworkCore, @unchecked Sendable {
             result.memory = memory
         }
         return result
+    }
+}
+
+extension XrayCore: OutboundGroupControlling {
+    /// The groups of the running configuration with the core's own health measurements (`npb_observe`).
+    public func groupObservations() async throws -> [CoreGroupObservation] {
+        try driver.groupObservations()
+    }
+
+    /// Pins a member for new connections without a restart (`npb_select`).
+    public func selectGroupMember(group: String, member: String?) async throws {
+        try driver.selectGroupMember(group: group, member: member)
     }
 }

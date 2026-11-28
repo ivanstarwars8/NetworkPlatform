@@ -282,6 +282,17 @@ struct TunnelStartRequest: Equatable, Sendable {
     var format: String
     var configuration: Data
     var network: TunnelNetworkPlan
+    /// The member a group starts with when it is not the group's own choice: the extension pins it right
+    /// after the engine starts, before the start is reported as done. `nil`: the group chooses.
+    var groupSelection: TunnelGroupSelection?
+
+    init(coreID: String, format: String, configuration: Data, network: TunnelNetworkPlan, groupSelection: TunnelGroupSelection? = nil) {
+        self.coreID = coreID
+        self.format = format
+        self.configuration = configuration
+        self.network = network
+        self.groupSelection = groupSelection
+    }
 }
 
 // MARK: - Message envelope
@@ -292,17 +303,53 @@ struct TunnelRequest: Codable, Equatable, Sendable {
         case status
         /// Traffic counters of the running engine.
         case statistics
+        /// The engine's outbound groups with its own health measurements of their members.
+        case groups
+        /// Pin a member of a group (or give the choice back to it) without restarting the tunnel;
+        /// `selection` says which.
+        case selectMember
     }
 
     var version: UInt16
     var id: UInt64
     var body: Body
+    /// The argument of `selectMember`; absent otherwise.
+    var selection: TunnelGroupSelection?
+
+    init(version: UInt16, id: UInt64, body: Body, selection: TunnelGroupSelection? = nil) {
+        self.version = version
+        self.id = id
+        self.body = body
+        self.selection = selection
+    }
+}
+
+/// Which member of which engine group new connections go to. Tags are those of the engine configuration
+/// (the compiler's report maps profile tags to them); `member == nil` gives the choice back to the group.
+struct TunnelGroupSelection: Codable, Equatable, Sendable {
+    /// Longest tag accepted. A limit of this project (the bridges refuse more than 256 bytes).
+    static let maximumTagBytes = 128
+
+    var group: String
+    var member: String?
+
+    func validate() throws {
+        for tag in [group, member ?? ""] where tag.utf8.count > TunnelGroupSelection.maximumTagBytes {
+            throw TunnelIPCError(.malformedRequest, "tag exceeds \(TunnelGroupSelection.maximumTagBytes) bytes")
+        }
+        guard !group.isEmpty else {
+            throw TunnelIPCError(.malformedRequest, "selection names no group")
+        }
+    }
 }
 
 struct TunnelResponse: Codable, Equatable, Sendable {
     enum Outcome: Codable, Equatable, Sendable {
         case status(TunnelStatusReport)
         case statistics(TunnelTrafficReport)
+        case groups(TunnelGroupReport)
+        /// The request was carried out and has nothing to report.
+        case done
         case failure(TunnelIPCError)
     }
 
@@ -331,6 +378,30 @@ struct TunnelTrafficReport: Codable, Equatable, Sendable {
     var downlinkBytes: UInt64
 }
 
+/// The engine's groups as the engine measures them. Numbers are the engine's own (Xray observatory, Mihomo
+/// health checks); the extension does not probe anything to answer.
+struct TunnelGroupReport: Codable, Equatable, Sendable {
+    struct Member: Codable, Equatable, Sendable {
+        var tag: String
+        var alive: Bool
+        var delayMilliseconds: Int?
+        var lastTry: Date?
+        var lastSeen: Date?
+    }
+
+    struct Group: Codable, Equatable, Sendable {
+        var tag: String
+        var kind: String
+        /// The member new connections go to, when the engine can say.
+        var current: String?
+        /// The member pinned by the app, `nil` when the group chooses.
+        var pinned: String?
+        var members: [Member]
+    }
+
+    var groups: [Group]
+}
+
 // MARK: - Encoding and checking, both directions
 
 /// The rules of one request/reply exchange, independent of the transport so
@@ -350,8 +421,7 @@ enum TunnelExchange {
     }
 
     /// Checks a reply against the request it should answer and returns its
-    /// outcome. A `.failure` outcome is thrown, so the caller only ever sees
-    /// `.status` or `.statistics`.
+    /// outcome. A `.failure` outcome is thrown, so the caller never sees it.
     static func outcome(of reply: Data?, for request: TunnelRequest) throws -> TunnelResponse.Outcome {
         guard let reply = reply, !reply.isEmpty else {
             throw TunnelIPCError(.noReply, "the extension answered without data")
@@ -382,6 +452,19 @@ enum TunnelExchange {
         return report
     }
 
+    static func groupReport(of reply: Data?, for request: TunnelRequest) throws -> TunnelGroupReport {
+        guard case let .groups(report) = try outcome(of: reply, for: request) else {
+            throw TunnelIPCError(.unexpectedReply, "expected a group report")
+        }
+        return report
+    }
+
+    static func confirmation(of reply: Data?, for request: TunnelRequest) throws {
+        guard case .done = try outcome(of: reply, for: request) else {
+            throw TunnelIPCError(.unexpectedReply, "expected a confirmation")
+        }
+    }
+
     static func trafficReport(of reply: Data?, for request: TunnelRequest) throws -> TunnelTrafficReport {
         guard case let .statistics(report) = try outcome(of: reply, for: request) else {
             throw TunnelIPCError(.unexpectedReply, "expected a traffic report")
@@ -408,6 +491,18 @@ enum TunnelExchange {
             return .rejection(
                 failure(id: request.id, .unsupportedVersion, "the extension speaks version \(TunnelIPC.protocolVersion)")
             )
+        }
+        if request.body == .selectMember {
+            guard let selection = request.selection else {
+                return .rejection(failure(id: request.id, .malformedRequest, "selectMember without a selection"))
+            }
+            do {
+                try selection.validate()
+            } catch let error as TunnelIPCError {
+                return .rejection(TunnelResponse(version: TunnelIPC.protocolVersion, id: request.id, outcome: .failure(error)))
+            } catch {
+                return .rejection(failure(id: request.id, .malformedRequest, "invalid selection"))
+            }
         }
         return .request(request)
     }

@@ -110,7 +110,7 @@ private func request(coreID: String = "mock", mtu: Int = 1500) -> TunnelStartReq
 private func start(
     _ session: TunnelSession,
     _ interface: FakeInterface,
-    _ core: MockCore,
+    _ core: any NetworkCore,
     deadlines: TunnelDeadlines = fastDeadlines,
     request startRequest: TunnelStartRequest = request()
 ) async throws {
@@ -205,6 +205,31 @@ final class TunnelRunnerTests: XCTestCase {
         let healthy = MockCore()
         try await start(session, interface, healthy)
         XCTAssertEqual(interface.events, [.apply, .clear, .apply])
+    }
+
+    func testGroupSelectionIsPinnedBeforeTheStartCompletes() async throws {
+        let session = TunnelSession()
+        let interface = FakeInterface()
+        let core = SelectingMockCore()
+        var pinned = request()
+        pinned.groupSelection = TunnelGroupSelection(group: "group-0000", member: "proxy-0001")
+        try await start(session, interface, core, request: pinned)
+        XCTAssertEqual(core.selections.count, 1)
+        XCTAssertEqual(core.selections.first?.group, "group-0000")
+        XCTAssertEqual(core.selections.first?.member, "proxy-0001")
+        await TunnelRunner.stop(session: session, deadlines: fastDeadlines, hooks: interface.hooks())
+    }
+
+    func testGroupSelectionOnAnEngineWithoutGroupsFailsTheStart() async throws {
+        let session = TunnelSession()
+        let interface = FakeInterface()
+        let core = MockCore()
+        var pinned = request()
+        pinned.groupSelection = TunnelGroupSelection(group: "group-0000", member: "proxy-0001")
+        let error = await startError(session, interface, core, request: pinned)
+        XCTAssertEqual(error as? CoreError, .unsupportedFeature(.selectorGroups))
+        XCTAssertEqual(interface.events, [.apply, .clear], "a start on another server than chosen is rolled back")
+        XCTAssertEqual(core.commandCalls, [.start, .stop])
     }
 
     func testSettingsFailureNeverStartsTheEngine() async throws {
@@ -524,5 +549,32 @@ final class TunnelRunnerTests: XCTestCase {
             XCTAssertGreaterThanOrEqual(applies, startedEngines, "round \(round)")
             XCTAssertEqual(applies - clears, succeeded, "round \(round): a failed start kept its settings")
         }
+    }
+}
+
+/// A mock engine with outbound groups: records the selections it receives.
+private final class SelectingMockCore: NetworkCore, OutboundGroupControlling, @unchecked Sendable {
+    private let inner = MockCore()
+    private let lock = NSLock()
+    private var recorded: [(group: String, member: String?)] = []
+
+    var selections: [(group: String, member: String?)] {
+        lock.lock()
+        defer { lock.unlock() }
+        return recorded
+    }
+
+    var descriptor: CoreDescriptor { inner.descriptor }
+    func validate(_ configuration: CoreConfiguration) async throws -> CoreValidationReport { try await inner.validate(configuration) }
+    func start(_ configuration: CoreConfiguration, options: CoreStartOptions) async throws { try await inner.start(configuration, options: options) }
+    func stop() async throws { try await inner.stop() }
+    func reload(_ configuration: CoreConfiguration) async throws { try await inner.reload(configuration) }
+    func statistics() async throws -> CoreStatistics { try await inner.statistics() }
+    func health() async -> CoreHealth { await inner.health() }
+    func groupObservations() async throws -> [CoreGroupObservation] { [] }
+    func selectGroupMember(group: String, member: String?) async throws {
+        lock.lock()
+        recorded.append((group, member))
+        lock.unlock()
     }
 }

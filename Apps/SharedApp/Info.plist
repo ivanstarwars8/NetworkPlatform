@@ -11,5 +11,15 @@
 	<!-- Bundle identifier of the Xray extension (TunnelEngineCatalog); differs from app + ".PacketTunnelXray" in the Byk build. -->
 	<key>NPXrayExtensionBundleIdentifier</key>
 	<string>$(NP_XRAY_EXTENSION_BUNDLE_ID)</string>
+	<!-- iOS: one system app-refresh task for subscriptions (Shell/SubscriptionBackgroundRefresh.swift). Other
+	     platforms ignore both keys. -->
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>$(PRODUCT_BUNDLE_IDENTIFIER).subscriptions</string>
+	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+	</array>
 </dict>
 </plist>

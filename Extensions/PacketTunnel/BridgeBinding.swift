@@ -1,5 +1,5 @@
 // compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
-// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46045764184 (workflow apple.yml)
+// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46079098963 (workflow apple.yml)
 //
 // The binding of `BridgeABI` (Packages/EngineBridge) to the C archive of this extension's Go bridge. Both
 // bridges export the same `npb_*` functions with the same signatures (Cores/MihomoBridge/cabi/shape_test.go),
@@ -57,6 +57,16 @@ struct CBridgeBinding: BridgeABI {
 
     func memory() -> String {
         Self.take(npb_memory())
+    }
+
+    func observe() -> String {
+        Self.take(npb_observe())
+    }
+
+    func select(group: String, member: String) -> String {
+        Self.withCBuffers(Data(group.utf8), Data(member.utf8)) { groupPointer, groupLength, memberPointer, memberLength in
+            Self.take(npb_select(groupPointer, groupLength, memberPointer, memberLength))
+        }
     }
 
     func state() -> Int32 {

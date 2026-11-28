@@ -1,5 +1,6 @@
 // compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
-// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46073714202 (workflow apple.yml)
+// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46079098963 (workflow apple.yml)
+// (Changed from the file compiled on macOS CI in GitHub Actions run 46073714202: subscription refresh.)
 //
 // App shell shared by all platforms: profiles (import, selection, compilation for the start request) and the
 // tunnel (VPN configuration, start/stop, diagnostics). The app links no engine (ADR-0001 rule 2).
@@ -12,6 +13,7 @@ import SwiftUI
 struct NetworkPlatformApp: App {
     @StateObject private var tunnel = TunnelController()
     @StateObject private var library = ProfileLibraryModel(catalog: .thisBuild)
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         AppearanceSetup.apply()
@@ -23,11 +25,34 @@ struct NetworkPlatformApp: App {
                 .environmentObject(tunnel)
                 .environmentObject(library)
                 .bykScreen()
-                .task { await tunnel.refresh() }
+                .task {
+                    SubscriptionBackgroundRefresh.library = library
+                    await tunnel.refresh()
+                    // Subscriptions whose interval has passed; no timer runs after this.
+                    await library.refreshStaleSubscriptions()
+                }
+                .onChange(of: tunnel.status) { old, new in
+                    // Only a tunnel that was up or on its way: installing the configuration also moves the
+                    // status from invalid to disconnected, right after the start request was compiled.
+                    if new == .disconnected, old != .disconnected, old != .invalid {
+                        library.tunnelStopped()
+                    }
+                }
                 #if os(macOS)
                 .frame(minWidth: 720, minHeight: 520)
                 #endif
         }
+
+        #if os(iOS)
+        .onChange(of: scenePhase) {
+            if scenePhase == .background {
+                SubscriptionBackgroundRefresh.schedule(library: library)
+            }
+        }
+        .backgroundTask(.appRefresh(SubscriptionBackgroundRefresh.identifier)) {
+            await SubscriptionBackgroundRefresh.perform()
+        }
+        #endif
 
         #if os(macOS)
         MenuBarExtra {

@@ -1,5 +1,6 @@
 // compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
-// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46073714202 (workflow apple.yml)
+// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46079098963 (workflow apple.yml)
+// (Changed from the file compiled on macOS CI in GitHub Actions run 46073714202: «Авто», live server switch.)
 //
 // Подключение (level Обычный): the horn connect control, the profile and server in use, and what went wrong.
 // Live speed comes from the extension's byte counters, sampled once per second only while this screen is
@@ -24,6 +25,12 @@ struct ConnectionScreen: View {
 
     /// Sampling runs only for this combination; any change restarts or ends the task.
     private var sampling: Bool { phase.showsThroughput && scenePhase == .active }
+
+    /// The engine's group report is read only for this combination.
+    private var readsEngine: Bool {
+        phase == .connected && scenePhase == .active && library.running?.plan != nil
+            && library.running?.profileID == library.selectedProfileID
+    }
 
     var body: some View {
         List {
@@ -77,6 +84,14 @@ struct ConnectionScreen: View {
         .task(id: sampling) {
             await sampleTraffic()
         }
+        .task(id: readsEngine) {
+            // Which server «Авто» uses: the engine's report, about every 10 s while this screen is visible.
+            guard readsEngine else { return }
+            while !Task.isCancelled {
+                await library.refreshEngineMeasurements(tunnel: tunnel)
+                try? await Task.sleep(for: .seconds(10))
+            }
+        }
     }
 
     // MARK: Profile and server
@@ -95,21 +110,31 @@ struct ConnectionScreen: View {
             .bykRow()
 
             if let profile = library.selectedProfile, profile.outbounds.count > 1 {
+                let live = library.switchesLive(profile.id, tunnel: tunnel)
                 Picker(selection: serverSelection(of: profile)) {
+                    if AutomaticGroup.applies(to: profile) {
+                        Text("Авто").tag(ServerChoice.automatic)
+                    }
                     ForEach(profile.outbounds, id: \.tag) { outbound in
-                        Text(outbound.name.isEmpty ? outbound.tag : outbound.name).tag(Optional(outbound.tag))
+                        Text(ProfileLibraryModel.name(of: outbound)).tag(ServerChoice.server(tag: outbound.tag))
                     }
                 } label: {
                     Text("Сервер").font(.bykBody)
                 }
-                .disabled(busy)
+                .disabled(busy && !live)
                 .bykRow()
+
+                if let current = currentServerName(profile) {
+                    ValueRow("Сейчас через", value: current).bykRow()
+                }
             }
         } header: {
             SectionHeader("Маршрут")
         } footer: {
-            if busy {
-                Text("Профиль и сервер меняются после отключения.")
+            if let profile = library.selectedProfile, busy {
+                Text(library.switchesLive(profile.id, tunnel: tunnel)
+                     ? "Сервер переключается сразу, без переподключения. Профиль меняется после отключения."
+                     : "Профиль и сервер меняются после отключения.")
                     .font(.bykFootnote)
                     .foregroundStyle(Color.bykSecondaryInk)
             }
@@ -123,11 +148,22 @@ struct ConnectionScreen: View {
         )
     }
 
-    private func serverSelection(of profile: Profile) -> Binding<String?> {
+    private func serverSelection(of profile: Profile) -> Binding<ServerChoice> {
         Binding(
-            get: { profile.selectedTag },
-            set: { tag in if let tag = tag { library.selectServer(tag, inProfile: profile.id) } }
+            get: {
+                AutomaticGroup.applies(to: profile)
+                    ? library.choice(of: profile.id)
+                    : .server(tag: profile.selectedTag ?? profile.outbounds.first?.tag ?? "")
+            },
+            set: { choice in Task { await library.choose(choice, inProfile: profile.id, tunnel: tunnel) } }
         )
+    }
+
+    /// The server the engine reports for the running profile, with «Авто» chosen; nothing when it did not say.
+    private func currentServerName(_ profile: Profile) -> String? {
+        guard phase == .connected, let running = library.running, running.profileID == profile.id,
+              !running.pinned, let tag = running.currentTag, let outbound = profile.outbound(tagged: tag) else { return nil }
+        return ProfileLibraryModel.name(of: outbound)
     }
 
     // MARK: Messages
@@ -136,6 +172,7 @@ struct ConnectionScreen: View {
         var list: [(kind: MessageKind, text: String)] = []
         if let error = tunnel.lastError { list.append((.error, error)) }
         if let error = library.lastError { list.append((.error, error)) }
+        if let error = library.selectionError { list.append((.warning, error)) }
         if phase == .disconnected || phase == .notConfigured, let reason = tunnel.lastDisconnectError {
             list.append((.warning, "Туннель остановился: \(reason)"))
         }

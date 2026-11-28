@@ -135,6 +135,29 @@ func npb_stats() *C.char {
 	return reply(st, nil)
 }
 
+// npb_observe returns engine.Observation: the groups of the running configuration with the core's own
+// health measurements of their members. Added to ABI v1 (additive: no existing function changed).
+//
+//export npb_observe
+func npb_observe() *C.char {
+	obs, err := eng.Observe()
+	if err != nil {
+		return reply(nil, err)
+	}
+	return reply(obs, nil)
+}
+
+// npb_select pins the member new connections of a group go to, without a restart; an empty member gives the
+// choice back to the group. See engine.Engine.Select. Added to ABI v1 (additive).
+//
+//export npb_select
+func npb_select(group *C.char, groupLen C.int32_t, member *C.char, memberLen C.int32_t) *C.char {
+	if groupLen > 256 || memberLen > 256 {
+		return reply(nil, &engine.Error{Code: engine.CodeInvalidArgument, Message: "tag exceeds 256 bytes"})
+	}
+	return reply(nil, eng.Select(string(bytesOf(group, groupLen)), string(bytesOf(member, memberLen))))
+}
+
 // npb_health returns engine.Health. It works in every state.
 //
 //export npb_health
