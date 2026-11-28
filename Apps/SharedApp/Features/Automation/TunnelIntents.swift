@@ -1,4 +1,4 @@
-// UNVERIFIED: written on Linux, never compiled or run — requires macOS + Xcode
+// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly, MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46087955935 (workflow apple.yml)
 //
 // Shortcuts actions (App Intents): connect, disconnect, toggle, choose a profile, report the state. They run in the
 // app's process (openAppWhenRun = false; the system launches the app in the background if needed) and act on the

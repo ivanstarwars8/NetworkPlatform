@@ -1,6 +1,4 @@
-// UNVERIFIED (automation part: AutomationSettings mapping, disconnect() async, waitUntilSettled): written on Linux, not yet compiled.
-// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
-// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46073714202 (workflow apple.yml)
+// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly, MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46087955935 (workflow apple.yml)
 // (User-facing messages translated to Russian; otherwise as compiled on macOS CI in GitHub Actions run 46055850203.)
 //
 // Control-plane side of the tunnel (ADR-0003 §3.1): owns the
