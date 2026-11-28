@@ -32,11 +32,17 @@
 // The analyser (Features/Analyzer) also asks for per-outbound counters (part of `.statistics`) and for the
 // engine's connection list (`.connections`), only while its screen is visible.
 //
-// Not implemented: On-Demand rules.
+// Automation (Documentation/Architecture/automation.md): the user's `AutomationSettings` are mapped onto the
+// one VPN configuration — on-demand rules (`OnDemandPlanner`) and `isOnDemandEnabled` (`OnDemandState`), and
+// `includeAllNetworks`/`excludeLocalNetworks` of the protocol. Protocol options are saved only while the tunnel
+// is down (a saved protocol change may restart a running tunnel); on-demand changes are saved at once. A manual
+// disconnect switches on-demand off before stopping the tunnel, otherwise the system would start it again.
+// Apple TV: no on-demand and no traffic lock (not offered; the code is compiled out).
 
 import ConfigurationEngine
 import EngineSelection
 import Foundation
+import TunnelAutomation
 // NetworkExtension has no Sendable annotations: `loadAllFromPreferences()`
 // returns non-Sendable managers to the main actor, where they stay.
 @preconcurrency import NetworkExtension
@@ -67,6 +73,10 @@ final class TunnelController: ObservableObject {
     private weak var supervisedLibrary: ProfileLibraryModel?
     /// One-shot wake-up at the end of the probation window; not a polling loop.
     private var probationTask: Task<Void, Never>?
+    /// What the user chose for automatic connection and traffic lock (persisted in UserDefaults).
+    @Published private(set) var automation: AutomationSettings
+    /// Whether on-demand may be on in the system (first connection seen, not suspended by the user).
+    @Published private(set) var onDemandState: OnDemandState
 
     /// The engines of this build (flavour conditions).
     let catalog = TunnelEngineCatalog.thisBuild
@@ -75,6 +85,17 @@ final class TunnelController: ObservableObject {
     private var statusObserver: NotificationObservation?
     private var nextRequestID: UInt64 = 1
     private var queryInFlight = false
+    private var syncTask: Task<Void, Never>?
+
+    let platform = AutomationPlatform.current
+    private let defaults: UserDefaults
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        let record = AutomationRecord.decode(defaults.data(forKey: AutomationRecord.storageKey))
+        automation = record.settings
+        onDemandState = record.state
+    }
 
     private var appBundleIdentifier: String {
         Bundle.main.bundleIdentifier ?? ""
@@ -98,6 +119,13 @@ final class TunnelController: ObservableObject {
                 return catalog.coreID(forProviderBundleIdentifier: identifier, appBundleIdentifier: app) != nil
             }
             adopt(ours)
+            if let ours = ours {
+                #if !os(tvOS)
+                onDemandState.reconcile(systemEnabled: ours.isOnDemandEnabled, settings: automation, on: platform)
+                persistAutomation()
+                #endif
+                scheduleSync()
+            }
         } catch {
             lastError = "Не удалось прочитать настройки VPN: \(error.localizedDescription). Перезапустите приложение."
         }
@@ -119,6 +147,15 @@ final class TunnelController: ObservableObject {
         newManager.protocolConfiguration = proto
         newManager.localizedDescription = "NetworkPlatform"
         newManager.isEnabled = true
+        // One permission prompt for everything: options and rules go into the first save. On-demand stays off
+        // until the first manual connection succeeds (the extension has no snapshot to start from before that).
+        onDemandState.configurationCreated()
+        persistAutomation()
+        TunnelController.applyTrafficLock(automation, to: proto)
+        #if !os(tvOS)
+        newManager.onDemandRules = TunnelController.onDemandRules(for: automation, on: platform)
+        newManager.isOnDemandEnabled = false
+        #endif
         do {
             try await newManager.saveToPreferences()
             // A freshly saved manager must be reloaded before it can start.
@@ -144,6 +181,11 @@ final class TunnelController: ObservableObject {
     func connect(with request: TunnelStartRequest) async -> Bool {
         guard manager != nil else { return false }
         guard await selectExtension(for: request.coreID) else { return false }
+        // A manual connect resumes on-demand, but only once the tunnel is up (statusDidChange): enabling it now
+        // could let the system start the previous snapshot before this request.
+        onDemandState.userConnected()
+        persistAutomation()
+        await saveTrafficLockIfIdle()
         do {
             let handoff = ConfigurationHandoff(directory: try ConfigurationHandoff.sharedDirectory())
             let reference = try handoff.write(request)
@@ -216,11 +258,26 @@ final class TunnelController: ObservableObject {
         }
     }
 
-    func disconnect() {
+    /// Stops the tunnel at the user's request. On-demand is switched off first and stays suspended until the
+    /// next manual connect; otherwise the system would start the tunnel again at once.
+    func disconnect() async {
         supervisor.userStopped()
         probationTask?.cancel()
         currentStart = nil
-        manager?.connection.stopVPNTunnel()
+        guard let manager = manager else { return }
+        onDemandState.userDisconnected()
+        persistAutomation()
+        #if !os(tvOS)
+        if manager.isOnDemandEnabled {
+            manager.isOnDemandEnabled = false
+            do {
+                try await manager.saveToPreferences()
+            } catch {
+                lastError = "Не удалось выключить автоподключение: \(error.localizedDescription). Система может подключить туннель снова — выключите автоподключение в настройках."
+            }
+        }
+        #endif
+        manager.connection.stopVPNTunnel()
     }
 
     // MARK: Supervision
@@ -497,6 +554,201 @@ final class TunnelController: ObservableObject {
         if status == .disconnected {
             fetchLastDisconnectError()
         }
+        if status == .connected, !onDemandState.hasConnectedOnce {
+            onDemandState.tunnelConnected()
+            persistAutomation()
+        }
+        if status == .connected || status == .disconnected {
+            // Turns on-demand on after the first (or a resumed) connection; saves traffic-lock options that
+            // waited for the tunnel to stop.
+            scheduleSync()
+        }
+    }
+
+    // MARK: Automation
+
+    /// What the automation screen and the menu bar show.
+    var onDemandStatus: OnDemandStatus {
+        onDemandState.status(for: automation, on: platform)
+    }
+
+    /// The traffic-lock options differ from the saved configuration and wait for the tunnel to stop.
+    var trafficLockPending: Bool {
+        guard let proto = manager?.protocolConfiguration else { return false }
+        return !TunnelController.trafficLockMatches(automation, proto)
+    }
+
+    /// Saves new settings and applies them to the VPN configuration (if one exists; otherwise at install).
+    func updateAutomation(_ settings: AutomationSettings) {
+        guard settings != automation else { return }
+        automation = settings
+        persistAutomation()
+        scheduleSync()
+    }
+
+    /// Runs `syncAutomation` after any sync already under way, so two saves never overlap.
+    private func scheduleSync() {
+        let previous = syncTask
+        syncTask = Task { [weak self] in
+            await previous?.value
+            await self?.syncAutomation()
+        }
+    }
+
+    private func persistAutomation() {
+        defaults.set(AutomationRecord(settings: automation, state: onDemandState).encoded(), forKey: AutomationRecord.storageKey)
+    }
+
+    /// Brings the configuration in line with `automation` and `onDemandState`; saves only when something differs.
+    private func syncAutomation() async {
+        guard let manager = manager, let proto = manager.protocolConfiguration else { return }
+        var changed = false
+        #if !os(tvOS)
+        let wanted = OnDemandPlanner.rules(for: automation, on: platform)
+        let current = (manager.onDemandRules ?? []).compactMap(TunnelController.plannedRule(from:))
+        if current != wanted.filter({ TunnelController.interfaceType(for: $0.interface) != nil }) {
+            manager.onDemandRules = TunnelController.onDemandRules(for: automation, on: platform)
+            changed = true
+        }
+        let enable = onDemandState.systemEnabled(for: automation, on: platform)
+        if manager.isOnDemandEnabled != enable {
+            manager.isOnDemandEnabled = enable
+            changed = true
+        }
+        #endif
+        if isIdle, !TunnelController.trafficLockMatches(automation, proto) {
+            TunnelController.applyTrafficLock(automation, to: proto)
+            manager.protocolConfiguration = proto
+            changed = true
+        }
+        guard changed else { return }
+        await save(manager, failure: "Не удалось сохранить настройки автоподключения")
+    }
+
+    /// Before a manual start: writes pending traffic-lock options while the tunnel is still down.
+    private func saveTrafficLockIfIdle() async {
+        guard isIdle, let manager = manager, let proto = manager.protocolConfiguration,
+              !TunnelController.trafficLockMatches(automation, proto) else { return }
+        TunnelController.applyTrafficLock(automation, to: proto)
+        manager.protocolConfiguration = proto
+        await save(manager, failure: "Не удалось сохранить параметры трафика")
+    }
+
+    private var isIdle: Bool { status == .disconnected || status == .invalid }
+
+    private func save(_ manager: NETunnelProviderManager, failure: String) async {
+        do {
+            try await manager.saveToPreferences()
+            try await manager.loadFromPreferences()
+            objectWillChange.send()
+        } catch {
+            lastError = "\(failure): \(error.localizedDescription). Попробуйте ещё раз."
+        }
+    }
+
+    /// excludeLocalNetworks matters only together with includeAllNetworks; it is cleared otherwise so that turning
+    /// the lock off restores the system default exactly.
+    private static func applyTrafficLock(_ settings: AutomationSettings, to proto: NEVPNProtocol) {
+        #if !os(tvOS)
+        proto.includeAllNetworks = settings.includeAllNetworks
+        proto.excludeLocalNetworks = settings.includeAllNetworks && settings.excludeLocalNetworks
+        #endif
+    }
+
+    private static func trafficLockMatches(_ settings: AutomationSettings, _ proto: NEVPNProtocol) -> Bool {
+        #if os(tvOS)
+        return true
+        #else
+        return proto.includeAllNetworks == settings.includeAllNetworks
+            && proto.excludeLocalNetworks == (settings.includeAllNetworks && settings.excludeLocalNetworks)
+        #endif
+    }
+
+    #if !os(tvOS)
+    /// The planned rules as Network Extension objects, one to one; a rule for an interface type this platform
+    /// lacks is dropped (the planner does not produce one).
+    private static func onDemandRules(for settings: AutomationSettings, on platform: AutomationPlatform) -> [NEOnDemandRule] {
+        OnDemandPlanner.rules(for: settings, on: platform).compactMap { planned in
+            guard let interface = interfaceType(for: planned.interface) else { return nil }
+            let rule: NEOnDemandRule
+            switch planned.action {
+            case .connect: rule = NEOnDemandRuleConnect()
+            case .disconnect: rule = NEOnDemandRuleDisconnect()
+            case .ignore: rule = NEOnDemandRuleIgnore()
+            }
+            rule.interfaceTypeMatch = interface
+            if !planned.ssids.isEmpty {
+                rule.ssidMatch = planned.ssids
+            }
+            return rule
+        }
+    }
+
+    private static func interfaceType(for kind: NetworkKind?) -> NEOnDemandRuleInterfaceType? {
+        switch kind {
+        case nil: return .any
+        case .wifi?: return .wiFi
+        case .cellular?:
+            #if os(iOS)
+            return .cellular
+            #else
+            return nil
+            #endif
+        case .wired?:
+            #if os(macOS)
+            return .ethernet
+            #else
+            return nil
+            #endif
+        }
+    }
+
+    /// Reads a saved rule back, to tell whether the saved rules already match the settings.
+    private static func plannedRule(from rule: NEOnDemandRule) -> PlannedRule? {
+        let action: PlannedAction
+        switch rule {
+        case is NEOnDemandRuleConnect: action = .connect
+        case is NEOnDemandRuleDisconnect: action = .disconnect
+        case is NEOnDemandRuleIgnore: action = .ignore
+        default: return nil
+        }
+        let kind: NetworkKind?
+        switch rule.interfaceTypeMatch {
+        case .any: kind = nil
+        case .wiFi: kind = .wifi
+        #if os(iOS)
+        case .cellular: kind = .cellular
+        #endif
+        #if os(macOS)
+        case .ethernet: kind = .wired
+        #endif
+        default: return nil
+        }
+        return PlannedRule(action, interface: kind, ssids: rule.ssidMatch ?? [])
+    }
+    #endif
+
+    /// Waits, without polling, until a connect or disconnect request has finished (or `seconds` passed); for
+    /// shortcuts, which report the outcome.
+    func waitUntilSettled(_ goal: TunnelSettle.Goal, seconds: Double) async {
+        let waiter = Task { @MainActor [weak self] in
+            guard let self = self else { return }
+            var sawTransition = false
+            for await value in self.$status.values {
+                if TunnelSettle.isTransition(statusRawValue: value.rawValue) { sawTransition = true }
+                if TunnelSettle.isSettled(statusRawValue: value.rawValue, goal: goal, sawTransition: sawTransition) { return }
+            }
+        }
+        let timer = Task {
+            try? await Task.sleep(for: .seconds(seconds))
+            waiter.cancel()
+        }
+        await withTaskCancellationHandler {
+            await waiter.value
+        } onCancel: {
+            waiter.cancel()
+        }
+        timer.cancel()
     }
 }
 

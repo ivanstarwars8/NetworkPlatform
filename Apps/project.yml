@@ -209,7 +209,13 @@ targetTemplates:
       # redacted diagnostics); no engine code. Its C target links libresolv for the system DNS configuration.
       - package: NetworkPlatform
         product: NetworkToolbox
+      # Automatic connection and traffic-lock settings mapped onto the VPN configuration (Foundation only).
+      - package: NetworkPlatform
+        product: TunnelAutomation
       - sdk: NetworkExtension.framework
+      # Linked explicitly: without it Xcode skips App Intents metadata extraction and the Shortcuts actions
+      # (Features/Automation/TunnelIntents.swift) are not registered with the system.
+      - sdk: AppIntents.framework
 
   PacketTunnel:
     type: app-extension

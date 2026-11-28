@@ -17,6 +17,7 @@ extension AppDestination {
         case .settings: SettingsScreen()
         case .routingRules: RulesScreen()
         case .dns: DNSScreen()
+        case .automation: AutomationScreen()
         }
     }
 }

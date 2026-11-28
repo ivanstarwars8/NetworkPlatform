@@ -12,21 +12,15 @@ struct SettingsScreen: View {
     @EnvironmentObject private var tunnel: TunnelController
     @EnvironmentObject private var library: ProfileLibraryModel
     @AppStorage(ExperienceLevel.storageKey) private var storedLevel = ExperienceLevel.basic.rawValue
-
-    /// Other screens of the Настройки area shown as rows here (iPhone); in the sidebar they have their own rows.
-    let linked: [AppDestination]
-
-    init(linked: [AppDestination] = []) {
-        self.linked = linked
-    }
+    @Environment(\.areaSubdestinations) private var subdestinations
 
     private var level: ExperienceLevel { .effective(storedRawValue: storedLevel) }
 
     var body: some View {
         List {
-            if !linked.isEmpty {
+            if !subdestinations.isEmpty {
                 Section {
-                    ForEach(linked) { destination in
+                    ForEach(subdestinations) { destination in
                         NavigationLink {
                             destination.screen
                         } label: {
@@ -34,8 +28,6 @@ struct SettingsScreen: View {
                         }
                         .bykRow()
                     }
-                } header: {
-                    SectionHeader("Маршруты")
                 }
             }
 

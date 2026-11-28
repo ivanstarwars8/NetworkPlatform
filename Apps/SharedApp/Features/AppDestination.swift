@@ -113,13 +113,14 @@ enum AppDestination: String, CaseIterable, Identifiable, Sendable {
     case settings
     case routingRules
     case dns
+    case automation
 
     var id: String { rawValue }
 
     /// The lowest level the screen is shown at.
     var level: ExperienceLevel {
         switch self {
-        case .connection, .profiles, .settings: return .basic
+        case .connection, .profiles, .settings, .automation: return .basic
         case .routingRules, .dns: return .advanced
         case .routeSimulator, .toolbox, .analyzer, .engineDiagnostics: return .pro
         }
@@ -130,7 +131,7 @@ enum AppDestination: String, CaseIterable, Identifiable, Sendable {
         case .connection: return .connection
         case .profiles: return .profiles
         case .routeSimulator, .toolbox, .analyzer, .engineDiagnostics: return .tools
-        case .settings, .routingRules, .dns: return .settings
+        case .settings, .routingRules, .dns, .automation: return .settings
         }
     }
 
@@ -145,6 +146,7 @@ enum AppDestination: String, CaseIterable, Identifiable, Sendable {
         case .settings: return "Настройки"
         case .routingRules: return "Правила"
         case .dns: return "DNS"
+        case .automation: return "Автоподключение"
         }
     }
 
@@ -159,6 +161,7 @@ enum AppDestination: String, CaseIterable, Identifiable, Sendable {
         case .settings: return "gearshape"
         case .routingRules: return "arrow.triangle.branch"
         case .dns: return "network"
+        case .automation: return "bolt.horizontal.circle"
         }
     }
 
@@ -171,6 +174,7 @@ enum AppDestination: String, CaseIterable, Identifiable, Sendable {
         case .engineDiagnostics: return "Движок и почему он выбран, версии, память Go и расширения, горутины, ошибки."
         case .routingRules: return "Что идёт через VPN, что напрямую, что блокируется."
         case .dns: return "Серверы DNS, серверы для отдельных доменов, защита от утечек."
+        case .automation: return "Когда подключаться самому, доверенные сети Wi-Fi, весь трафик через туннель."
         case .connection, .profiles, .settings: return nil
         }
     }

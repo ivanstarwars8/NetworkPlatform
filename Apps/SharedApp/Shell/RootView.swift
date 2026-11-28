@@ -69,11 +69,11 @@ struct AreaRootView: View {
         let destinations = area.destinations(at: level)
         if area == .tools {
             ToolsList(destinations: destinations)
-        } else if area == .settings {
-            // iPhone: the other settings screens (Правила, DNS) open from Настройки itself.
-            SettingsScreen(linked: destinations.filter { $0 != .settings })
         } else if let first = destinations.first {
+            // The other screens of the area (Правила, DNS, Автоподключение under Настройки) are opened from the first one; the
+            // sidebar lists them itself and leaves this empty.
             first.screen
+                .environment(\.areaSubdestinations, Array(destinations.dropFirst()))
         }
     }
 }
@@ -97,6 +97,18 @@ struct ToolsList: View {
         }
         .bykGroupedList()
         .navigationTitle(AppArea.tools.title)
+    }
+}
+
+private struct AreaSubdestinationsKey: EnvironmentKey {
+    static let defaultValue: [AppDestination] = []
+}
+
+extension EnvironmentValues {
+    /// Screens of the current area that the area's first screen links to (tab bar only).
+    var areaSubdestinations: [AppDestination] {
+        get { self[AreaSubdestinationsKey.self] }
+        set { self[AreaSubdestinationsKey.self] = newValue }
     }
 }
 

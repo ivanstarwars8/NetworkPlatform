@@ -1,5 +1,4 @@
-// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
-// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46073714202 (workflow apple.yml)
+// compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly, MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46087955935 (workflow apple.yml)
 //
 // macOS menu bar item: the horn as a template image (filled when connected), the state, connect/disconnect,
 // the profile in use, and a way back to the window. Same action as the connection screen.
@@ -46,6 +45,9 @@ struct MenuBarContent: View {
     var body: some View {
         let phase = tunnel.phase
         Text(phase.stateWord)
+        if tunnel.automation.connectOnDemand {
+            Text(tunnel.onDemandStatus.shortTitle)
+        }
 
         if let title = phase.actionTitle {
             Button(title) {
