@@ -234,6 +234,20 @@ public actor CoreLifecycle {
         }
     }
 
+    /// The newest connections of a running core; throws `CoreError.notRunning` otherwise, and
+    /// `unsupportedFeature(.connectionList)` for a core that keeps no list. Not serialised, no deadline (as
+    /// `statistics`).
+    public func connections(limit: Int) async throws -> CoreConnectionSnapshot {
+        guard state == .running || state == .reloading else {
+            throw CoreError.notRunning(state: state)
+        }
+        do {
+            return try await core.connections(limit: limit)
+        } catch {
+            throw CoreError.normalise(error, during: .statistics)
+        }
+    }
+
     /// Health of the core. For a core that is not running the answer is
     /// synthesised from the lifecycle state instead of asking the core.
     public func health() async -> CoreHealth {

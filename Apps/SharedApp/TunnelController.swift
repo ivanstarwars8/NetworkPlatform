@@ -29,6 +29,8 @@
 //
 // Servers: `queryGroups()` reads the engine's own measurements of the automatic group (`.groups`), and
 // `selectMember` switches the server inside the running engine (`.selectMember`), without a restart.
+// The analyser (Features/Analyzer) also asks for per-outbound counters (part of `.statistics`) and for the
+// engine's connection list (`.connections`), only while its screen is visible.
 //
 // Not implemented: On-Demand rules.
 
@@ -220,6 +222,13 @@ final class TunnelController: ObservableObject {
     func queryTraffic() async throws -> TunnelTrafficReport {
         let request = makeRequest(.statistics)
         return try TunnelExchange.trafficReport(of: try await send(request), for: request)
+    }
+
+    /// The newest connections the engine tracks (analyser, Профи). Throws `unsupported_feature` for an
+    /// engine that keeps no list (Xray) and `not_connected` while the tunnel is down.
+    func queryConnections() async throws -> TunnelConnectionReport {
+        let request = makeRequest(.connections)
+        return try TunnelExchange.connectionReport(of: try await send(request), for: request)
     }
 
     /// Updates `traffic`; only while connected (nobody answers otherwise).

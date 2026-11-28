@@ -162,6 +162,9 @@ int main(void) {
     r = npb_stats();
     CHECK(code_of(r) == 11, "stats while idle: %s", r);
     npb_free(r);
+    r = npb_connections(10);
+    CHECK(code_of(r) == 5, "connections (unsupported by the Xray core): %s", r);
+    npb_free(r);
 
     printf(failures ? "C ABI TEST FAILED (%d)\n" : "C ABI TEST PASSED\n", failures);
     return failures ? 1 : 0;

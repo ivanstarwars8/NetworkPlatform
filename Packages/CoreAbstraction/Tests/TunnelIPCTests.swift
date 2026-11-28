@@ -246,6 +246,57 @@ final class TunnelExchangeTests: XCTestCase {
         XCTAssertEqual(TunnelExchange.decodeRequest(old), .request(TunnelRequest(version: TunnelIPC.protocolVersion, id: 3, body: .statistics)))
     }
 
+    func testTrafficReportExtrasAndOlderReplies() throws {
+        let full = TunnelTrafficReport(
+            uplinkBytes: 5, downlinkBytes: 6,
+            outbounds: [.init(tag: "proxy", uplinkBytes: 1, downlinkBytes: 2)],
+            activeConnections: 3, uptimeSeconds: 1.5
+        )
+        let request = TunnelRequest(version: TunnelIPC.protocolVersion, id: 9, body: .statistics)
+        let response = TunnelResponse(version: TunnelIPC.protocolVersion, id: 9, outcome: .statistics(full))
+        XCTAssertEqual(try TunnelExchange.trafficReport(of: reply(response), for: request), full)
+        // An extension built before the extra fields answers with the two counters only.
+        let old = Data(#"{"uplinkBytes":1,"downlinkBytes":2}"#.utf8)
+        let decoded = try JSONDecoder().decode(TunnelTrafficReport.self, from: old)
+        XCTAssertEqual(decoded, TunnelTrafficReport(uplinkBytes: 1, downlinkBytes: 2))
+        XCTAssertNil(decoded.outbounds)
+        XCTAssertNil(decoded.activeConnections)
+    }
+
+    func testConnectionReportRoundTripAndBounds() throws {
+        let item = TunnelConnectionReport.Item(
+            id: "c1", network: "tcp", destination: "example.com:443", rule: "Match", chain: ["group-0001", "proxy-0001"],
+            uploadBytes: 10, downloadBytes: 20, startedAt: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        let report = TunnelConnectionReport(total: 7, items: [item])
+        let request = TunnelRequest(version: TunnelIPC.protocolVersion, id: 10, body: .connections)
+        let response = TunnelResponse(version: TunnelIPC.protocolVersion, id: 10, outcome: .connections(report))
+        XCTAssertEqual(try TunnelExchange.connectionReport(of: reply(response), for: request), report)
+        assertIPCErrorSync(.unexpectedReply) { _ = try TunnelExchange.trafficReport(of: reply(response), for: request) }
+
+        let long = String(repeating: "ж", count: 300)
+        let bounded = TunnelConnectionReport.bounded(long)
+        XCTAssertLessThanOrEqual(bounded.utf8.count, TunnelConnectionReport.maximumTextBytes)
+        XCTAssertTrue(bounded.hasSuffix("..."))
+        XCTAssertEqual(TunnelConnectionReport.bounded("short"), "short")
+
+        // The largest reply the extension builds stays under the message limit.
+        let widest = TunnelConnectionReport.Item(
+            id: String(repeating: "i", count: TunnelConnectionReport.maximumTagBytes),
+            network: String(repeating: "n", count: TunnelConnectionReport.maximumTagBytes),
+            destination: String(repeating: "\"", count: TunnelConnectionReport.maximumTextBytes),
+            rule: String(repeating: "r", count: TunnelConnectionReport.maximumTextBytes),
+            chain: Array(repeating: String(repeating: "c", count: TunnelConnectionReport.maximumTagBytes), count: TunnelConnectionReport.maximumChainLength),
+            uploadBytes: .max, downloadBytes: .max, startedAt: Date()
+        )
+        let biggest = TunnelResponse(
+            version: TunnelIPC.protocolVersion, id: .max,
+            outcome: .connections(TunnelConnectionReport(total: .max, items: Array(repeating: widest, count: TunnelConnectionReport.maximumItems)))
+        )
+        let encoded = try JSONEncoder().encode(biggest)
+        XCTAssertLessThanOrEqual(encoded.count, TunnelIPC.maximumMessageBytes, "\(encoded.count) bytes")
+    }
+
     func testMissingAndEmptyReplies() {
         assertIPCErrorSync(.noReply) { _ = try TunnelExchange.outcome(of: nil, for: request) }
         assertIPCErrorSync(.noReply) { _ = try TunnelExchange.outcome(of: Data(), for: request) }

@@ -51,6 +51,10 @@ struct CBridgeBinding: BridgeABI {
         Self.take(npb_stats())
     }
 
+    func connections(limit: Int32) -> String {
+        Self.take(npb_connections(limit))
+    }
+
     func health() -> String {
         Self.take(npb_health())
     }

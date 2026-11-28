@@ -59,3 +59,20 @@ struct MihomoBridgeStats: Decodable, Equatable {
     let total: Total?
     let connections: Int?
 }
+
+/// `engine.Connections` of the Mihomo bridge: the total and the newest tracked connections.
+struct MihomoBridgeConnections: Decodable, Equatable {
+    struct Item: Decodable, Equatable {
+        let id: String
+        let network: String
+        let destination: String
+        let rule: String?
+        let chain: [String]?
+        let upload: Int64
+        let download: Int64
+        let startMs: Int64
+    }
+
+    let total: Int
+    let items: [Item]
+}

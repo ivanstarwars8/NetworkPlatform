@@ -209,6 +209,7 @@ final class BlockingWriteBridge: BridgeABI, @unchecked Sendable {
     }
 
     func abiVersion() -> Int32 { inner.abiVersion() }
+    func connections(limit: Int32) -> String { inner.connections(limit: limit) }
     func version() -> String { inner.version() }
     func validate(configuration: Data, options: Data) -> String { inner.validate(configuration: configuration, options: options) }
     func start(configuration: Data, options: Data) -> String { inner.start(configuration: configuration, options: options) }

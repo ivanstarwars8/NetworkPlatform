@@ -108,6 +108,47 @@ public struct TrafficCounters: Hashable, Sendable, Codable {
     }
 }
 
+/// One connection a core tracks. `destination` (host or IP with port) is the user's data: for display in the
+/// app, never for logs.
+public struct CoreConnection: Hashable, Sendable, Codable {
+    public var id: String
+    public var network: String
+    public var destination: String
+    public var rule: String?
+    /// Outbounds in travel order (group first, final outbound last), engine tags.
+    public var chain: [String]
+    public var uploadBytes: UInt64
+    public var downloadBytes: UInt64
+    public var startedAt: Date?
+
+    public init(
+        id: String, network: String, destination: String, rule: String? = nil, chain: [String] = [],
+        uploadBytes: UInt64 = 0, downloadBytes: UInt64 = 0, startedAt: Date? = nil
+    ) {
+        self.id = id
+        self.network = network
+        self.destination = destination
+        self.rule = rule
+        self.chain = chain
+        self.uploadBytes = uploadBytes
+        self.downloadBytes = downloadBytes
+        self.startedAt = startedAt
+    }
+}
+
+/// A bounded list of connections: `total` counts all of them, `items` holds the newest.
+public struct CoreConnectionSnapshot: Hashable, Sendable, Codable {
+    public var capturedAt: Date
+    public var total: Int
+    public var items: [CoreConnection]
+
+    public init(capturedAt: Date, total: Int, items: [CoreConnection]) {
+        self.capturedAt = capturedAt
+        self.total = total
+        self.items = items
+    }
+}
+
 /// A snapshot of what a core reports about itself. Fields a core cannot
 /// provide stay `nil` / empty; see `CoreFeature` for what to expect.
 public struct CoreStatistics: Hashable, Sendable, Codable {
@@ -227,6 +268,10 @@ public protocol NetworkCore: Sendable {
 
     func statistics() async throws -> CoreStatistics
 
+    /// The newest connections the core tracks (`CoreFeature.connectionList`). Not serialised, like
+    /// `statistics`. The default implementation throws `CoreError.unsupportedFeature(.connectionList)`.
+    func connections(limit: Int) async throws -> CoreConnectionSnapshot
+
     func health() async -> CoreHealth
 
     /// Reacts to a system event. Must return quickly; it is not allowed to
@@ -238,6 +283,10 @@ extension NetworkCore {
     public var capabilities: CoreCapabilities { descriptor.capabilities }
 
     public func handleSystemEvent(_ event: CoreSystemEvent) async {}
+
+    public func connections(limit: Int) async throws -> CoreConnectionSnapshot {
+        throw CoreError.unsupportedFeature(.connectionList)
+    }
 }
 
 // MARK: - Errors

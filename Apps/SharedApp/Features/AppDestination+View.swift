@@ -11,6 +11,8 @@ extension AppDestination {
         case .connection: ConnectionScreen()
         case .profiles: ProfilesScreen()
         case .routeSimulator: RouteSimulatorScreen()
+        case .toolbox: ToolboxScreen()
+        case .analyzer: AnalyzerScreen()
         case .engineDiagnostics: DiagnosticsView()
         case .settings: SettingsScreen()
         case .routingRules: RulesScreen()

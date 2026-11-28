@@ -50,7 +50,7 @@ public final class MihomoCore: NetworkCore, @unchecked Sendable {
     public static let baseCapabilities = CoreCapabilities(
         protocols: [.vless, .vmess, .trojan, .shadowsocks, .hysteria2, .wireguard],
         transports: [.tcp, .websocket, .httpUpgrade, .grpc, .xhttp],
-        features: [.configurationValidation, .trafficStatistics, .selectorGroups]
+        features: [.configurationValidation, .trafficStatistics, .selectorGroups, .connectionList]
     )
 
     /// The descriptor with the core version the linked bridge reports.
@@ -151,6 +151,24 @@ public final class MihomoCore: NetworkCore, @unchecked Sendable {
             memoryFootprintBytes: nil,
             uptime: stats.uptimeMs.map { TimeInterval($0) / 1000 }
         )
+    }
+
+    /// The core's connection tracker, newest first (`npb_connections`).
+    public func connections(limit: Int) async throws -> CoreConnectionSnapshot {
+        let list = try driver.connections(MihomoBridgeConnections.self, limit: limit)
+        let items = list.items.map { item in
+            CoreConnection(
+                id: item.id,
+                network: item.network,
+                destination: item.destination,
+                rule: item.rule,
+                chain: item.chain ?? [],
+                uploadBytes: BridgeEngineDriver.add(0, item.upload),
+                downloadBytes: BridgeEngineDriver.add(0, item.download),
+                startedAt: item.startMs > 0 ? Date(timeIntervalSince1970: TimeInterval(item.startMs) / 1000) : nil
+            )
+        }
+        return CoreConnectionSnapshot(capturedAt: driver.clock(), total: list.total, items: items)
     }
 
     public func health() async -> CoreHealth {

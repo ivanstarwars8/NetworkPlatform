@@ -40,6 +40,7 @@ Go-модуль `networkplatform/bridge`: один экземпляр Xray-core 
 | `npb_stats` | трафик по inbound/outbound и счётчики пакетного интерфейса |
 | `npb_observe` | балансировщики конфигурации и замеры обсерватории ядра по их участникам (`engine/observe.go`); только состояние в процессе, без проб. Известная гонка ядра: `Observer.GetObservation` отдаёт живой список без своей блокировки (стратегия `leastPing` ядра читает его так же на каждом новом соединении); под `-race` тест `TestObserveAndSelect` — отдельный шаг KNOWN FAILURE в `bridge-go.yml` |
 | `npb_select` | закрепить участника балансировщика для новых соединений (`SetOverrideTarget` роутера ядра) или вернуть выбор стратегии (пустой участник); без перезапуска |
+| `npb_connections(limit)` | всегда код 5: ядро Xray не ведёт список соединений в процессе; функция есть ради одинакового набора экспортов обоих мостов |
 | `npb_memory` | снимок памяти Go-рантайма (`runtime/metrics`) |
 | `npb_log_read(buf, cap, timeoutMs)` | записи журнала строками JSON |
 | `npb_tun_write`, `npb_tun_read` | пачки IP-пакетов, режим `flow` |

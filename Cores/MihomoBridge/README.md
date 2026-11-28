@@ -34,7 +34,7 @@ Go-модуль `networkplatform/mihomobridge`: ядро Mihomo за тем же
 
 ## C ABI
 
-Те же 14 функций `npb_*`, те же сигнатуры, конверт `{"code","error","data"}`, коды ошибок и формат пачек
+Те же функции `npb_*`, те же сигнатуры, конверт `{"code","error","data"}`, коды ошибок и формат пачек
 (uint16 LE длина + пакет), что у моста Xray (версия ABI 1). Одинаковые имена символов делают ошибкой линковки
 попытку собрать оба движка в один бинарник (ADR-0001). Отличается по движку:
 
@@ -53,6 +53,10 @@ Go-модуль `networkplatform/mihomobridge`: ядро Mihomo за тем же
 - `npb_stats` → `uptimeMs`, `total{uplink,downlink}`, `connections`, `idleClosedTcp`/`idleClosedUdp`, `tun`
   (с `flowsActive`/`flowsHighest`/`flowsRejected`) — ядро считает по соединениям, без разбивки по
   inbound/outbound;
+- `npb_connections(limit)` → `total` и до `limit` (1…200) самых новых соединений трекера ядра
+  (`engine/connections.go`: `id`, `network`, `destination` — имя или IP с портом, `rule`, `chain` в порядке
+  прохождения, `upload`/`download`, `startMs`); только чтение состояния в процессе. У моста Xray та же
+  функция всегда отвечает кодом 5 — ядро Xray списка не ведёт;
 - простои: у ядра нет таймаута простоя TCP, а таймаут UDP-сессии (60 с, `tunnel.udpTimeout`) не задаётся
   конфигурацией (`tun.udp-timeout` стек `mips` не читает). Мост раз в 0,25–1 с обходит соединения ядра
   (`statistic.DefaultManager`) и закрывает те, у которых счётчики не менялись дольше `tcpIdleTimeoutMs` /

@@ -14,6 +14,8 @@ struct NetworkPlatformApp: App {
     @StateObject private var tunnel = TunnelController()
     @StateObject private var library = ProfileLibraryModel(catalog: .thisBuild)
     @Environment(\.scenePhase) private var scenePhase
+    /// Analyser history and the event timeline (Features/Analyzer); events only, no polling.
+    @StateObject private var analyzer = AnalyzerStore()
 
     init() {
         AppearanceSetup.apply()
@@ -25,9 +27,11 @@ struct NetworkPlatformApp: App {
                 .environmentObject(tunnel)
                 .environmentObject(library)
                 .environmentObject(library.routing)
+                .environmentObject(analyzer)
                 .bykScreen()
                 .task {
                     SubscriptionBackgroundRefresh.library = library
+                    analyzer.attach(to: tunnel)
                     await tunnel.refresh()
                     // Subscriptions whose interval has passed; no timer runs after this.
                     await library.refreshStaleSubscriptions()

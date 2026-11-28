@@ -119,6 +119,8 @@ public struct CoreFeature: RawRepresentable, Hashable, Sendable, Codable, Compar
     /// The core has outbound groups the user can switch at run time
     /// (ADR-0001 §5: sing-box selector groups stay behind a capability).
     public static let selectorGroups: CoreFeature = "selector-groups"
+    /// `NetworkCore.connections(limit:)` lists the connections the core tracks.
+    public static let connectionList: CoreFeature = "connection-list"
 }
 
 /// What a core can do: three independent sets.

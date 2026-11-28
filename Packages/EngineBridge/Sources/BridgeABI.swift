@@ -2,8 +2,8 @@
 // C archive on Linux; the bindings live in the extensions (Extensions/PacketTunnel/{Xray,Mihomo}BridgeBinding.swift).
 import Foundation
 
-/// The C ABI v1 of the Go bridges, one Swift method per `npb_*` function. Both bridges export the same 16
-/// functions (`npb_observe` and `npb_select` were added to v1 without changing any existing function) with the same signatures and envelopes (`Cores/Bridge/cabi/main.go`,
+/// The C ABI v1 of the Go bridges, one Swift method per `npb_*` function. Both bridges export the same 17
+/// functions (`npb_observe`, `npb_select` and `npb_connections` were added to v1 without changing any existing function) with the same signatures and envelopes (`Cores/Bridge/cabi/main.go`,
 /// `Cores/MihomoBridge/cabi/main.go`, checked by `Cores/MihomoBridge/cabi/shape_test.go`); what differs per
 /// engine is the configuration document, the options and the shape of a few `data` payloads.
 ///
@@ -30,6 +30,9 @@ public protocol BridgeABI: Sendable {
     func stop(timeoutMilliseconds: Int32) -> String
     /// `npb_stats`.
     func stats() -> String
+    /// `npb_connections`: the newest connections the core tracks (at most `limit`, 1...200). The Xray bridge
+    /// answers code 5 (its core keeps no list).
+    func connections(limit: Int32) -> String
     /// `npb_health`. Works in every state.
     func health() -> String
     /// `npb_memory`.

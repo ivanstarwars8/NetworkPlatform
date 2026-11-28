@@ -304,6 +304,20 @@ package final class BridgeEngineDriver: @unchecked Sendable {
         return stats
     }
 
+    /// `npb_connections` decoded into the engine's payload type. Code 5 (the core keeps no list) becomes
+    /// `CoreError.unsupportedFeature(.connectionList)`.
+    package func connections<Payload: Decodable>(_ type: Payload.Type, limit: Int) throws -> Payload {
+        let reply = BridgeReply<Payload>.decode(bridge.connections(limit: Int32(clamping: limit)))
+        if reply.code == .configUnsupported {
+            throw CoreError.unsupportedFeature(.connectionList)
+        }
+        guard reply.code == .ok, let list = reply.data else {
+            let code = reply.code == .ok ? BridgeCode.internalError : reply.code
+            throw BridgeEngineDriver.coreError(code, message: reply.error, during: .statistics, timeout: nil)
+        }
+        return list
+    }
+
     package func health() async -> CoreHealth {
         let now = clock()
         let (currentPhase, currentPump, gone, previous) = withLock { (phase, pump, engineGone, lastHealthCounters) }
