@@ -71,6 +71,6 @@ gh run watch <id>; gh run view <id> --log-failed
 ## 6. Что остаётся владельцу
 
 - **Экспортный контроль.** Ключ `ITSAppUsesNonExemptEncryption` не задан намеренно: это юридическое заявление. Пока владелец не ответит в App Store Connect (TestFlight → сборка → Missing Compliance), сборка помечена «Missing Compliance» и тестировщикам недоступна.
-- **App Group для расширения Mihomo** (нужен для `flavour=Dual`). Идентификатор `com.gbnconnect.app.mihomo` workflow регистрирует сам, а привязать к нему App Group API App Store Connect не умеет: Developer portal → Identifiers → `com.gbnconnect.app.mihomo` → App Groups → `group.com.gbnconnect.app` → Save. Проверка 2026-11-28 (прогон 46090070167, `upload=false`) ещё остановилась на этом шаге.
+- **App Group для расширения Mihomo** (нужен для `flavour=Dual`). Идентификатор `com.gbnconnect.app.mihomo` workflow регистрирует сам, а привязать к нему App Group API App Store Connect не умеет: Developer portal → Identifiers → `com.gbnconnect.app.mihomo` → App Groups → `group.com.gbnconnect.app` → Save. Проверка 2026-11-28 (прогон 46090070167, `upload=false`) ещё остановилась на этом шаге; `flavour=XrayOnly` с `upload=false` (прогон 46092132390) подписан и проверен `verify-ipa.sh`.
 - Предупреждение 90725: с апреля 2027 г. потребуется iOS 27 SDK (Xcode 27) — шаг выбора Xcode возьмёт новейший Xcode 2x на образе.
 - Профили `NetworkPlatform CI AppStore …` созданы конвейером в аккаунте разработчика; профили и сборки прежнего приложения не трогаются.

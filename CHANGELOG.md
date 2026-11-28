@@ -6,6 +6,23 @@
 
 ## Не выпущено
 
+### Добавлено (интеграция `byk/*`, 2026-11-28; ветка `byk/integration`)
+
+Шесть веток слиты одним интеграционным проходом (`byk/design` перемоткой, затем `subs`, `routing`, `tools`, `dual`, `auto`). Linux: весь пакет 761 тест, 0 падений (1 пропущен); CI на `02ee4cb` зелёный (apple 46091031211, swift-package 46091033654, bridge-go 46091036324, mihomo-bridge-go 46091039043). Новая сборка TestFlight не загружена (см. `STATUS.md` §2.11). Всё ниже на устройстве не запускалось.
+
+- `byk/design`: модуль `DesignSystem` (токены, шрифты Unbounded и Golos Text под SIL OFL 1.1, элемент подключения «рога» с измеренной скоростью), оболочка заново: реестр экранов `AppDestination` и три уровня (Обычный / Расширенный / Профи), навигация по платформам (вкладки на iPhone, боковая панель на iPad/Mac/visionOS), пункт в строке меню macOS, панель tvOS, иконка, генерируемая `Tools/make-app-icon.py` (заменяет `make-placeholder-icon.py`). `accentText` #8F6620 для текста бронзой (контраст 5,14:1).
+- `byk/subs`: подписки — условное обновление (ETag / If-Modified-Since, 304), предел 4 МБ и 30 с, правки пользователя сохраняются, отчёт добавлено/удалено/изменено; «Авто» — группа движка (Xray: `leastPing` + observatory; Mihomo: `url-test` внутри `select`); переключение сервера без перезапуска туннеля — новые функции C ABI v1 `npb_observe`, `npb_select` (добавлены, существующие не менялись); `ServerHealthBook` и объяснение выбора; фоновое обновление на iOS (`BGAppRefreshTask`); экраны профиля и подписки.
+- `byk/routing`: модуль `RoutingPolicy` — три пресета, свои правила, списки по адресу (2 МиБ, 10k/20k записей, только по запросу), DNS (UDP/TCP/DoH/DoT, сервер для доменов, только IPv4, защита от утечек); компилятор правил Xray (`ruleTag`, сниффинг `routeOnly`), inline rule-providers Mihomo; экраны «Правила», «DNS» (Расширенный), «Маршрут» (Профи). Паритет симулятора с обоими скомпилированными конфигами — 6 наборов × 528 запросов; `xray run -test` / `mihomo -t` — 12/12.
+- `byk/tools`: модуль `NetworkToolbox` (TCP-пинг, порт, DNS своим кодеком, сертификат, тайминги HTTPS, адреса, проверка утечки DNS, вырезание данных из выгрузки); экраны «Проверки сети» и «Анализатор» (Профи); `npb_connections` (Mihomo — список соединений, Xray — код 5); счётчики по выходам в `.statistics` (необязательные поля).
+- `byk/dual`: модуль `EngineSelection` — движок на профиль (Авто / Xray / Mihomo) по отчётам компиляторов, потери перечисляются до подключения, последняя рабочая настройка и одна автоматическая повторная попытка (откат или другой движок); диагностика движка по IPC `.diagnostics`; сборка TestFlight «Бык» — `Dual` (расширения `com.gbnconnect.app.tun` и `com.gbnconnect.app.mihomo`), `verify-ipa.sh` проверяет список расширений.
+- `byk/auto`: модуль `TunnelAutomation` — автоподключение по типу сети, доверенные сети Wi-Fi, `includeAllNetworks` / `excludeLocalNetworks` через `NETunnelProviderManager`; экран «Автоподключение»; 5 действий «Команд» (App Intents); запуск при входе на macOS.
+
+### Изменено (интеграция, 2026-11-28)
+
+- `testflight.yml`: параметр `flavour` (`Dual` по умолчанию или `XrayOnly`). `XrayOnly` не регистрирует идентификатор Mihomo, не просит его профиль и не собирает мост Mihomo — сборку можно загрузить, пока App Group не привязан к `com.gbnconnect.app.mihomo` в портале (прогон 46090070167 остановился на этом).
+- Раздел «Настройки» на iPhone: «Правила», «DNS» и «Автоподключение» — строками в начале экрана настроек через общий механизм `areaSubdestinations` (вместо отдельного параметра `linked` ветки `routing`).
+- Политика маршрутов компилируется по профилю уже с группой «Авто», поэтому правила «через VPN» ведут в группу выбора, а не в первый сервер; движок для «DNS» и объяснения «Авто» берётся из выбора движка профиля (глобального выбора движка больше нет).
+
 ### Добавлено (TestFlight, 2026-11-27)
 
 - `.github/workflows/testflight.yml`: подписанная сборка `Release-XrayOnly` для iPhone/iPad с наложением `Apps/Configurations/Byk.xcconfig` (приложение `com.gbnconnect.app`, расширение `com.gbnconnect.app.tun`, группа `group.com.gbnconnect.app`, имя «Бык»), Xcode 26+, временная связка ключей, загрузка только во внутреннее тестирование TestFlight; `CFBundleVersion = 404 + номер запуска`. `Tools/asc.py` (preflight, профили App Store, ожидание `VALID`, внутренняя группа), `Tools/verify-ipa.sh`, `Tools/make-placeholder-icon.py`, `Documentation/Apple/TESTFLIGHT.md`. Переменные `NP_XRAY_EXTENSION_BUNDLE_ID`, `NP_DISPLAY_NAME`, `NP_APP_PROFILE_SPECIFIER`, `NP_XRAY_EXTENSION_PROFILE_SPECIFIER` в `Base.xcconfig` (умолчания не меняют неподписанные сборки).
