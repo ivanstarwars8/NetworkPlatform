@@ -15,7 +15,7 @@ extension TunnelController {
     func performPrimaryAction(library: ProfileLibraryModel) async {
         switch phase.action {
         case .connect: await connect(using: library)
-        case .disconnect: disconnect()
+        case .disconnect: await disconnect()
         case .none: break
         }
     }

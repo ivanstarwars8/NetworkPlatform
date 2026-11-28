@@ -192,6 +192,9 @@ targetTemplates:
       # Tokens, fonts (SIL OFL, package resources) and components of the UI; SwiftUI only, no engine code.
       - package: NetworkPlatform
         product: DesignSystem
+      # Automatic connection and traffic-lock settings mapped onto the VPN configuration (Foundation only).
+      - package: NetworkPlatform
+        product: TunnelAutomation
       - sdk: NetworkExtension.framework
 
   PacketTunnel:

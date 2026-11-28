@@ -15,6 +15,13 @@ final class AppShellTests: XCTestCase {
         XCTAssertFalse(basic.contains(.engineDiagnostics), "engine diagnostics is a Профи screen")
     }
 
+    /// Автоподключение lives in the Настройки area after the settings screen itself (the area's first screen is
+    /// what its tab opens; the rest are reached from it).
+    func testAutomationIsASettingsScreen() {
+        XCTAssertEqual(AppArea.settings.destinations(at: .basic), [.settings, .automation])
+        XCTAssertEqual(AppDestination.automation.level, .basic)
+    }
+
     func testHigherLevelsIncludeLowerOnes() {
         for lower in ExperienceLevel.allCases {
             for higher in ExperienceLevel.allCases where higher >= lower {

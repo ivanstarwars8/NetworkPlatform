@@ -4,14 +4,16 @@
 // App shell shared by all platforms: profiles (import, selection, compilation for the start request) and the
 // tunnel (VPN configuration, start/stop, diagnostics). The app links no engine (ADR-0001 rule 2).
 // Navigation per platform is in Shell/RootView.swift; macOS adds a menu bar item (Shell/MenuBarContent.swift).
+// Shortcuts actions (App Intents) are in Features/Automation/TunnelIntents.swift and use the same instances.
 
 import DesignSystem
 import SwiftUI
 
 @main
 struct NetworkPlatformApp: App {
-    @StateObject private var tunnel = TunnelController()
-    @StateObject private var library = ProfileLibraryModel(catalog: .thisBuild)
+    // The same instances serve the windows, the menu bar item and the Shortcuts actions (Shell/AppModel.swift).
+    @StateObject private var tunnel = AppModel.tunnel
+    @StateObject private var library = AppModel.library
 
     init() {
         AppearanceSetup.apply()

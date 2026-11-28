@@ -108,13 +108,14 @@ enum AppDestination: String, CaseIterable, Identifiable, Sendable {
     case profiles
     case engineDiagnostics
     case settings
+    case automation
 
     var id: String { rawValue }
 
     /// The lowest level the screen is shown at.
     var level: ExperienceLevel {
         switch self {
-        case .connection, .profiles, .settings: return .basic
+        case .connection, .profiles, .settings, .automation: return .basic
         case .engineDiagnostics: return .pro
         }
     }
@@ -124,7 +125,7 @@ enum AppDestination: String, CaseIterable, Identifiable, Sendable {
         case .connection: return .connection
         case .profiles: return .profiles
         case .engineDiagnostics: return .tools
-        case .settings: return .settings
+        case .settings, .automation: return .settings
         }
     }
 
@@ -134,6 +135,7 @@ enum AppDestination: String, CaseIterable, Identifiable, Sendable {
         case .profiles: return "Профили"
         case .engineDiagnostics: return "Диагностика движка"
         case .settings: return "Настройки"
+        case .automation: return "Автоподключение"
         }
     }
 
@@ -143,6 +145,7 @@ enum AppDestination: String, CaseIterable, Identifiable, Sendable {
         case .profiles: return "list.bullet.rectangle"
         case .engineDiagnostics: return "stethoscope"
         case .settings: return "gearshape"
+        case .automation: return "bolt.horizontal.circle"
         }
     }
 
@@ -150,6 +153,7 @@ enum AppDestination: String, CaseIterable, Identifiable, Sendable {
     var summary: String? {
         switch self {
         case .engineDiagnostics: return "Состояние движка, память расширения, счётчики трафика."
+        case .automation: return "Когда подключаться самому, доверенные сети Wi-Fi, весь трафик через туннель."
         case .connection, .profiles, .settings: return nil
         }
     }

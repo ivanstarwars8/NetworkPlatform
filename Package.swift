@@ -35,6 +35,9 @@ allTargets += [
     .target(name: "DesignSystem", path: "Packages/DesignSystem/Sources/DesignSystem", resources: [.copy("Resources/Fonts")]),
     .testTarget(name: "DesignSystemTests", dependencies: ["DesignSystem"], path: "Packages/DesignSystem/Tests/DesignSystemTests"),
 ]
+// Automatic connection and traffic-lock settings, their on-demand rule plan and when on-demand may be on
+// (Documentation/Architecture/automation.md). Foundation only; the app maps the plan onto NEVPNManager.
+allTargets += lib("TunnelAutomation")
 allTargets += [.executableTarget(name: "RoutingBench", dependencies: ["RoutingEngine"], path: "Benchmarks/RoutingBench", exclude: ["run-all.sh"])]
 
 let package = Package(
@@ -48,6 +51,7 @@ let package = Package(
         .library(name: "AdaptiveBalancer", targets: ["AdaptiveBalancer"]),
         .library(name: "ProfileLibrary", targets: ["ProfileLibrary"]),
         .library(name: "DesignSystem", targets: ["DesignSystem"]),
+        .library(name: "TunnelAutomation", targets: ["TunnelAutomation"]),
         .library(name: "EngineBridge", targets: ["EngineBridge"]),
         .library(name: "EngineXray", targets: ["EngineXray"]),
         .library(name: "EngineMihomo", targets: ["EngineMihomo"]),

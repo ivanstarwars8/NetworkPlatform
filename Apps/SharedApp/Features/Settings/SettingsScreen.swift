@@ -12,11 +12,25 @@ struct SettingsScreen: View {
     @EnvironmentObject private var tunnel: TunnelController
     @EnvironmentObject private var library: ProfileLibraryModel
     @AppStorage(ExperienceLevel.storageKey) private var storedLevel = ExperienceLevel.basic.rawValue
+    @Environment(\.areaSubdestinations) private var subdestinations
 
     private var level: ExperienceLevel { .effective(storedRawValue: storedLevel) }
 
     var body: some View {
         List {
+            if !subdestinations.isEmpty {
+                Section {
+                    ForEach(subdestinations) { destination in
+                        NavigationLink {
+                            destination.screen
+                        } label: {
+                            DestinationLabel(destination: destination, showsSummary: true)
+                        }
+                        .bykRow()
+                    }
+                }
+            }
+
             Section {
                 ForEach(ExperienceLevel.selectable, id: \.self) { candidate in
                     Button {

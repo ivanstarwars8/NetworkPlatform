@@ -46,6 +46,9 @@ struct MenuBarContent: View {
     var body: some View {
         let phase = tunnel.phase
         Text(phase.stateWord)
+        if tunnel.automation.connectOnDemand {
+            Text(tunnel.onDemandStatus.shortTitle)
+        }
 
         if let title = phase.actionTitle {
             Button(title) {

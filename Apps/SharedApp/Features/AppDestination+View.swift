@@ -12,6 +12,7 @@ extension AppDestination {
         case .profiles: ProfilesScreen()
         case .engineDiagnostics: DiagnosticsView()
         case .settings: SettingsScreen()
+        case .automation: AutomationScreen()
         }
     }
 }
