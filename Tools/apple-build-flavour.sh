@@ -14,6 +14,7 @@
 #    its core is present and the other core's is absent, and so is the other engine's Swift adapter module;
 #  - the app binary links no Go and no bridge (no npb_* symbols, no Go core package paths);
 #  - LC_BUILD_VERSION platform and minimum OS of each extension binary.
+#  - App Intents metadata of the five Shortcuts actions in the app bundle (not tvOS).
 # Runs with the bash 3.2 of macOS (no mapfile, no associative arrays).
 # Logs: <derived-data>/<flavour>.log. Prints a summary line "RESULT <platform> <flavour> OK|FAILED <reason>".
 set -euo pipefail
@@ -127,5 +128,14 @@ app_npb=$(npb_symbols "${app_bins[@]}"); app_go=$(( $(count "$xray_core/" "${app
 app_engine=$(( $(count 10EngineXray "${app_bins[@]}") + $(count 12EngineMihomo "${app_bins[@]}") ))
 echo "app binaries (${#app_bins[@]}): npb symbols=$app_npb, Go core paths=$app_go, engine adapters=$app_engine"
 [ "$app_npb" -eq 0 ] && [ "$app_go" -eq 0 ] && [ "$app_engine" -eq 0 ] || result "FAILED the app links engine code"
+# Shortcuts actions (Apps/SharedApp/Features/Automation/TunnelIntents.swift): Xcode writes their metadata into the
+# bundle only when the app links AppIntents. Without it the system never learns about the actions. Not built for tvOS.
+if [ "$platform" != tvOS ]; then
+  meta="$(find "$app" -path "$plugins" -prune -o -type d -name Metadata.appintents -print | head -1)"
+  [ -n "$meta" ] && [ -f "$meta/extract.actionsdata" ] || result "FAILED no App Intents metadata (Metadata.appintents/extract.actionsdata) in the app"
+  intents="$(grep -a -o -E '"(Connect|Disconnect|Toggle)TunnelIntent"|"SelectProfileIntent"|"TunnelStatusIntent"' "$meta/extract.actionsdata" | sort -u | tr -d '"' | tr '\n' ' ')"
+  echo "app intents metadata: ${intents:-none}"
+  [ "$(echo "$intents" | wc -w | tr -d ' ')" -eq 5 ] || result "FAILED App Intents metadata lists '${intents}', expected 5 actions"
+fi
 du -sh "$app" "$app_bin"
 result OK
