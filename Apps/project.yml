@@ -196,6 +196,9 @@ targetTemplates:
       - package: NetworkPlatform
         product: TunnelAutomation
       - sdk: NetworkExtension.framework
+      # Linked explicitly: without it Xcode skips App Intents metadata extraction and the Shortcuts actions
+      # (Features/Automation/TunnelIntents.swift) are not registered with the system.
+      - sdk: AppIntents.framework
 
   PacketTunnel:
     type: app-extension

@@ -578,21 +578,24 @@ final class TunnelController: ObservableObject {
     /// Waits, without polling, until a connect or disconnect request has finished (or `seconds` passed); for
     /// shortcuts, which report the outcome.
     func waitUntilSettled(_ goal: TunnelSettle.Goal, seconds: Double) async {
-        await withTaskGroup(of: Void.self) { group in
-            group.addTask { @MainActor [weak self] in
-                guard let self = self else { return }
-                var sawTransition = false
-                for await value in self.$status.values {
-                    if TunnelSettle.isTransition(statusRawValue: value.rawValue) { sawTransition = true }
-                    if TunnelSettle.isSettled(statusRawValue: value.rawValue, goal: goal, sawTransition: sawTransition) { return }
-                }
+        let waiter = Task { @MainActor [weak self] in
+            guard let self = self else { return }
+            var sawTransition = false
+            for await value in self.$status.values {
+                if TunnelSettle.isTransition(statusRawValue: value.rawValue) { sawTransition = true }
+                if TunnelSettle.isSettled(statusRawValue: value.rawValue, goal: goal, sawTransition: sawTransition) { return }
             }
-            group.addTask {
-                try? await Task.sleep(for: .seconds(seconds))
-            }
-            await group.next()
-            group.cancelAll()
         }
+        let timer = Task {
+            try? await Task.sleep(for: .seconds(seconds))
+            waiter.cancel()
+        }
+        await withTaskCancellationHandler {
+            await waiter.value
+        } onCancel: {
+            waiter.cancel()
+        }
+        timer.cancel()
     }
 }
 
