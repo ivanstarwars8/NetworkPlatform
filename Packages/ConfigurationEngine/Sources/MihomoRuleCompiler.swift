@@ -15,6 +15,13 @@ struct MihomoRuleCompiler {
     /// Copies of proxies with `dialer-proxy`, one per chain hop after the first.
     private(set) var chainProxies: [YAMLNode] = []
     private var chainNames: [[String]: String] = [:]
+    /// Inline rule providers (`rule-providers`, `type: inline`) for long single-field rules.
+    private(set) var ruleProviders: [YAMLPair] = []
+
+    /// A flat rule with only domains (exact or suffix) or only addresses, and at least this many values,
+    /// becomes one `RULE-SET` over an inline provider instead of one rule line per value: the core matches a
+    /// domain provider with a trie and an address provider with a range set, not line by line. Project choice.
+    static let providerThreshold = 16
 
     /// Ranges per `DST-PORT`/`SRC-PORT` payload (`common/utils/ranges.go`).
     static let maximumPortRanges = 28
@@ -58,6 +65,22 @@ struct MihomoRuleCompiler {
             let path = rule.sourceRuleIndex.map { "options.routing.rules[\($0)]" } ?? "options.routing.finalAction"
             do {
                 let target = try self.target(rule.action)
+                if let provider = MihomoRuleCompiler.provider(for: rule) {
+                    let name = "set-" + MihomoConfigCompiler.padded(ruleProviders.count)
+                    ruleProviders.append(YAMLPair(name, .mapping([
+                        YAMLPair("type", .string("inline")),
+                        YAMLPair("behavior", .string(provider.behavior)),
+                        YAMLPair("payload", .sequence(provider.payload.map { .string($0) })),
+                    ])))
+                    if provider.behavior == "ipcidr" {
+                        usesAddresses = true
+                        rules.append("RULE-SET,\(name),\(target)" + (resolveMode.noResolve ? ",no-resolve" : ""))
+                        if resolveMode.twoPasses { secondPass.append("RULE-SET,\(name),\(target)") }
+                    } else {
+                        rules.append("RULE-SET,\(name),\(target)")
+                    }
+                    continue
+                }
                 rules += try spell(rule, target: target, noResolve: resolveMode.noResolve)
                 if !rule.ips.isEmpty || !rule.excludedIPs.isEmpty {
                     usesAddresses = true
@@ -101,6 +124,22 @@ struct MihomoRuleCompiler {
             report.add("options.routing", .untested, .info, "Chains are compiled to proxies with 'dialer-proxy'; not covered by the end-to-end lab run")
         }
         return rules
+    }
+
+    /// The inline-provider form of a long single-field rule, or `nil`.
+    static func provider(for rule: FlatRule) -> (behavior: String, payload: [String])? {
+        let others = rule.excludedIPs.count + rule.ports.count + rule.sourceIPs.count + rule.sourcePorts.count
+            + rule.inboundTags.count + rule.users.count + rule.sniffedProtocols.count
+        guard others == 0, Set(rule.networks).subtracting([.tcp, .udp]).isEmpty,
+              rule.networks.isEmpty || Set(rule.networks) == [.tcp, .udp] else { return nil }
+        if rule.ips.isEmpty, rule.domains.count >= providerThreshold,
+           rule.domains.allSatisfy({ ($0.kind == .full || $0.kind == .suffix) && !$0.value.contains(",") && !$0.value.contains("*") && !$0.value.hasPrefix("+") && !$0.value.hasPrefix(".") }) {
+            return ("domain", rule.domains.map { $0.kind == .suffix ? "+." + $0.value : $0.value })
+        }
+        if rule.domains.isEmpty, rule.ips.count >= providerThreshold {
+            return ("ipcidr", rule.ips.map(\.description))
+        }
+        return nil
     }
 
     // MARK: - Targets

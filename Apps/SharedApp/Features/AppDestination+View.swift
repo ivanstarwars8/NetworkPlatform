@@ -1,5 +1,5 @@
 // compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
-// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46073714202 (workflow apple.yml)
+// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46077240856 (workflow apple.yml)
 //
 // Which view each destination opens. A new screen adds its case in AppDestination.swift and one line here.
 
@@ -10,8 +10,11 @@ extension AppDestination {
         switch self {
         case .connection: ConnectionScreen()
         case .profiles: ProfilesScreen()
+        case .routeSimulator: RouteSimulatorScreen()
         case .engineDiagnostics: DiagnosticsView()
         case .settings: SettingsScreen()
+        case .routingRules: RulesScreen()
+        case .dns: DNSScreen()
         }
     }
 }

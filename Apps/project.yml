@@ -189,6 +189,12 @@ targetTemplates:
         product: ConfigurationEngine
       - package: NetworkPlatform
         product: ProfileLibrary
+      # Routing and DNS settings, list parsing, route simulator (pure Swift; RoutingEngine is the model and
+      # the simulator's matcher, never in the packet path).
+      - package: NetworkPlatform
+        product: RoutingPolicy
+      - package: NetworkPlatform
+        product: RoutingEngine
       # Tokens, fonts (SIL OFL, package resources) and components of the UI; SwiftUI only, no engine code.
       - package: NetworkPlatform
         product: DesignSystem

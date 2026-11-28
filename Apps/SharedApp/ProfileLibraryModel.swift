@@ -1,6 +1,6 @@
 // compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
 // MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46079098963 (workflow apple.yml)
-// (Extends the file compiled on macOS CI in GitHub Actions run 46073714202 with subscriptions and server choice.)
+// (Subscriptions and server choice; merged on main with byk/routing's routing policy, compiled in run 46077240856.)
 //
 // The app's side of profiles (main actor): import of pasted share links and subscriptions, the profile file
 // with secrets in the Keychain (`ProfileStore`, `KeychainSecretStore`), subscriptions (`SubscriptionManager`:
@@ -56,6 +56,8 @@ final class ProfileLibraryModel: ObservableObject {
 
     /// The engines of this build (flavour), in the catalog's order.
     let availableEngines: [TunnelEngine]
+    /// Routing and DNS settings: every start request is compiled with them.
+    let routing = RoutingSettingsModel()
 
     private var store: ProfileStore?
     private var subscriptions: SubscriptionManager?
@@ -329,7 +331,7 @@ final class ProfileLibraryModel: ObservableObject {
         }
         let secrets = store.resolvedSecrets(of: profile)
         do {
-            let compiled = try TunnelStartCompiler().compile(
+            let compiled = try TunnelStartCompiler(policy: routing.compiler).compile(
                 profile, for: engine, choice: store.choice(forProfile: profile.id), resolveSecret: { secrets[$0.identifier] }
             )
             compileNotices = compiled.notices

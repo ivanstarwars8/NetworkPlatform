@@ -1,6 +1,7 @@
 import ConfigurationEngine
 import DomainModels
 import Foundation
+import RoutingPolicy
 @testable import ProfileLibrary
 import XCTest
 
@@ -211,6 +212,29 @@ final class ProfileFlowTests: XCTestCase {
         let handoff = ConfigurationHandoff(directory: directory.appendingPathComponent("StartHandoff"))
         XCTAssertEqual(try handoff.consume(try handoff.write(request)), request)
         XCTAssertTrue(String(decoding: request.configuration, as: UTF8.self).contains(Self.uuid))
+    }
+
+    func testRoutingPolicyReachesTheCompiledConfiguration() throws {
+        let (store, profile) = try storedProfile(Self.vless)
+        let secrets = store.resolvedSecrets(of: profile)
+        var settings = RoutingSettings(preset: .russiaDirect)
+        settings.customRules = [try CustomRule.make(kind: .domainSuffix, text: "example.com", target: .block).get()]
+        settings.remoteRuleSets = [RemoteRuleSet(name: "Не загружен", url: "https://example.com/l", target: .direct)]
+        let compiler = TunnelStartCompiler(policy: RoutingPolicyCompiler(settings: settings, ruleSets: [:]))
+        for engine in TunnelEngine.allCases {
+            let compiled = try compiler.compile(profile, for: engine, resolveSecret: { secrets[$0.identifier] })
+            let text = String(decoding: compiled.configuration, as: UTF8.self)
+            XCTAssertTrue(text.contains("example.com"), "\(engine): own rule compiled")
+            XCTAssertTrue(text.contains("xn--p1ai"), "\(engine): preset compiled")
+            XCTAssertTrue(compiled.notices.contains { $0.text.contains("Не загружен") }, "\(engine): the missing list is named")
+        }
+        // A stored rule that no longer parses is skipped and named, not compiled.
+        var broken = settings
+        broken.customRules = [CustomRule(kind: .ipCIDR, value: "not a cidr", target: .direct)]
+        broken.remoteRuleSets = []
+        let plain = try TunnelStartCompiler(policy: RoutingPolicyCompiler(settings: broken, ruleSets: [:]))
+            .compile(profile, for: .xray, resolveSecret: { secrets[$0.identifier] })
+        XCTAssertTrue(plain.notices.contains { $0.text.contains("не читается") })
     }
 
     func testMissingSecretBlocksCompilation() throws {

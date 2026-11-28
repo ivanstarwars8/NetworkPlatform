@@ -1,6 +1,6 @@
 // compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
 // MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46079098963 (workflow apple.yml)
-// (Changed from the file compiled on macOS CI in GitHub Actions run 46073714202: subscription refresh.)
+// (Merged on main with byk/routing, compiled in run 46077240856; recompile on main pending.)
 //
 // App shell shared by all platforms: profiles (import, selection, compilation for the start request) and the
 // tunnel (VPN configuration, start/stop, diagnostics). The app links no engine (ADR-0001 rule 2).
@@ -24,6 +24,7 @@ struct NetworkPlatformApp: App {
             RootView()
                 .environmentObject(tunnel)
                 .environmentObject(library)
+                .environmentObject(library.routing)
                 .bykScreen()
                 .task {
                     SubscriptionBackgroundRefresh.library = library

@@ -1,5 +1,5 @@
 // compiled on macOS CI, never run: Xcode 16.4, iOS/iPadOS, macOS, tvOS, visionOS, flavours XrayOnly,
-// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46073714202 (workflow apple.yml)
+// MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46077240856 (workflow apple.yml)
 //
 // Настройки: the level (which screens are shown), the engine of a build with two engines, and about the app
 // (version, engines in this build, bundled fonts and their licences).
@@ -13,10 +13,32 @@ struct SettingsScreen: View {
     @EnvironmentObject private var library: ProfileLibraryModel
     @AppStorage(ExperienceLevel.storageKey) private var storedLevel = ExperienceLevel.basic.rawValue
 
+    /// Other screens of the Настройки area shown as rows here (iPhone); in the sidebar they have their own rows.
+    let linked: [AppDestination]
+
+    init(linked: [AppDestination] = []) {
+        self.linked = linked
+    }
+
     private var level: ExperienceLevel { .effective(storedRawValue: storedLevel) }
 
     var body: some View {
         List {
+            if !linked.isEmpty {
+                Section {
+                    ForEach(linked) { destination in
+                        NavigationLink {
+                            destination.screen
+                        } label: {
+                            DestinationLabel(destination: destination, showsSummary: true)
+                        }
+                        .bykRow()
+                    }
+                } header: {
+                    SectionHeader("Маршруты")
+                }
+            }
+
             Section {
                 ForEach(ExperienceLevel.selectable, id: \.self) { candidate in
                     Button {

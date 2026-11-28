@@ -1,6 +1,7 @@
 import ConfigurationEngine
 import DomainModels
 import Foundation
+import RoutingPolicy
 
 /// The engines a profile can be compiled for. Raw values are the engines' `CoreDescriptor.id`, which is what
 /// `TunnelStartRequest.coreID` and `TunnelEngineCatalog` use.
@@ -63,10 +64,13 @@ public struct TunnelCompileFailure: Error, Sendable {
 public struct TunnelStartCompiler: Sendable {
     public var addressing: TunnelAddressing
     public var dnsServers: [String]
+    /// The user's routing and DNS settings. `nil`: everything through the selected route, `dnsServers`.
+    public var policy: RoutingPolicyCompiler?
 
-    public init(addressing: TunnelAddressing = .standard, dnsServers: [String] = []) {
+    public init(addressing: TunnelAddressing = .standard, dnsServers: [String] = [], policy: RoutingPolicyCompiler? = nil) {
         self.addressing = addressing
         self.dnsServers = dnsServers
+        self.policy = policy
     }
 
     /// Compiles `profile` for `engine`. For a profile with several servers and no groups of its own, all
@@ -93,13 +97,26 @@ public struct TunnelStartCompiler: Sendable {
             source = profile
             choice = .automatic
         }
+        var xrayOptions = XrayCompileOptions.packetTunnel(dnsServers: dnsServers, addressing: addressing)
+        var mihomoOptions = MihomoCompileOptions.packetTunnel(dnsServers: dnsServers, addressing: addressing)
+        var policyNotices: [ProfileNotice] = []
+        if let policy = policy {
+            switch policy.compile(for: source) {
+            case .success(let compiled):
+                xrayOptions = compiled.xrayOptions(addressing: addressing)
+                mihomoOptions = compiled.mihomoOptions(addressing: addressing)
+                policyNotices = compiled.notices.map { ProfileNotice(.warning, $0) }
+            case .failure(let error):
+                throw TunnelCompileFailure(notices: [ProfileNotice(.error, error.message)])
+            }
+        }
         let text: String?
         let report: ConversionReport
         let plan: XrayTunnelPlan?
         switch engine {
         case .xray:
             let compilation = XrayConfigCompiler(
-                options: .packetTunnel(dnsServers: dnsServers, addressing: addressing),
+                options: xrayOptions,
                 resolveSecret: resolveSecret
             ).compile(source)
             // `jsonText` fails only for values JSON cannot carry; reported as a blocked compilation.
@@ -108,14 +125,14 @@ public struct TunnelStartCompiler: Sendable {
             plan = compilation.tunnel
         case .mihomo:
             let compilation = MihomoConfigCompiler(
-                options: .packetTunnel(dnsServers: dnsServers, addressing: addressing),
+                options: mihomoOptions,
                 resolveSecret: resolveSecret
             ).compile(source)
             text = compilation.yamlText()
             report = compilation.report
             plan = compilation.tunnel
         }
-        let notices = extraNotices + TunnelStartCompiler.notices(of: report)
+        let notices = extraNotices + policyNotices + TunnelStartCompiler.notices(of: report)
         guard report.verdict != .blocked, let text = text, !text.isEmpty, let plan = plan else {
             var failure = notices.filter { $0.severity == .error }
             if failure.isEmpty {

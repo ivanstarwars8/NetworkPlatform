@@ -27,8 +27,18 @@ final class AppShellTests: XCTestCase {
     func testTabs() {
         XCTAssertEqual(AppArea.visible(at: .basic), [.connection, .profiles, .settings])
         XCTAssertEqual(AppArea.visible(at: .pro), [.connection, .profiles, .tools, .settings])
-        XCTAssertEqual(AppArea.tools.destinations(at: .pro), [.engineDiagnostics])
+        XCTAssertEqual(AppArea.tools.destinations(at: .pro), [.routeSimulator, .engineDiagnostics])
         XCTAssertTrue(AppArea.tools.destinations(at: .basic).isEmpty)
+    }
+
+    /// Расширенный adds the routing rules and DNS under Настройки; the simulator is a Профи tool.
+    func testAdvancedLevelAddsRoutingAndDNS() {
+        XCTAssertEqual(AppArea.settings.destinations(at: .basic), [.settings])
+        XCTAssertEqual(AppArea.settings.destinations(at: .advanced), [.settings, .routingRules, .dns])
+        XCTAssertEqual(AppArea.visible(at: .advanced), [.connection, .profiles, .settings], "no tools below Профи")
+        XCTAssertTrue(ExperienceLevel.selectable.contains(.advanced))
+        XCTAssertEqual(ExperienceLevel.effective(storedRawValue: "advanced"), .advanced)
+        XCTAssertEqual(AppDestination.routeSimulator.level, .pro)
     }
 
     /// A level that adds no screen is not offered (it would be a control that changes nothing).

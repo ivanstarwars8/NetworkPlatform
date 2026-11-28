@@ -1,5 +1,6 @@
 import Foundation
 import DomainModels
+import RoutingEngine
 
 /// Memory-related shape of the compiled configuration.
 public enum XrayMemoryProfile: String, Codable, Hashable, Sendable {
@@ -14,7 +15,7 @@ public enum XrayMemoryProfile: String, Codable, Hashable, Sendable {
 }
 
 /// Inputs of a compilation that are not part of `Profile`.
-/// The model has no routing or DNS section yet; what the compiler can take is listed here.
+/// The profile model has no routing or DNS section; the app's routing policy arrives here.
 public struct XrayCompileOptions: Codable, Hashable, Sendable {
     /// `debug`, `info`, `warning`, `error` or `none`.
     public var logLevel: String
@@ -29,19 +30,36 @@ public struct XrayCompileOptions: Codable, Hashable, Sendable {
     /// path needs (`tun.mode = "flow"`), DNS hijacking into the core's resolver, and routing that keeps
     /// the proxy servers and local networks out of the proxy. `nil` emits no tunnel.
     public var tunnel: TunnelAddressing?
+    /// Routing rules (RoutingEngine). `nil`: everything goes to the selected route.
+    public var routing: RoutingTable?
+    /// Servers used only for some domains, queried before `dnsServers` for those names.
+    public var dnsDomainServers: [DNSDomainServer]
+    /// `false`: the resolver asks for IPv4 addresses only (`queryStrategy: UseIPv4`).
+    public var dnsIPv6: Bool
+    /// `false` (default, leak protection): the resolver's own queries always go through the selected
+    /// route. `true`: they follow the routing rules like any other connection.
+    public var dnsFollowsRules: Bool
 
     public init(
         logLevel: String = "warning",
         localSOCKSPort: UInt16? = nil,
         dnsServers: [String] = [],
         memoryProfile: XrayMemoryProfile = .standard,
-        tunnel: TunnelAddressing? = nil
+        tunnel: TunnelAddressing? = nil,
+        routing: RoutingTable? = nil,
+        dnsDomainServers: [DNSDomainServer] = [],
+        dnsIPv6: Bool = true,
+        dnsFollowsRules: Bool = false
     ) {
         self.logLevel = logLevel
         self.localSOCKSPort = localSOCKSPort
         self.dnsServers = dnsServers
         self.memoryProfile = memoryProfile
         self.tunnel = tunnel
+        self.routing = routing
+        self.dnsDomainServers = dnsDomainServers
+        self.dnsIPv6 = dnsIPv6
+        self.dnsFollowsRules = dnsFollowsRules
     }
 
     /// Options for the Packet Tunnel extension: the tunnel with the shared addresses and the mobile
@@ -49,13 +67,14 @@ public struct XrayCompileOptions: Codable, Hashable, Sendable {
     public static func packetTunnel(
         dnsServers: [String] = [],
         addressing: TunnelAddressing = .standard,
+        routing: RoutingTable? = nil,
         logLevel: String = "warning"
     ) -> XrayCompileOptions {
-        XrayCompileOptions(logLevel: logLevel, dnsServers: dnsServers, memoryProfile: .mobile, tunnel: addressing)
+        XrayCompileOptions(logLevel: logLevel, dnsServers: dnsServers, memoryProfile: .mobile, tunnel: addressing, routing: routing)
     }
 
     private enum CodingKeys: String, CodingKey {
-        case logLevel, localSOCKSPort, dnsServers, memoryProfile, tunnel
+        case logLevel, localSOCKSPort, dnsServers, memoryProfile, tunnel, routing, dnsDomainServers, dnsIPv6, dnsFollowsRules
     }
 
     public init(from decoder: Decoder) throws {
@@ -66,6 +85,10 @@ public struct XrayCompileOptions: Codable, Hashable, Sendable {
         // absent in options encoded before the field existed
         memoryProfile = try container.decodeIfPresent(XrayMemoryProfile.self, forKey: .memoryProfile) ?? .standard
         tunnel = try container.decodeIfPresent(TunnelAddressing.self, forKey: .tunnel)
+        routing = try container.decodeIfPresent(RoutingTable.self, forKey: .routing)
+        dnsDomainServers = try container.decodeIfPresent([DNSDomainServer].self, forKey: .dnsDomainServers) ?? []
+        dnsIPv6 = try container.decodeIfPresent(Bool.self, forKey: .dnsIPv6) ?? true
+        dnsFollowsRules = try container.decodeIfPresent(Bool.self, forKey: .dnsFollowsRules) ?? false
     }
 }
 
@@ -232,7 +255,13 @@ public struct XrayConfigCompiler: Sendable {
                 report.verdict = .blocked
                 return XrayCompilation(config: nil, report: report)
             }
-            if report.issues.contains(where: { $0.severity == .error && $0.path.hasPrefix("options.dnsServers") }) {
+            for (index, entry) in options.dnsDomainServers.enumerated() where XrayConfigCompiler.bypassesRouting(dnsServer: entry.server) {
+                report.add(
+                    "options.dnsDomainServers[\(index)]", .unsupported, .error,
+                    "This DNS server would be queried outside the tunnel (system resolver or a '+local' scheme)"
+                )
+            }
+            if report.issues.contains(where: { $0.severity == .error && ($0.path.hasPrefix("options.dnsServers") || $0.path.hasPrefix("options.dnsDomainServers")) }) {
                 report.verdict = .blocked
                 return XrayCompilation(config: nil, report: report)
             }
@@ -246,8 +275,33 @@ public struct XrayConfigCompiler: Sendable {
         if !inbounds.isEmpty {
             root["inbounds"] = .array(inbounds)
         }
+        let unknownServers = dnsServers.enumerated().filter { !XrayConfigCompiler.understands(dnsServer: $0.element) }.map { "options.dnsServers[\($0.offset)]" }
+            + options.dnsDomainServers.enumerated().filter { !XrayConfigCompiler.understands(dnsServer: $0.element.server) }.map { "options.dnsDomainServers[\($0.offset)]" }
+        if !unknownServers.isEmpty {
+            for path in unknownServers {
+                report.add(path, .unsupported, .error, "Xray has no client for this DNS server notation (DNS over TLS is not supported by Xray)")
+            }
+            report.verdict = .blocked
+            return XrayCompilation(config: nil, report: report)
+        }
+        for (index, entry) in options.dnsDomainServers.enumerated() where !entry.hasValidDomains || entry.server.isEmpty {
+            report.add("options.dnsDomainServers[\(index)]", .invalid, .error, "A per-domain DNS server needs a server and plain host-name suffixes")
+            report.verdict = .blocked
+            return XrayCompilation(config: nil, report: report)
+        }
         if !dnsServers.isEmpty {
-            var dns: [String: JSONValue] = ["servers": .array(dnsServers.map { .string($0) })]
+            // Servers with `domains` are asked first for matching names (`app/dns/dns.go` sortClients).
+            let domainServers: [JSONValue] = options.dnsDomainServers.map { entry in
+                .object([
+                    "address": .string(entry.server),
+                    "domains": .array(entry.domains.map { .string("domain:" + $0) }),
+                    "skipFallback": .bool(true),
+                ])
+            }
+            var dns: [String: JSONValue] = ["servers": .array(domainServers + dnsServers.map { .string($0) })]
+            if !options.dnsIPv6 {
+                dns["queryStrategy"] = .string("UseIPv4")
+            }
             if tunnelPlan != nil {
                 dns["tag"] = .string(XrayConfigCompiler.dnsInternalTag)
             }
@@ -300,18 +354,46 @@ public struct XrayConfigCompiler: Sendable {
                 "port": .string("53"),
                 "outboundTag": .string(XrayConfigCompiler.dnsOutboundTag),
             ]))
-            // The resolver's own queries go where the user's traffic goes.
-            rules.append(.object(target.merging([
-                "type": .string("field"),
-                "inboundTag": .array([.string(XrayConfigCompiler.dnsInternalTag)]),
-            ]) { current, _ in current }))
+            // Leak protection: the resolver's own queries go through the selected route. Without it they
+            // follow the rules below like any other connection.
+            if !options.dnsFollowsRules {
+                rules.append(.object(target.merging([
+                    "type": .string("field"),
+                    "inboundTag": .array([.string(XrayConfigCompiler.dnsInternalTag)]),
+                ]) { current, _ in current }))
+            }
             rules.append(.object([
                 "type": .string("field"),
                 "ip": .array(plan.excludedRoutes.map { .string($0.cidr) }),
                 "outboundTag": .string(XrayConfigCompiler.directTag),
             ]))
         }
-        rules.append(.object(target.merging(["type": .string("field"), "network": .string("tcp,udp")]) { current, _ in current }))
+        if let table = options.routing {
+            var mainTags: Set<String> = []
+            if let main = profile.selectedTag ?? profile.outbounds.first?.tag { mainTags.insert(main) }
+            let ruleCompiler = XrayRuleCompiler(mainTarget: target, mainTags: mainTags, profile: profile, emittedTags: emittedTags)
+            guard let output = ruleCompiler.compile(table, report: &report) else {
+                report.verdict = .blocked
+                return XrayCompilation(config: nil, report: report)
+            }
+            rules += output.rules
+            routing["domainStrategy"] = .string(output.domainStrategy)
+            if output.usesDomains, tunnelPlan != nil, case .array(var list)? = root["inbounds"],
+               let tunIndex = list.firstIndex(where: { $0["tag"] == .string(XrayConfigCompiler.tunInboundTag) }),
+               case .object(var tun) = list[tunIndex] {
+                // Connections from the tunnel carry only an address; the name for domain rules is read from
+                // the first packet and used for routing only (the connection keeps its address).
+                tun["sniffing"] = .object([
+                    "enabled": .bool(true),
+                    "destOverride": .array([.string("http"), .string("tls"), .string("quic")]),
+                    "routeOnly": .bool(true),
+                ])
+                list[tunIndex] = .object(tun)
+                root["inbounds"] = .array(list)
+            }
+        } else {
+            rules.append(.object(target.merging(["type": .string("field"), "network": .string("tcp,udp")]) { current, _ in current }))
+        }
         routing["rules"] = .array(rules)
         root["routing"] = .object(routing)
 
@@ -354,6 +436,17 @@ public struct XrayConfigCompiler: Sendable {
     static func bypassesRouting(dnsServer: String) -> Bool {
         let lowered = dnsServer.trimmingCharacters(in: .whitespaces).lowercased()
         return lowered == "localhost" || lowered.contains("+local")
+    }
+
+    /// `false` for a server notation Xray has no client for (`app/dns/nameserver.go` NewServer: a bare
+    /// address, `localhost`, `fakedns`, or the schemes udp, tcp, https, h2c and their `+local` forms,
+    /// `quic+local`). DNS over TLS (`tls://`) is not among them.
+    static func understands(dnsServer: String) -> Bool {
+        let lowered = dnsServer.trimmingCharacters(in: .whitespaces).lowercased()
+        if lowered == "localhost" || lowered == "fakedns" { return true }
+        guard let schemeEnd = lowered.range(of: "://") else { return true } // a bare address (or host)
+        let scheme = lowered[..<schemeEnd.lowerBound]
+        return ["udp", "udp+local", "tcp", "tcp+local", "https", "https+local", "h2c", "h2c+local", "quic+local"].contains(String(scheme))
     }
 
     private static func padded(_ index: Int, width: Int) -> String {
