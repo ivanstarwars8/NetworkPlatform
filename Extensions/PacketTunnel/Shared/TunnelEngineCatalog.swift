@@ -7,8 +7,9 @@
 // no engine code (the app must not depend on engine modules).
 //
 // By default an extension's bundle identifier is the app's plus "." and the entry's suffix. A build whose
-// extension has another identifier (the "Byk" build: com.gbnconnect.app.tun, Apps/Configurations/Byk.xcconfig)
-// declares it in the app's Info.plist (`NPXrayExtensionBundleIdentifier`, from NP_XRAY_EXTENSION_BUNDLE_ID);
+// extension has another identifier (the "Byk" build: com.gbnconnect.app.tun and com.gbnconnect.app.mihomo,
+// Apps/Configurations/Byk.xcconfig) declares it in the app's Info.plist (`NPXrayExtensionBundleIdentifier`,
+// `NPMihomoExtensionBundleIdentifier`, from NP_XRAY_/NP_MIHOMO_EXTENSION_BUNDLE_ID);
 // `thisBuild` reads it into `bundleIdentifiers`, which wins over the suffix rule.
 
 import Foundation
@@ -36,7 +37,7 @@ struct TunnelEngineCatalog: Equatable, Sendable {
     }
 
     /// Info.plist keys of the app holding explicit extension bundle identifiers, by `coreID`.
-    static let infoPlistKeys = ["xray": "NPXrayExtensionBundleIdentifier"]
+    static let infoPlistKeys = ["xray": "NPXrayExtensionBundleIdentifier", "mihomo": "NPMihomoExtensionBundleIdentifier"]
 
     /// The engines of this build, from the flavour's compilation conditions (Apps/Configurations).
     static var thisBuild: TunnelEngineCatalog {

@@ -208,6 +208,37 @@ final class TunnelExchangeTests: XCTestCase {
         let statistics = TunnelRequest(version: TunnelIPC.protocolVersion, id: 8, body: .statistics)
         let trafficResponse = TunnelResponse(version: TunnelIPC.protocolVersion, id: 8, outcome: .statistics(traffic))
         XCTAssertEqual(try TunnelExchange.trafficReport(of: reply(trafficResponse), for: statistics), traffic)
+
+        let diagnostics = TunnelEngineDiagnostics(
+            coreID: "mihomo", coreVersion: "v1.19.34", goVersion: "go1.27.4", bridgeABI: 1, coreState: "running",
+            uptimeSeconds: 12.5, goHeapLiveBytes: 8_000_000, goHeapObjectsBytes: 9_000_000, goMappedBytes: 30_000_000,
+            goStacksBytes: 500_000, goroutines: 40, gcCycles: 3, goMemoryLimitBytes: 41_943_040,
+            physicalFootprintBytes: 45_000_000, memoryPressureWarnings: 0, memoryPressureCriticals: 0,
+            lifecycleError: nil, bridgeError: nil,
+            recentErrors: [.init(timeUnixMilliseconds: 1, kind: "core", message: "dial failed")], logRecordsDropped: 0
+        )
+        let diagnosticsRequest = TunnelRequest(version: TunnelIPC.protocolVersion, id: 9, body: .diagnostics)
+        XCTAssertEqual(TunnelExchange.decodeRequest(try TunnelExchange.encode(diagnosticsRequest)), .request(diagnosticsRequest))
+        let diagnosticsResponse = TunnelResponse(version: TunnelIPC.protocolVersion, id: 9, outcome: .diagnostics(diagnostics))
+        XCTAssertEqual(try TunnelExchange.diagnostics(of: reply(diagnosticsResponse), for: diagnosticsRequest), diagnostics)
+        assertIPCErrorSync(.unexpectedReply) { _ = try TunnelExchange.trafficReport(of: reply(diagnosticsResponse), for: diagnosticsRequest) }
+    }
+
+    func testDiagnosticsAreBounded() throws {
+        let long = String(repeating: "e", count: 5_000)
+        let many = (0..<50).map { TunnelEngineDiagnostics.ErrorRecord(timeUnixMilliseconds: Int64($0), kind: String(repeating: "k", count: 100), message: long) }
+        let report = TunnelEngineDiagnostics(
+            coreID: "xray", coreVersion: nil, goVersion: nil, bridgeABI: nil, coreState: "running", uptimeSeconds: nil,
+            goHeapLiveBytes: nil, goHeapObjectsBytes: nil, goMappedBytes: nil, goStacksBytes: nil, goroutines: nil,
+            gcCycles: nil, goMemoryLimitBytes: nil, physicalFootprintBytes: nil, memoryPressureWarnings: 0,
+            memoryPressureCriticals: 0, lifecycleError: long, bridgeError: long, recentErrors: many, logRecordsDropped: nil
+        ).bounded()
+        XCTAssertEqual(report.recentErrors.count, TunnelEngineDiagnostics.maximumRecentErrors)
+        XCTAssertEqual(report.recentErrors.last?.timeUnixMilliseconds, 49, "the newest are kept")
+        XCTAssertLessThanOrEqual(report.lifecycleError?.count ?? 0, TunnelEngineDiagnostics.maximumErrorLength + 1)
+        XCTAssertLessThanOrEqual(report.recentErrors[0].kind.count, 32)
+        let encoded = try XCTUnwrap(TunnelExchange.encode(TunnelResponse(version: TunnelIPC.protocolVersion, id: 1, outcome: .diagnostics(report))))
+        XCTAssertLessThan(encoded.count, 8 * 1024)
     }
 
     func testGroupReportAndSelectionRoundTrip() throws {

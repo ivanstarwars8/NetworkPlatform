@@ -37,7 +37,7 @@
 # ($(TeamIdentifierPrefix) expands to "<TeamID>." only when signed with a team). [U] for a signed build.
 #
 # Signed iOS build for TestFlight ("Byk" identity): .github/workflows/testflight.yml overlays
-# Configurations/Byk.xcconfig with `xcodebuild -xcconfig` on Release-XrayOnly; see Documentation/Apple/TESTFLIGHT.md.
+# Configurations/Byk.xcconfig with `xcodebuild -xcconfig` on Release-Dual (both extensions); see Documentation/Apple/TESTFLIGHT.md.
 #
 # Not covered: the Developer ID system-extension variant of macOS (ADR-0005 §3).
 
@@ -197,6 +197,11 @@ targetTemplates:
         product: RoutingPolicy
       - package: NetworkPlatform
         product: RoutingEngine
+      # Engine choice per profile, last known good, start supervisor (pure Swift; AdaptiveBalancer's policy types).
+      - package: NetworkPlatform
+        product: EngineSelection
+      - package: NetworkPlatform
+        product: AdaptiveBalancer
       # Tokens, fonts (SIL OFL, package resources) and components of the UI; SwiftUI only, no engine code.
       - package: NetworkPlatform
         product: DesignSystem
@@ -267,7 +272,9 @@ targets:
     settings:
       base:
         PRODUCT_NAME: PacketTunnelMihomo
-        PRODUCT_BUNDLE_IDENTIFIER: $(NP_BUNDLE_ID_PREFIX).PacketTunnelMihomo
+        # Default $(NP_BUNDLE_ID_PREFIX).PacketTunnelMihomo (Configurations/Base.xcconfig); Byk.xcconfig overrides it.
+        PRODUCT_BUNDLE_IDENTIFIER: $(NP_MIHOMO_EXTENSION_BUNDLE_ID)
+        PROVISIONING_PROFILE_SPECIFIER: $(NP_MIHOMO_EXTENSION_PROFILE_SPECIFIER)
         NP_ENGINE_CONDITIONS: NP_ENGINE_MIHOMO
     dependencies:
       # Adapter of the Mihomo bridge; the npb_* calls are in Extensions/PacketTunnel/MihomoBridgeBinding.swift.

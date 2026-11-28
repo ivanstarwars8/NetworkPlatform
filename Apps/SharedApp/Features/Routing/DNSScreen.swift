@@ -154,7 +154,9 @@ struct DNSScreen: View {
     }
 
     private var usesDoTWithXray: Bool {
-        guard library.engine == .xray else { return false }
+        // The engine the selected profile starts with (its engine choice); without a profile, the build's first.
+        let engine = library.selectedProfile.map { library.plannedEngine(for: $0) } ?? library.availableEngines.first
+        guard engine == .xray else { return false }
         let all = dns.servers + dns.domainServers.map(\.server)
         return all.contains { (try? DNSServer.parse($0).get())?.kind == .tls }
     }

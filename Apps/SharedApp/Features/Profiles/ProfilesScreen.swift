@@ -4,7 +4,8 @@
 //
 // Профили (level Обычный): the profiles, which one is in use, its choice («Авто» or a server) and subscription
 // state; adding a profile from a pasted share link, subscription address or subscription body; the import
-// report. One profile: ProfileDetailView.swift; subscription settings: SubscriptionSettingsView.swift.
+// report. One profile (servers, engine): ProfileDetailView.swift, EngineChoiceSection.swift; subscription
+// settings: SubscriptionSettingsView.swift.
 
 import DesignSystem
 import DomainModels

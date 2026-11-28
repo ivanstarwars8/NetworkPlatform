@@ -5,7 +5,7 @@ import RoutingPolicy
 
 /// The engines a profile can be compiled for. Raw values are the engines' `CoreDescriptor.id`, which is what
 /// `TunnelStartRequest.coreID` and `TunnelEngineCatalog` use.
-public enum TunnelEngine: String, CaseIterable, Sendable {
+public enum TunnelEngine: String, CaseIterable, Codable, Sendable {
     case xray
     case mihomo
 
@@ -49,9 +49,12 @@ public struct CompiledTunnelStart: Sendable, CustomStringConvertible {
 /// A compilation that produced nothing to start, with the compiler's reasons.
 public struct TunnelCompileFailure: Error, Sendable {
     public var notices: [ProfileNotice]
+    /// The compiler's report, when the compiler ran (engine choice reads what the engine could not express).
+    public var report: ConversionReport?
 
-    public init(notices: [ProfileNotice]) {
+    public init(notices: [ProfileNotice], report: ConversionReport? = nil) {
         self.notices = notices
+        self.report = report
     }
 
     public var summary: String {
@@ -138,7 +141,7 @@ public struct TunnelStartCompiler: Sendable {
             if failure.isEmpty {
                 failure = [ProfileNotice(.error, "the \(engine.rawValue) compiler produced no configuration")]
             }
-            throw TunnelCompileFailure(notices: failure)
+            throw TunnelCompileFailure(notices: failure, report: report)
         }
         var selectionPlan: ServerSelectionPlan?
         if automatic {

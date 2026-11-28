@@ -59,6 +59,11 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
 
     private let deadlines = TunnelDeadlines.standard
 
+    #if NP_ENGINE_XRAY || NP_ENGINE_MIHOMO
+    /// Error-level engine log records for the diagnostics request (bounded; filled off the packet path).
+    private let recentErrors = RecentEngineErrors()
+    #endif
+
     // MARK: Start and stop
 
     override func startTunnel(options: [String: NSObject]?) async throws {
@@ -197,6 +202,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         let session = self.session
         let log = self.log
         let engine = BridgeInfo.engine
+        let recentErrors = self.recentErrors
         return BridgeCoreEvents(
             unexpectedExit: { message in
                 log.error("\(message, privacy: .public)")
@@ -207,6 +213,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 }
             },
             log: { record in
+                recentErrors.note(record)
                 // Core messages may name destinations: private (ADR-0003 §4).
                 log.log(
                     level: PacketTunnelProvider.logType(record.level),
@@ -396,12 +403,74 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                     normalised.description
                 )
             }
+        case .diagnostics:
+            return TunnelResponse(version: TunnelIPC.protocolVersion, id: request.id, outcome: .diagnostics(await diagnostics()))
         }
     }
 
     private func engineFailure(_ error: Error, id: UInt64) -> TunnelResponse {
         let normalised = CoreError.normalise(error, during: .statistics)
         return TunnelExchange.failure(id: id, TunnelIPCError.Code(rawValue: normalised.code), normalised.description)
+    }
+
+    /// Engine diagnostics for the Профи screen. The bridge calls (`npb_version`, `npb_health`, `npb_memory`)
+    /// are valid in every state and cheap (runtime/metrics, no stop-the-world); they run off the cooperative
+    /// pool with the statistics deadline so that a stuck bridge cannot hold the app's request.
+    private func diagnostics() async -> TunnelEngineDiagnostics {
+        let status = await statusReport()
+        var report = TunnelEngineDiagnostics(
+            coreID: status.coreID,
+            coreVersion: nil,
+            goVersion: nil,
+            bridgeABI: nil,
+            coreState: status.coreState,
+            uptimeSeconds: nil,
+            goHeapLiveBytes: nil,
+            goHeapObjectsBytes: nil,
+            goMappedBytes: nil,
+            goStacksBytes: nil,
+            goroutines: nil,
+            gcCycles: nil,
+            goMemoryLimitBytes: nil,
+            physicalFootprintBytes: status.physicalFootprintBytes,
+            memoryPressureWarnings: status.memoryPressureWarnings,
+            memoryPressureCriticals: status.memoryPressureCriticals,
+            lifecycleError: status.lastError,
+            bridgeError: nil,
+            recentErrors: [],
+            logRecordsDropped: nil
+        )
+        #if NP_ENGINE_XRAY || NP_ENGINE_MIHOMO
+        report.coreID = report.coreID ?? BridgeInfo.engine
+        let snapshot = try? await CoreDeadline.run(.health, timeout: deadlines.statistics) {
+            await withCheckedContinuation { (continuation: CheckedContinuation<BridgeRuntimeSnapshot, Never>) in
+                DispatchQueue.global(qos: .utility).async {
+                    continuation.resume(returning: BridgeRuntimeSnapshot.read(from: CBridgeBinding()))
+                }
+            }
+        }
+        if let snapshot = snapshot {
+            report.coreVersion = snapshot.coreVersion
+            report.goVersion = snapshot.goVersion
+            report.bridgeABI = snapshot.abi
+            report.uptimeSeconds = snapshot.uptimeSeconds
+            report.goHeapLiveBytes = snapshot.goHeapLiveBytes
+            report.goHeapObjectsBytes = snapshot.goHeapObjectsBytes
+            report.goMappedBytes = snapshot.goMappedBytes
+            report.goStacksBytes = snapshot.goStacksBytes
+            report.goroutines = snapshot.goroutines
+            report.gcCycles = snapshot.gcCycles
+            report.goMemoryLimitBytes = snapshot.goMemoryLimitBytes
+            report.logRecordsDropped = snapshot.logDropped
+            if let code = snapshot.lastErrorCode {
+                report.bridgeError = "\(BridgeCode(rawValue: code)): \(snapshot.lastError ?? "")"
+            }
+        }
+        report.recentErrors = recentErrors.snapshot.map {
+            TunnelEngineDiagnostics.ErrorRecord(timeUnixMilliseconds: $0.timeUnixMilliseconds, kind: $0.kind, message: $0.message)
+        }
+        #endif
+        return report.bounded()
     }
 
     /// Never waits for the engine: the lifecycle actor answers while the

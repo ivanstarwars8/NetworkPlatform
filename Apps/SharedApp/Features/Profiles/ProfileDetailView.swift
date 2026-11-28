@@ -67,6 +67,8 @@ struct ProfileDetailView: View {
                 automaticSection(profile)
             }
 
+            EngineChoiceSection(profile: profile, isLocked: tunnelBusy && profile.id == library.selectedProfileID)
+
             serversSection(profile, isSubscription: isSubscription)
 
             if let error = library.selectionError, library.running?.profileID == profile.id {
@@ -183,7 +185,7 @@ struct ProfileDetailView: View {
         for outbound in profile.outbounds { names[outbound.tag] = ProfileLibraryModel.name(of: outbound) }
         let connected = running != nil && tunnel.status == .connected
         var text = AutoExplanation.text(
-            .init(connected: connected, choice: choice, current: running?.currentTag, engine: running?.engine ?? library.engine, names: names),
+            .init(connected: connected, choice: choice, current: running?.currentTag, engine: running?.engine ?? library.plannedEngine(for: profile), names: names),
             book: book
         )
         if tunnel.phase.action != .connect && running == nil && profile.id == library.selectedProfileID {

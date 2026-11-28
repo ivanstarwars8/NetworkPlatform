@@ -2,7 +2,7 @@
 // MihomoOnly and Dual, unsigned (CODE_SIGNING_ALLOWED=NO), GitHub Actions run 46073714202 (workflow apple.yml)
 //
 // The connect/disconnect action shared by the connection screen, the macOS menu bar item and the tvOS
-// dashboard, so that all three behave the same.
+// dashboard, so that all three behave the same. Starts go through the supervisor (rollback, engine fallback).
 
 import DesignSystem
 import Foundation
@@ -23,12 +23,12 @@ extension TunnelController {
     /// Compiles the selected profile first: a profile that cannot be compiled never touches the VPN
     /// configuration. Installs the configuration on first use (the system asks for permission).
     func connect(using library: ProfileLibraryModel) async {
-        guard let request = library.makeStartRequest() else { return }
+        guard let prepared = library.makeStartRequest() else { return }
         if !isInstalled {
             await install()
         }
         guard isInstalled else { return }
-        await connect(with: request)
+        await start(prepared, library: library)
     }
 }
 

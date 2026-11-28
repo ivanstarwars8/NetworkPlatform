@@ -168,7 +168,7 @@ enum AppDestination: String, CaseIterable, Identifiable, Sendable {
         case .routeSimulator: return "Куда пойдёт соединение к домену или адресу и какое правило это решило."
         case .toolbox: return "Пинг TCP, порт, DNS, HTTPS и сертификат, адреса, утечка DNS."
         case .analyzer: return "График трафика, соединения, выходы, ошибки и смена сети."
-        case .engineDiagnostics: return "Состояние движка, память расширения, счётчики трафика."
+        case .engineDiagnostics: return "Движок и почему он выбран, версии, память Go и расширения, горутины, ошибки."
         case .routingRules: return "Что идёт через VPN, что напрямую, что блокируется."
         case .dns: return "Серверы DNS, серверы для отдельных доменов, защита от утечек."
         case .connection, .profiles, .settings: return nil

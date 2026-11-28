@@ -21,5 +21,8 @@
 	<array>
 		<string>fetch</string>
 	</array>
+	<!-- Bundle identifier of the Mihomo extension; com.gbnconnect.app.mihomo in the Byk build. -->
+	<key>NPMihomoExtensionBundleIdentifier</key>
+	<string>$(NP_MIHOMO_EXTENSION_BUNDLE_ID)</string>
 </dict>
 </plist>

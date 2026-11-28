@@ -16,8 +16,18 @@
 
 import ConfigurationEngine
 import DomainModels
+import EngineSelection
 import Foundation
 import ProfileLibrary
+
+/// A compiled start and what identifies it: the request for the hand-off, the attempt for the supervisor, and
+/// the stored profile it was compiled from (recorded as last known good when the start proves itself).
+struct PreparedStart {
+    var request: TunnelStartRequest
+    var attempt: StartAttempt
+    var profileSnapshot: Profile
+    var decision: EngineDecision?
+}
 
 @MainActor
 final class ProfileLibraryModel: ObservableObject {
@@ -29,8 +39,8 @@ final class ProfileLibraryModel: ObservableObject {
     @Published private(set) var compileNotices: [ProfileNotice] = []
     @Published private(set) var lastError: String?
     @Published private(set) var isImporting = false
-    /// The engine the next start compiles for; one of `availableEngines`.
-    @Published var engine: TunnelEngine
+    /// Per-profile engine preferences, bumped on every change so that views re-read decisions.
+    @Published private(set) var engineChoiceRevision = 0
 
     /// Server choice per profile.
     @Published private(set) var choices: [UUID: ServerChoice] = [:]
@@ -58,14 +68,19 @@ final class ProfileLibraryModel: ObservableObject {
     let availableEngines: [TunnelEngine]
     /// Routing and DNS settings: every start request is compiled with them.
     let routing = RoutingSettingsModel()
+    let chooser: EngineChooser
 
     private var store: ProfileStore?
     private var subscriptions: SubscriptionManager?
+    /// Per-profile engine preferences and last known good starts (`engine-choices.json`).
+    private var engineChoices: EngineChoiceStore?
+    /// Engine support per profile, valid while the stored profile is unchanged (compiling is cheap but not free).
+    private var supportCache: [UUID: (profile: Profile, supports: [EngineSupport])] = [:]
 
     init(catalog: TunnelEngineCatalog) {
         let engines = catalog.coreIDs.compactMap(TunnelEngine.init(rawValue:))
         availableEngines = engines
-        engine = engines.first ?? .xray
+        chooser = EngineChooser(available: engines)
         do {
             let service = (Bundle.main.bundleIdentifier ?? "NetworkPlatform") + ".profiles"
             let directory = try ProfileLibraryModel.storeDirectory()
@@ -76,12 +91,20 @@ final class ProfileLibraryModel: ObservableObject {
                 records: SubscriptionRecordStore(directory: directory),
                 fetcher: URLSessionSubscriptionFetcher()
             )
+            do {
+                engineChoices = try EngineChoiceStore(directory: directory)
+            } catch let error as EngineChoiceStoreError {
+                lastError = "Выбор движков не прочитался (\(error.message)); для всех профилей действует «Авто»."
+            } catch {
+                lastError = "Выбор движков не прочитался (\(type(of: error))); для всех профилей действует «Авто»."
+            }
         } catch let error as ProfileStoreError {
             lastError = "Профили не открылись: \(error.message)."
         } catch {
             lastError = "Профили не открылись (\(type(of: error)))."
         }
         publish()
+        try? engineChoices?.retain(only: Set(profiles.map(\.id)))
     }
 
     /// Application Support on iOS, macOS and visionOS. tvOS gives apps no persistent local storage, so the
@@ -225,6 +248,8 @@ final class ProfileLibraryModel: ObservableObject {
     func remove(_ id: UUID) {
         perform { try $0.remove(id: id) }
         subscriptions?.forget(id)
+        supportCache[id] = nil
+        try? engineChoices?.forget(id)
         publish()
     }
 
@@ -320,15 +345,132 @@ final class ProfileLibraryModel: ObservableObject {
         return false
     }
 
+    // MARK: Engine choice
+
+    func enginePreference(for profileID: UUID) -> EnginePreference {
+        engineChoices?.preference(for: profileID) ?? .automatic
+    }
+
+    func setEnginePreference(_ preference: EnginePreference, for profileID: UUID) {
+        guard let engineChoices = engineChoices else {
+            lastError = "Выбор движка не сохраняется: файл выбора движков не открылся."
+            return
+        }
+        do {
+            try engineChoices.setPreference(preference, for: profileID)
+            engineChoiceRevision &+= 1
+            lastError = nil
+        } catch let error as EngineChoiceStoreError {
+            lastError = "Выбор движка не сохранился: \(error.message)."
+        } catch {
+            lastError = "Выбор движка не сохранился (\(type(of: error)))."
+        }
+    }
+
+    func lastKnownGood(for profileID: UUID) -> LastKnownGood? {
+        engineChoices?.lastKnownGood(for: profileID)
+    }
+
+    /// How completely each engine of the build carries the profile, from the compilers' reports.
+    func engineSupports(for profile: Profile) -> [EngineSupport] {
+        if let cached = supportCache[profile.id], cached.profile == profile { return cached.supports }
+        guard let store = store else { return [] }
+        let secrets = store.resolvedSecrets(of: profile)
+        let supports = availableEngines.map { engine in
+            EngineSupport.assess(profile, engine: engine, resolveSecret: { secrets[$0.identifier] })
+        }
+        supportCache[profile.id] = (profile, supports)
+        return supports
+    }
+
+    /// The engine the next start of `profile` uses and why.
+    func engineDecision(for profile: Profile) -> EngineDecision {
+        chooser.decide(
+            preference: enginePreference(for: profile.id),
+            supports: engineSupports(for: profile),
+            lastWorkingEngine: lastKnownGood(for: profile.id)?.engine
+        )
+    }
+
+    /// The engine the next start of `profile` uses; when no engine carries it, the build's first engine (the
+    /// start itself is then refused with the reason).
+    func plannedEngine(for profile: Profile) -> TunnelEngine {
+        engineDecision(for: profile).engine ?? availableEngines.first ?? .xray
+    }
+
+    /// What the supervisor needs when a start of `attempt` fails.
+    func failureContext(for attempt: StartAttempt) -> FailureContext {
+        guard let profile = profiles.first(where: { $0.id == attempt.profileID }) else {
+            return FailureContext(lastKnownGood: nil, preference: .automatic, completeAlternative: nil)
+        }
+        let alternative = engineSupports(for: profile).first { $0.engine != attempt.engine && $0.level == .complete }?.engine
+        return FailureContext(
+            lastKnownGood: lastKnownGood(for: profile.id),
+            preference: enginePreference(for: profile.id),
+            completeAlternative: alternative
+        )
+    }
+
+    /// Records a start that passed probation as the profile's last known good.
+    func recordGood(_ start: PreparedStart) {
+        guard let engineChoices = engineChoices, profiles.contains(where: { $0.id == start.attempt.profileID }) else { return }
+        let record = LastKnownGood(
+            profileID: start.attempt.profileID,
+            engine: start.attempt.engine,
+            configurationDigest: start.attempt.configurationDigest,
+            profile: start.profileSnapshot,
+            recordedAt: Date()
+        )
+        do {
+            try engineChoices.recordGood(record)
+            engineChoiceRevision &+= 1
+        } catch {
+            // Not fatal: only the rollback target is not updated.
+        }
+    }
+
     // MARK: Compilation
 
-    /// Compiles the selected profile for `engine` with its server choice. `nil` when nothing is selected or
-    /// the compilation is blocked; `compileNotices` and `lastError` then say why.
-    func makeStartRequest() -> TunnelStartRequest? {
-        guard let store = store, let profile = store.selectedProfile else {
+    /// Compiles the selected profile with the engine of its decision. `nil` when nothing is selected or the
+    /// compilation is blocked; `compileNotices` and `lastError` then say why. What the engine leaves out is
+    /// listed in `compileNotices` before the start, never dropped silently.
+    func makeStartRequest() -> PreparedStart? {
+        guard let profile = store?.selectedProfile else {
             lastError = "Сначала добавьте и выберите профиль."
             return nil
         }
+        let decision = engineDecision(for: profile)
+        guard let engine = decision.engine else {
+            compileNotices = decision.supports.flatMap(\.blockers).map { ProfileNotice(.error, $0) }
+            lastError = "Профиль нельзя запустить: \(decision.explanation)"
+            return nil
+        }
+        guard var prepared = compile(profile, for: engine, origin: .user) else { return nil }
+        prepared.decision = decision
+        compileNotices = decision.losses.map { ProfileNotice(.warning, "\(engine.displayName): \($0.russianText)") }
+            + compileNotices.filter { $0.severity == .error }
+        return prepared
+    }
+
+    /// The selected profile compiled for another engine (automatic fallback after a failed start).
+    func prepareFallback(to engine: TunnelEngine, profileID: UUID) -> PreparedStart? {
+        guard let profile = profiles.first(where: { $0.id == profileID }) else { return nil }
+        return compile(profile, for: engine, origin: .engineFallback)
+    }
+
+    /// The profile's last known good configuration, compiled again. Refused when the result is not the
+    /// configuration that worked (the profile's secrets or the compiler changed since).
+    func prepareRollback(to good: LastKnownGood) -> PreparedStart? {
+        guard let prepared = compile(good.profile, for: good.engine, origin: .rollback) else { return nil }
+        guard prepared.attempt.configurationDigest == good.configurationDigest else {
+            lastError = "Вернуть последнюю рабочую настройку нельзя: профиль или приложение изменились с тех пор. Подключитесь снова."
+            return nil
+        }
+        return prepared
+    }
+
+    private func compile(_ profile: Profile, for engine: TunnelEngine, origin: StartAttempt.Origin) -> PreparedStart? {
+        guard let store = store else { return nil }
         let secrets = store.resolvedSecrets(of: profile)
         do {
             let compiled = try TunnelStartCompiler(policy: routing.compiler).compile(
@@ -343,7 +485,14 @@ final class ProfileLibraryModel: ObservableObject {
                 profileID: profile.id, engine: engine, plan: compiled.selectionPlan,
                 currentTag: currentTag, pinned: compiled.choice != .automatic
             )
-            return TunnelStartRequest(compiled: compiled)
+            let request = TunnelStartRequest(compiled: compiled)
+            let attempt = StartAttempt(
+                profileID: profile.id,
+                engine: engine,
+                configurationDigest: TunnelDigest.sha256Hex(request.configuration),
+                origin: origin
+            )
+            return PreparedStart(request: request, attempt: attempt, profileSnapshot: profile, decision: nil)
         } catch let failure as TunnelCompileFailure {
             compileNotices = failure.notices
             lastError = "Профиль нельзя запустить: \(failure.summary)."

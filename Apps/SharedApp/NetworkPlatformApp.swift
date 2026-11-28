@@ -43,6 +43,10 @@ struct NetworkPlatformApp: App {
                         library.tunnelStopped()
                     }
                 }
+                // A probation timer may not have fired while the app was suspended.
+                .onChange(of: scenePhase) { _, phase in
+                    if phase == .active { tunnel.probationElapsed() }
+                }
                 #if os(macOS)
                 .frame(minWidth: 720, minHeight: 520)
                 #endif

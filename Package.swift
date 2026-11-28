@@ -30,6 +30,9 @@ allTargets += lib("EngineMihomo", deps: ["CoreAbstraction", "EngineBridge", "Con
 // RoutingTable both engine compilers take, and the route simulator's explanations. App-side, no engine code.
 allTargets += lib("RoutingPolicy", deps: ["DomainModels", "RoutingEngine", "ConfigurationEngine"], testDeps: ["DomainModels", "RoutingEngine", "ConfigurationEngine"])
 allTargets += lib("ProfileLibrary", deps: ["DomainModels", "ConfigurationEngine", "AdaptiveBalancer", "RoutingPolicy"], testDeps: ["DomainModels", "ConfigurationEngine", "RoutingPolicy"])
+// Engine choice per profile (Авто / Xray / Mihomo) from the compilers' reports, last known good records and the
+// start supervisor (rollback, engine fallback within AdaptiveBalancer's engine-switch limits). App-side only.
+allTargets += lib("EngineSelection", deps: ["DomainModels", "ConfigurationEngine", "ProfileLibrary", "AdaptiveBalancer"], testDeps: ["DomainModels", "ConfigurationEngine", "ProfileLibrary", "AdaptiveBalancer"])
 // Design tokens, the horn connect control and the app's components (Documentation/Design/DESIGN.md). The tokens,
 // state mapping and horn geometry are platform-neutral and tested on Linux; the SwiftUI parts compile only where
 // SwiftUI exists. Bundled fonts (SIL OFL 1.1) are resources. The tests also compile the app's screen registry
@@ -60,6 +63,7 @@ let package = Package(
         .library(name: "AdaptiveBalancer", targets: ["AdaptiveBalancer"]),
         .library(name: "RoutingPolicy", targets: ["RoutingPolicy"]),
         .library(name: "ProfileLibrary", targets: ["ProfileLibrary"]),
+        .library(name: "EngineSelection", targets: ["EngineSelection"]),
         .library(name: "DesignSystem", targets: ["DesignSystem"]),
         .library(name: "NetworkToolbox", targets: ["NetworkToolbox"]),
         .library(name: "EngineBridge", targets: ["EngineBridge"]),
